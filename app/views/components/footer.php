@@ -9,7 +9,11 @@
     </div>
     <div>
       <h3>Contact</h3>
-      <p><?= e($siteConfig['location_text']) ?></p>
+      <p>
+        <a href="<?= e($siteConfig['maps_url']) ?>" target="_blank" rel="noopener noreferrer">
+          <?= e($siteConfig['location_text']) ?>
+        </a>
+      </p>
       <p><a href="tel:<?= e($siteConfig['phone_href']) ?>"><?= e($siteConfig['phone']) ?></a></p>
       <p><a href="mailto:<?= e($siteConfig['email']) ?>"><?= e($siteConfig['email']) ?></a></p>
       <div class="social-links" aria-label="Social links">

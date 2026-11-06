@@ -22,7 +22,12 @@ $services = require __DIR__ . '/../../data/services.php';
       <p><strong>Phone:</strong> <a href="tel:<?= e($siteConfig['phone_href']) ?>"><?= e($siteConfig['phone']) ?></a></p>
       <p><strong>Email:</strong> <a href="mailto:<?= e($siteConfig['email']) ?>"><?= e($siteConfig['email']) ?></a></p>
       <p><strong>WhatsApp / Viber:</strong> <a href="<?= e($siteConfig['whatsapp']) ?>" target="_blank" rel="noopener noreferrer"><?= e($siteConfig['phone']) ?></a></p>
-      <p><strong>Location:</strong> <?= e($siteConfig['location_text']) ?></p>
+      <p>
+        <strong>Location:</strong>
+        <a href="<?= e($siteConfig['maps_url']) ?>" target="_blank" rel="noopener noreferrer">
+          <?= e($siteConfig['location_text']) ?>
+        </a>
+      </p>
     </div>
     <div class="service-card">
       <?php if (is_string($successMessage)): ?>

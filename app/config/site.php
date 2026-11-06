@@ -12,5 +12,6 @@ $siteConfig = [
     'viber' => 'viber://chat?number=%2B35797840173',
     'facebook' => 'https://facebook.com/adotind',
     'country' => 'Cyprus',
-    'location_text' => 'Cyprus (exact workshop address pending confirmation)',
+    'location_text' => 'A Dot Industry location on Google Maps',
+    'maps_url' => 'https://maps.app.goo.gl/YQuh9Twvw16KqsqNA?g_st=ic',
 ];
