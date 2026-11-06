@@ -439,23 +439,22 @@ p {
 .social-links a {
   display: inline-grid;
   place-content: center;
-  width: 36px;
-  height: 36px;
+  width: 30px;
+  height: 30px;
   border: 1px solid var(--line);
-  color: var(--text);
   background: #0e1725;
-  transition: border-color 0.2s ease, color 0.2s ease;
+  transition: border-color 0.2s ease, transform 0.2s ease;
 }
 
 .social-links a:hover {
   border-color: var(--accent);
-  color: var(--accent);
+  transform: translateY(-1px);
 }
 
-.social-links svg {
-  width: 18px;
-  height: 18px;
-  fill: currentColor;
+.social-links img {
+  width: 16px;
+  height: 16px;
+  display: block;
 }
 
 .footer-bottom {
