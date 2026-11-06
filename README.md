@@ -1,24 +1,27 @@
 # Adotind
 
-Multi-page static website for **Adotind Sign Factory**.
+Premium custom PHP website for **A Dot Industry**.
 
 ## Pages
 
-- `index.html` (Home)
-- `about.html`
-- `services.html`
-- `industries.html`
-- `contact.html`
+- `/` Home
+- `/about`
+- `/services`
+- `/portfolio`
+- `/machinery`
+- `/materials`
+- `/industries`
+- `/contact`
 
 ## Run locally
 
-Open `index.html` in your browser.
+Serve the repository with PHP:
+
+```bash
+php -S 127.0.0.1:8080
+```
 
 ## SEO files
 
 - `robots.txt`
 - `sitemap.xml`
-
-## GitHub Pages
-
-This repository includes `.github/workflows/deploy-pages.yml` to deploy the site.

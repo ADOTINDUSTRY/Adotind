@@ -4,15 +4,24 @@
     <loc>https://adotind.com/</loc>
   </url>
   <url>
-    <loc>https://adotind.com/about.html</loc>
+    <loc>https://adotind.com/about</loc>
   </url>
   <url>
-    <loc>https://adotind.com/services.html</loc>
+    <loc>https://adotind.com/services</loc>
   </url>
   <url>
-    <loc>https://adotind.com/industries.html</loc>
+    <loc>https://adotind.com/portfolio</loc>
   </url>
   <url>
-    <loc>https://adotind.com/contact.html</loc>
+    <loc>https://adotind.com/machinery</loc>
+  </url>
+  <url>
+    <loc>https://adotind.com/materials</loc>
+  </url>
+  <url>
+    <loc>https://adotind.com/industries</loc>
+  </url>
+  <url>
+    <loc>https://adotind.com/contact</loc>
   </url>
 </urlset>

@@ -1,0 +1,15 @@
+Options -Indexes
+DirectoryIndex index.php
+
+RewriteEngine On
+
+# Keep dashboard path independent if this directory is ever accessed directly.
+RewriteRule ^my-dashboard(/|$) - [L]
+
+# Serve existing files/directories directly.
+RewriteCond %{REQUEST_FILENAME} -f [OR]
+RewriteCond %{REQUEST_FILENAME} -d
+RewriteRule ^ - [L]
+
+# Front controller.
+RewriteRule ^ index.php [QSA,L]
