@@ -90,15 +90,12 @@ a {
   text-decoration: none;
 }
 
-.brand-mark {
-  display: inline-grid;
-  place-content: center;
-  width: 38px;
-  height: 38px;
-  border: 1px solid var(--accent);
-  color: var(--accent);
-  font-weight: 700;
-  letter-spacing: 0.04em;
+.brand-logo {
+  width: 46px;
+  height: 46px;
+  object-fit: contain;
+  background: #fff;
+  padding: 2px;
 }
 
 .brand-text {
@@ -449,6 +446,25 @@ p {
 
 .footer-grid p {
   margin-bottom: 0.4rem;
+}
+
+.footer-brand {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  margin-bottom: 0.45rem;
+}
+
+.footer-brand h2 {
+  margin: 0;
+}
+
+.footer-logo {
+  width: 52px;
+  height: 52px;
+  object-fit: contain;
+  background: #fff;
+  padding: 2px;
 }
 
 .social-links {

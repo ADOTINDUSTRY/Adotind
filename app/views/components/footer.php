@@ -1,7 +1,10 @@
 <footer class="site-footer">
   <div class="container footer-grid">
     <div>
-      <h2><?= e($siteConfig['brand']) ?></h2>
+      <div class="footer-brand">
+        <img class="footer-logo" src="<?= e($siteConfig['logo_url']) ?>" alt="<?= e($siteConfig['brand']) ?> logo" loading="lazy" />
+        <h2><?= e($siteConfig['brand']) ?></h2>
+      </div>
       <p class="muted">
         <?= e($siteConfig['legal_name']) ?> delivers industrial signage,
         machining and fabrication solutions in <?= e($siteConfig['country']) ?>.

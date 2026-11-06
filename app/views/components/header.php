@@ -14,7 +14,7 @@ $currentPath = current_path();
 <header class="site-header">
   <div class="container nav-shell">
     <a href="/" class="brand">
-      <span class="brand-mark">A·D</span>
+      <img class="brand-logo" src="<?= e($siteConfig['logo_url']) ?>" alt="<?= e($siteConfig['brand']) ?> logo" loading="lazy" />
       <span class="brand-text"><?= e($siteConfig['brand']) ?></span>
     </a>
     <button class="nav-toggle" type="button" aria-label="Toggle navigation" aria-expanded="false">

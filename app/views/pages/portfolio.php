@@ -7,13 +7,8 @@ $categories = ['all', 'signage', 'illuminated-signs', 'cnc', 'laser-cutting', 'p
     <p class="eyebrow">Portfolio</p>
     <h1>Projects and Production Categories</h1>
     <p class="lead">
-      Official project media is published via your company Facebook and Google
-      Maps profiles, combined with categorized project records below.
+      Project photos and details will be shown here using your provided assets.
     </p>
-    <div class="cta-group">
-      <a href="<?= e($siteConfig['facebook_photos']) ?>" class="btn btn-outline" target="_blank" rel="noopener noreferrer">Open Facebook Photos</a>
-      <a href="<?= e($siteConfig['maps_url']) ?>" class="btn btn-outline" target="_blank" rel="noopener noreferrer">Open Google Maps Photos</a>
-    </div>
   </div>
 </section>
 
@@ -31,8 +26,8 @@ $categories = ['all', 'signage', 'illuminated-signs', 'cnc', 'laser-cutting', 'p
       <?php foreach ($projects as $project): ?>
         <article class="gallery-item portfolio-item" data-category="<?= e($project['category']) ?>">
           <div class="photo-placeholder" role="img" aria-label="<?= e($project['title']) ?> image placeholder">
-            <p>Official Photos Available</p>
-            <small>View full media in the links above</small>
+            <p>Project Placeholder</p>
+            <small>Your approved photo will be added here</small>
           </div>
           <h3><?= e($project['title']) ?></h3>
           <p class="muted"><?= e($project['description']) ?></p>

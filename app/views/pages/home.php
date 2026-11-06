@@ -14,12 +14,8 @@
       </div>
     </div>
     <div class="photo-placeholder" role="img" aria-label="Industrial manufacturing photography placeholder">
-      <p>Official Project Media</p>
-      <small>Photos are published from A Dot Industry official channels.</small>
-      <div class="cta-group">
-        <a href="<?= e($siteConfig['facebook_photos']) ?>" class="btn btn-outline" target="_blank" rel="noopener noreferrer">Facebook Photos</a>
-        <a href="<?= e($siteConfig['maps_url']) ?>" class="btn btn-outline" target="_blank" rel="noopener noreferrer">Google Maps Photos</a>
-      </div>
+      <p>Project Gallery Pending</p>
+      <small>Your approved project photos will be added here next.</small>
     </div>
   </div>
 </section>
@@ -79,44 +75,20 @@
 
 <section class="section">
   <div class="container">
-    <h2>Featured Projects & Official Media</h2>
-    <div class="embed-grid">
-      <article class="service-card">
-        <h3>Facebook Project Photos</h3>
-        <div class="media-embed">
-          <iframe
-            title="A Dot Industry Facebook"
-            src="https://www.facebook.com/plugins/page.php?href=https%3A%2F%2Fwww.facebook.com%2Fadotind&tabs=timeline&width=500&height=520&small_header=false&adapt_container_width=true&hide_cover=false&show_facepile=false"
-            width="500"
-            height="520"
-            style="border:none;overflow:hidden"
-            loading="lazy"
-            allowfullscreen="true"
-            allow="autoplay; clipboard-write; encrypted-media; picture-in-picture; web-share"
-          ></iframe>
-        </div>
-      </article>
-      <article class="service-card">
-        <h3>Google Maps Location & Photos</h3>
-        <div class="media-embed">
-          <iframe
-            title="A Dot Industry Google Maps"
-            src="https://www.google.com/maps?q=A%20Dot%20Industry%20Enterprises%20Ltd%20Cyprus&output=embed"
-            width="500"
-            height="520"
-            style="border:0"
-            loading="lazy"
-            referrerpolicy="no-referrer-when-downgrade"
-          ></iframe>
-        </div>
-        <p class="muted small-note">
-          Open the full profile to browse all available project photos.
-        </p>
-        <div class="cta-group">
-          <a href="<?= e($siteConfig['facebook_photos']) ?>" class="btn btn-outline" target="_blank" rel="noopener noreferrer">Open Facebook Photos</a>
-          <a href="<?= e($siteConfig['maps_url']) ?>" class="btn btn-outline" target="_blank" rel="noopener noreferrer">Open Google Maps</a>
-        </div>
-      </article>
+    <h2>Featured Projects</h2>
+    <div class="gallery-grid">
+      <figure class="gallery-item">
+        <div class="photo-placeholder" role="img" aria-label="Project image placeholder"><p>Project Placeholder</p></div>
+        <figcaption>Signage Project</figcaption>
+      </figure>
+      <figure class="gallery-item">
+        <div class="photo-placeholder" role="img" aria-label="Project image placeholder"><p>Project Placeholder</p></div>
+        <figcaption>CNC Project</figcaption>
+      </figure>
+      <figure class="gallery-item">
+        <div class="photo-placeholder" role="img" aria-label="Project image placeholder"><p>Project Placeholder</p></div>
+        <figcaption>Fabrication Project</figcaption>
+      </figure>
     </div>
   </div>
 </section>
