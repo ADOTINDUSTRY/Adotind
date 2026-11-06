@@ -1,6 +1,10 @@
 <?php
 /** @var array $siteConfig */
 /** @var array $page */
+$cssPath = __DIR__ . '/../../public/assets/css/main.css';
+$jsPath = __DIR__ . '/../../public/assets/js/main.js';
+$cssVersion = is_file($cssPath) ? (string)filemtime($cssPath) : '1';
+$jsVersion = is_file($jsPath) ? (string)filemtime($jsPath) : '1';
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -29,7 +33,7 @@
       name="twitter:description"
       content="<?= e($page['description'] ?? 'Manufacturing-focused services by A Dot Industry in Cyprus.') ?>"
     />
-    <link rel="stylesheet" href="/public/assets/css/main.css" />
+    <link rel="stylesheet" href="/public/assets/css/main.css?v=<?= e($cssVersion) ?>" />
     <script type="application/ld+json">
       {
         "@context": "https://schema.org",
@@ -65,6 +69,6 @@
       <?php require $viewFile; ?>
     </main>
     <?php require __DIR__ . '/components/footer.php'; ?>
-    <script src="/public/assets/js/main.js" defer></script>
+    <script src="/public/assets/js/main.js?v=<?= e($jsVersion) ?>" defer></script>
   </body>
 </html>

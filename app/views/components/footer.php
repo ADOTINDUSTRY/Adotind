@@ -14,13 +14,13 @@
       <p><a href="mailto:<?= e($siteConfig['email']) ?>"><?= e($siteConfig['email']) ?></a></p>
       <div class="social-links" aria-label="Social links">
         <a href="<?= e($siteConfig['whatsapp']) ?>" target="_blank" rel="noopener noreferrer" aria-label="WhatsApp">
-          <img src="https://cdn.simpleicons.org/whatsapp/25D366" alt="WhatsApp" width="18" height="18" loading="lazy" />
+          <img src="https://cdn.simpleicons.org/whatsapp/25D366" alt="WhatsApp" loading="lazy" />
         </a>
         <a href="<?= e($siteConfig['viber']) ?>" aria-label="Viber">
-          <img src="https://cdn.simpleicons.org/viber/7360F2" alt="Viber" width="18" height="18" loading="lazy" />
+          <img src="https://cdn.simpleicons.org/viber/7360F2" alt="Viber" loading="lazy" />
         </a>
         <a href="<?= e($siteConfig['facebook']) ?>" target="_blank" rel="noopener noreferrer" aria-label="Facebook">
-          <img src="https://cdn.simpleicons.org/facebook/1877F2" alt="Facebook" width="18" height="18" loading="lazy" />
+          <img src="https://cdn.simpleicons.org/facebook/1877F2" alt="Facebook" loading="lazy" />
         </a>
       </div>
     </div>

@@ -452,8 +452,8 @@ p {
 }
 
 .social-links img {
-  width: 32px;
-  height: 32px;
+  width: 40px !important;
+  height: 40px !important;
   display: block;
 }
 
