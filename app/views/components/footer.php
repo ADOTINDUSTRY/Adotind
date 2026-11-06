@@ -9,6 +9,7 @@
     </div>
     <div>
       <h3>Contact</h3>
+      <p><?= e($siteConfig['location_text']) ?></p>
       <p><a href="tel:<?= e($siteConfig['phone_href']) ?>"><?= e($siteConfig['phone']) ?></a></p>
       <p><a href="mailto:<?= e($siteConfig['email']) ?>"><?= e($siteConfig['email']) ?></a></p>
       <p><a href="<?= e($siteConfig['whatsapp']) ?>" target="_blank" rel="noopener noreferrer">WhatsApp / Viber</a></p>

@@ -10,7 +10,7 @@
     <title><?= e($page['title']) ?></title>
     <meta
       name="description"
-      content="Premium signage manufacturing, CNC machining, laser cutting, printing, and industrial fabrication services in Cyprus by A Dot Industry."
+      content="<?= e($page['description'] ?? 'Premium signage manufacturing, CNC machining, laser cutting, printing, and industrial fabrication services in Cyprus by A Dot Industry.') ?>"
     />
     <meta name="robots" content="index, follow, max-image-preview:large" />
     <meta name="author" content="<?= e($siteConfig['brand']) ?>" />
@@ -19,7 +19,7 @@
     <meta property="og:title" content="<?= e($page['title']) ?>" />
     <meta
       property="og:description"
-      content="Industrial manufacturing capabilities for signage and custom fabrication projects."
+      content="<?= e($page['description'] ?? 'Industrial manufacturing capabilities for signage and custom fabrication projects.') ?>"
     />
     <meta property="og:url" content="<?= e(canonical_url($siteConfig)) ?>" />
     <meta property="og:site_name" content="<?= e($siteConfig['brand']) ?>" />
@@ -27,12 +27,40 @@
     <meta name="twitter:title" content="<?= e($page['title']) ?>" />
     <meta
       name="twitter:description"
-      content="Manufacturing-focused services by A Dot Industry in Cyprus."
+      content="<?= e($page['description'] ?? 'Manufacturing-focused services by A Dot Industry in Cyprus.') ?>"
     />
     <link rel="stylesheet" href="/public/assets/css/main.css" />
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "LocalBusiness",
+        "name": "<?= e($siteConfig['legal_name']) ?>",
+        "url": "<?= e(rtrim($siteConfig['base_url'], '/')) ?>",
+        "telephone": "<?= e($siteConfig['phone']) ?>",
+        "email": "<?= e($siteConfig['email']) ?>",
+        "areaServed": "<?= e($siteConfig['country']) ?>",
+        "description": "Industrial signage, CNC machining, laser cutting, printing and fabrication services."
+      }
+    </script>
+    <?php if (!empty($page['breadcrumbs']) && is_array($page['breadcrumbs'])): ?>
+      <?php
+      $crumbItems = [];
+      foreach ($page['breadcrumbs'] as $i => $crumb) {
+          $crumbItems[] = [
+              '@type' => 'ListItem',
+              'position' => $i + 1,
+              'name' => $crumb['label'],
+              'item' => rtrim($siteConfig['base_url'], '/') . $crumb['href'],
+          ];
+      }
+      $breadcrumbSchema = ['@context' => 'https://schema.org', '@type' => 'BreadcrumbList', 'itemListElement' => $crumbItems];
+      ?>
+      <script type="application/ld+json"><?= json_encode($breadcrumbSchema, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) ?></script>
+    <?php endif; ?>
   </head>
   <body>
     <?php require __DIR__ . '/components/header.php'; ?>
+    <?php require __DIR__ . '/components/breadcrumbs.php'; ?>
     <main>
       <?php require $viewFile; ?>
     </main>

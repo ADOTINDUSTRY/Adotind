@@ -1,0 +1,101 @@
+<?php
+declare(strict_types=1);
+
+return [
+    [
+        'slug' => 'sign-manufacturing',
+        'name' => 'Sign Manufacturing',
+        'summary' => 'Custom signage systems for indoor and outdoor branding applications.',
+        'applications' => [
+            '3D illuminated channel letters',
+            'Non-illuminated 3D letters',
+            'LED illuminated signs',
+            'Acrylic and plexiglass signs',
+            'Aluminium and stainless-steel signage',
+            'ACP and Alucobond signs',
+            'Shopfront signs',
+            'Custom architectural signage',
+            'Neon-style LED flex signs',
+        ],
+        'materials' => ['Acrylic', 'Plexiglass', 'Aluminium', 'Stainless steel', 'ACP / Alucobond', 'Vinyl films'],
+    ],
+    [
+        'slug' => 'cnc-router-services',
+        'name' => 'CNC Router Services',
+        'summary' => 'Precision CNC cutting, engraving and machining for custom production.',
+        'applications' => [
+            'CNC cutting and CNC engraving',
+            '2D and 3D machining',
+            'Custom furniture components',
+            'Decorative panel production',
+            'Plywood cutting',
+            'PVC and acrylic machining',
+            'Composite panel machining where technically suitable',
+        ],
+        'materials' => ['Plywood', 'PVC', 'Acrylic', 'Composite panels (technical suitability required)'],
+    ],
+    [
+        'slug' => 'laser-cutting-engraving',
+        'name' => 'Laser Cutting & Engraving',
+        'summary' => 'Fiber laser and CO2 laser workflows for metal and non-metal projects.',
+        'applications' => [
+            'Fiber laser metal cutting',
+            'Stainless-steel and carbon-steel cutting',
+            'Aluminium cutting subject to machine capability',
+            'CO2 laser acrylic cutting',
+            'CO2 laser wood and plywood cutting',
+            'Engraving for custom design applications',
+        ],
+        'materials' => ['Stainless steel', 'Carbon steel', 'Aluminium (subject to capability)', 'Acrylic', 'Wood', 'Plywood'],
+    ],
+    [
+        'slug' => 'large-format-printing',
+        'name' => 'Large Format Printing',
+        'summary' => 'Large-format eco-solvent printing for graphics, signage and visual communication.',
+        'applications' => [
+            'Self-adhesive vinyl printing',
+            'Wallpaper printing',
+            'Promotional graphics',
+            'Sign graphics',
+            'Custom printed panels',
+        ],
+        'materials' => ['Vinyl films', 'Printable media rolls', 'Wallpaper substrates', 'Panel-compatible print media'],
+    ],
+    [
+        'slug' => 'industrial-fabrication',
+        'name' => 'Industrial Fabrication',
+        'summary' => 'Custom metal fabrication and welding solutions for industrial and commercial use.',
+        'applications' => [
+            'Custom brackets and frames',
+            'Welded components',
+            'Metal structures',
+            'Bespoke industrial components',
+            'Custom manufacturing support items',
+        ],
+        'materials' => ['Mild steel', 'Stainless steel', 'Aluminium (depending on method)'],
+    ],
+    [
+        'slug' => '3d-manufacturing',
+        'name' => '3D Manufacturing',
+        'summary' => '3D lettering elements, prototypes and custom part production workflows.',
+        'applications' => [
+            '3D lettering components',
+            'Custom 3D printed parts',
+            'Rapid prototypes',
+            'Custom-designed product elements',
+        ],
+        'materials' => ['Application-specific printable materials', 'Signage-compatible substrates'],
+    ],
+    [
+        'slug' => 'additional-services',
+        'name' => 'Additional Services',
+        'summary' => 'Complementary production and finishing services for complete project delivery.',
+        'applications' => [
+            'Vinyl cutting',
+            'Lamination where available',
+            'Sign installation support',
+            'Custom manufacturing solutions',
+        ],
+        'materials' => ['Vinyl', 'Lamination films', 'Project-dependent support materials'],
+    ],
+];

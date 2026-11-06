@@ -1,17 +1,25 @@
 # Adotind
 
-Premium custom PHP website for **A Dot Industry**.
+Premium custom PHP website for **A Dot Industry Enterprises Ltd**.
 
-## Pages
+## Architecture
 
-- `/` Home
-- `/about`
-- `/services`
-- `/portfolio`
-- `/machinery`
-- `/materials`
-- `/industries`
-- `/contact`
+- `index.php` front controller and route dispatcher
+- `app/views/components` reusable header/footer
+- `app/views/pages` page templates
+- `app/data` structured content for services, projects, and machinery
+- `public/assets` CSS and JavaScript
+- `storage/inquiries` upload and inquiry log destination
+
+## Current Coverage
+
+- Premium homepage and full route structure:
+  `/`, `/about`, `/services`, `/services/{slug}`, `/portfolio`,
+  `/portfolio/{slug}`, `/machinery`, `/materials`, `/industries`, `/contact`
+- Contact and quote form with CSRF validation, server-side validation and
+  optional file upload handling
+- Legacy `.html` URL redirects to clean URLs
+- Placeholder project entries and machinery specs flagged for confirmation
 
 ## Run locally
 

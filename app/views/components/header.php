@@ -9,7 +9,7 @@ $navItems = [
     ['label' => 'Industries', 'href' => '/industries'],
     ['label' => 'Contact', 'href' => '/contact'],
 ];
-$currentPath = parse_url($_SERVER['REQUEST_URI'] ?? '/', PHP_URL_PATH) ?: '/';
+$currentPath = current_path();
 ?>
 <header class="site-header">
   <div class="container nav-shell">
@@ -22,7 +22,10 @@ $currentPath = parse_url($_SERVER['REQUEST_URI'] ?? '/', PHP_URL_PATH) ?: '/';
     </button>
     <nav class="main-nav" aria-label="Primary">
       <?php foreach ($navItems as $item): ?>
-        <?php $active = rtrim($currentPath, '/') === rtrim($item['href'], '/'); ?>
+        <?php
+        $active = rtrim($currentPath, '/') === rtrim($item['href'], '/')
+          || ($item['href'] !== '/' && starts_with($currentPath, $item['href'] . '/'));
+        ?>
         <a class="<?= $active ? 'is-active' : '' ?>" href="<?= e($item['href']) ?>"><?= e($item['label']) ?></a>
       <?php endforeach; ?>
     </nav>

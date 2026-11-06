@@ -6,6 +6,25 @@ RewriteEngine On
 # Keep dashboard path independent if this directory is ever accessed directly.
 RewriteRule ^my-dashboard(/|$) - [L]
 
+# Legacy static URLs from earlier custom build.
+RewriteRule ^index\.html$ / [R=301,L,NC]
+RewriteRule ^(about|services|portfolio|machinery|materials|industries|contact)\.html$ /$1 [R=301,L,NC]
+RewriteRule ^index\.php$ / [R=301,L,NC]
+
+# Remove trailing slash for non-directories.
+RewriteCond %{REQUEST_FILENAME} !-d
+RewriteCond %{REQUEST_URI} .+/$
+RewriteRule ^(.+)/$ /$1 [R=301,L]
+
+# Redirect direct PHP access to clean routes.
+RewriteCond %{THE_REQUEST} \s/+([^\s?]+)\.php[\s?] [NC]
+RewriteRule ^ /%1 [R=301,L]
+
+# Legacy WordPress-style URLs fallback to homepage (dashboard excluded above).
+RewriteRule ^(wp-admin|wp-content|wp-includes|category|tag|author|feed|comments|xmlrpc\.php)($|/) / [R=301,L,NC]
+RewriteCond %{QUERY_STRING} (^|&)p=[0-9]+(&|$) [NC]
+RewriteRule ^$ / [R=301,L,QSD]
+
 # Serve existing files/directories directly.
 RewriteCond %{REQUEST_FILENAME} -f [OR]
 RewriteCond %{REQUEST_FILENAME} -d

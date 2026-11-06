@@ -10,4 +10,5 @@ $siteConfig = [
     'email' => 'info@adotind.com',
     'whatsapp' => 'https://wa.me/35797840173',
     'country' => 'Cyprus',
+    'location_text' => 'Cyprus (exact workshop address pending confirmation)',
 ];
