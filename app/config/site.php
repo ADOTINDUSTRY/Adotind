@@ -9,6 +9,8 @@ $siteConfig = [
     'phone_href' => '+35797840173',
     'email' => 'info@adotind.com',
     'whatsapp' => 'https://wa.me/35797840173',
+    'viber' => 'viber://chat?number=%2B35797840173',
+    'facebook' => 'https://facebook.com/adotind',
     'country' => 'Cyprus',
     'location_text' => 'Cyprus (exact workshop address pending confirmation)',
 ];
