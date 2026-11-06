@@ -439,8 +439,8 @@ p {
 .social-links a {
   display: inline-grid;
   place-content: center;
-  width: 30px;
-  height: 30px;
+  width: 60px;
+  height: 60px;
   border: 1px solid var(--line);
   background: #0e1725;
   transition: border-color 0.2s ease, transform 0.2s ease;
@@ -452,8 +452,8 @@ p {
 }
 
 .social-links img {
-  width: 16px;
-  height: 16px;
+  width: 32px;
+  height: 32px;
   display: block;
 }
 
