@@ -11,6 +11,7 @@ $siteConfig = [
     'whatsapp' => 'https://wa.me/35797840173',
     'viber' => 'viber://chat?number=%2B35797840173',
     'facebook' => 'https://facebook.com/adotind',
+    'facebook_photos' => 'https://www.facebook.com/adotind/photos',
     'country' => 'Cyprus',
     'location_text' => 'A Dot Industry location on Google Maps',
     'maps_url' => 'https://maps.app.goo.gl/YQuh9Twvw16KqsqNA?g_st=ic',

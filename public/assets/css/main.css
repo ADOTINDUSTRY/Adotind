@@ -269,6 +269,12 @@ p {
   grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
 }
 
+.embed-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: 1rem;
+}
+
 .service-card {
   border: 1px solid var(--line);
   background: var(--panel-2);
@@ -339,6 +345,21 @@ p {
 
 .muted {
   color: var(--muted);
+}
+
+.media-embed {
+  width: 100%;
+  overflow: hidden;
+  border: 1px solid var(--line);
+}
+
+.media-embed iframe {
+  width: 100%;
+  min-height: 520px;
+}
+
+.small-note {
+  font-size: 0.9rem;
 }
 
 .filter-row {
