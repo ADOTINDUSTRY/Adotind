@@ -34,6 +34,9 @@ $jsVersion = is_file($jsPath) ? (string)filemtime($jsPath) : '1';
       content="<?= e($page['description'] ?? 'Manufacturing-focused services by A Dot Industry in Cyprus.') ?>"
     />
     <link rel="preconnect" href="https://cdn.simpleicons.org" crossorigin />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Montserrat:wght@700;800&display=swap" />
     <?php if (!empty($siteConfig['logo_url']) && is_string($siteConfig['logo_url'])): ?>
       <link rel="preload" as="image" href="<?= e($siteConfig['logo_url']) ?>" />
     <?php endif; ?>
