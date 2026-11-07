@@ -67,6 +67,120 @@ function dashboard_settings_save(array $siteConfig, array $settings): void
     file_put_contents($file, json_encode($settings, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES));
 }
 
+function dashboard_resolve_local_media_path(array $siteConfig, string $url): string
+{
+    if ($url === '') {
+        return '';
+    }
+
+    $path = $url;
+    if (preg_match('#^https?://#i', $url) === 1) {
+        $parts = parse_url($url);
+        $siteParts = parse_url((string)($siteConfig['base_url'] ?? ''));
+        $urlHost = strtolower((string)($parts['host'] ?? ''));
+        $siteHost = strtolower((string)($siteParts['host'] ?? ''));
+        if ($urlHost === '' || $siteHost === '' || $urlHost !== $siteHost) {
+            return '';
+        }
+        $path = (string)($parts['path'] ?? '');
+    }
+
+    $candidatePaths = [$path];
+    if (starts_with($path, '/uploads/')) {
+        $candidatePaths[] = '/public' . $path;
+    }
+    if (starts_with($path, '/assets/')) {
+        $candidatePaths[] = '/public' . $path;
+    }
+
+    $projectRoot = dirname(__DIR__, 2);
+    foreach ($candidatePaths as $candidatePath) {
+        if (!starts_with($candidatePath, '/public/uploads/') && !starts_with($candidatePath, '/public/assets/')) {
+            continue;
+        }
+        $localPath = $projectRoot . rawurldecode($candidatePath);
+        if (is_file($localPath) && filesize($localPath) > 0) {
+            return $localPath;
+        }
+    }
+
+    return '';
+}
+
+function dashboard_optimize_logo(array $siteConfig, string $sourceImagePath): string
+{
+    if (!is_file($sourceImagePath) || filesize($sourceImagePath) <= 0) {
+        return '';
+    }
+    $imageInfo = @getimagesize($sourceImagePath);
+    if ($imageInfo === false) {
+        return '';
+    }
+
+    $uploadsDir = rtrim((string)($siteConfig['uploads_dir'] ?? ''), '/');
+    if ($uploadsDir === '') {
+        return '';
+    }
+    if (!is_dir($uploadsDir)) {
+        mkdir($uploadsDir, 0755, true);
+    }
+
+    $targetWebpPath = $uploadsDir . '/brand-logo.webp';
+    $targetPngPath = $uploadsDir . '/brand-logo.png';
+    $uploadsUrlBase = rtrim((string)($siteConfig['uploads_url_base'] ?? '/public/uploads/projects'), '/');
+
+    $sourceType = (int)($imageInfo[2] ?? 0);
+    $createFn = match ($sourceType) {
+        IMAGETYPE_JPEG => 'imagecreatefromjpeg',
+        IMAGETYPE_PNG => 'imagecreatefrompng',
+        IMAGETYPE_WEBP => 'imagecreatefromwebp',
+        default => null,
+    };
+
+    if ($createFn === null || !function_exists($createFn) || !function_exists('imagecreatetruecolor')) {
+        $copyTarget = $targetPngPath;
+        if (@copy($sourceImagePath, $copyTarget)) {
+            return $uploadsUrlBase . '/' . basename($copyTarget);
+        }
+        return '';
+    }
+
+    $sourceImg = @$createFn($sourceImagePath);
+    if ($sourceImg === false) {
+        return '';
+    }
+
+    $srcWidth = (int)imagesx($sourceImg);
+    $srcHeight = (int)imagesy($sourceImg);
+    if ($srcWidth <= 0 || $srcHeight <= 0) {
+        imagedestroy($sourceImg);
+        return '';
+    }
+
+    $maxDimension = 320;
+    $scale = min(1, $maxDimension / max($srcWidth, $srcHeight));
+    $dstWidth = max(1, (int)round($srcWidth * $scale));
+    $dstHeight = max(1, (int)round($srcHeight * $scale));
+
+    $dstImg = imagecreatetruecolor($dstWidth, $dstHeight);
+    imagealphablending($dstImg, false);
+    imagesavealpha($dstImg, true);
+    $transparent = imagecolorallocatealpha($dstImg, 0, 0, 0, 127);
+    imagefilledrectangle($dstImg, 0, 0, $dstWidth, $dstHeight, $transparent);
+    imagecopyresampled($dstImg, $sourceImg, 0, 0, 0, 0, $dstWidth, $dstHeight, $srcWidth, $srcHeight);
+
+    $optimizedUrl = '';
+    if (function_exists('imagewebp') && @imagewebp($dstImg, $targetWebpPath, 82)) {
+        $optimizedUrl = $uploadsUrlBase . '/' . basename($targetWebpPath);
+    } elseif (@imagepng($dstImg, $targetPngPath, 7)) {
+        $optimizedUrl = $uploadsUrlBase . '/' . basename($targetPngPath);
+    }
+
+    imagedestroy($dstImg);
+    imagedestroy($sourceImg);
+    return $optimizedUrl;
+}
+
 function dashboard_handle_login(array $siteConfig): never
 {
     if ($_SERVER['REQUEST_METHOD'] !== 'POST' || !csrf_valid($_POST['csrf_token'] ?? null)) {
@@ -171,7 +285,9 @@ function dashboard_handle_upload(array $siteConfig): never
 
     dashboard_media_save($siteConfig, $media);
     if ($autoLogoUrl !== '') {
-        $settings['logo_url'] = $autoLogoUrl;
+        $sourcePath = dashboard_resolve_local_media_path($siteConfig, $autoLogoUrl);
+        $optimizedLogoUrl = $sourcePath !== '' ? dashboard_optimize_logo($siteConfig, $sourcePath) : '';
+        $settings['logo_url'] = $optimizedLogoUrl !== '' ? $optimizedLogoUrl : $autoLogoUrl;
         dashboard_settings_save($siteConfig, $settings);
     } elseif (empty($settings['logo_url']) && $added > 0 && $media !== []) {
         // If no explicit logo is set yet, use latest upload as temporary brand logo.
@@ -240,7 +356,9 @@ function dashboard_handle_set_logo(array $siteConfig): never
     }
     dashboard_media_save($siteConfig, $media);
     $settings = dashboard_settings_load($siteConfig);
-    $settings['logo_url'] = $logoUrl;
+    $sourcePath = dashboard_resolve_local_media_path($siteConfig, $logoUrl);
+    $optimizedLogoUrl = $sourcePath !== '' ? dashboard_optimize_logo($siteConfig, $sourcePath) : '';
+    $settings['logo_url'] = $optimizedLogoUrl !== '' ? $optimizedLogoUrl : $logoUrl;
     dashboard_settings_save($siteConfig, $settings);
     flash_set('dashboard_success', 'Logo updated successfully.');
     redirect('/dashboard', 303);
