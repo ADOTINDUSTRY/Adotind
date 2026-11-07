@@ -75,3 +75,17 @@ function render_layout(array $siteConfig, array $page): void
 
     require __DIR__ . '/../views/layout.php';
 }
+
+function editable_text(array $page, string $key, string $default): string
+{
+    $editable = $page['editable'] ?? [];
+    if (!is_array($editable)) {
+        return $default;
+    }
+    $value = $editable[$key] ?? null;
+    if (!is_string($value)) {
+        return $default;
+    }
+    $trimmed = trim($value);
+    return $trimmed !== '' ? $trimmed : $default;
+}

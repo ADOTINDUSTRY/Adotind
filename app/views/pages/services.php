@@ -1,12 +1,14 @@
 <?php /** @var array $page */ ?>
 <section class="page-hero">
   <div class="container">
-    <p class="eyebrow">Services</p>
-    <h1>Industrial Services for Signage and Manufacturing</h1>
-    <p class="lead">
-      Explore our full capability set, from visual branding systems to precision
-      machining and fabrication workflows.
-    </p>
+    <p class="eyebrow"><?= e(editable_text($page, 'eyebrow', 'Services')) ?></p>
+    <h1><?= e(editable_text($page, 'heading', 'Industrial Services for Signage and Manufacturing')) ?></h1>
+    <p class="lead"><?= e(editable_text($page, 'lead', 'Explore our full capability set, from visual branding systems to precision machining and fabrication workflows.')) ?></p>
+    <?php if (editable_text($page, 'hero_image_url', '') !== ''): ?>
+      <div class="hero-media-card page-hero-media">
+        <img src="<?= e(editable_text($page, 'hero_image_url', '')) ?>" alt="<?= e(editable_text($page, 'heading', 'Services page image')) ?>" loading="lazy" />
+      </div>
+    <?php endif; ?>
   </div>
 </section>
 

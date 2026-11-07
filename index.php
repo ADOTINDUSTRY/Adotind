@@ -13,6 +13,7 @@ $projects = require __DIR__ . '/app/data/projects.php';
 $machinery = require __DIR__ . '/app/data/machinery.php';
 $mediaLibrary = dashboard_media_load($siteConfig);
 $settings = dashboard_settings_load($siteConfig);
+$pageContentMap = dashboard_page_content_load($siteConfig);
 
 $resolveLocalLogoUrl = static function (string $url) use ($siteConfig): string {
     if ($url === '') {
@@ -185,6 +186,9 @@ if ($path === '/dashboard/set-logo') {
 if ($path === '/dashboard/delete-media') {
     dashboard_handle_delete_media($siteConfig);
 }
+if ($path === '/dashboard/save-page-content') {
+    dashboard_handle_save_page_content($siteConfig);
+}
 
 $page = $routes[$path] ?? null;
 
@@ -243,5 +247,18 @@ if ($page === null) {
         'breadcrumbs' => [['label' => 'Home', 'href' => '/'], ['label' => '404', 'href' => current_path()]],
     ];
 }
+
+$editable = $pageContentMap[$path] ?? [];
+if (is_array($editable)) {
+    if (!empty($editable['meta_title']) && is_string($editable['meta_title'])) {
+        $page['title'] = $editable['meta_title'];
+    }
+    if (!empty($editable['meta_description']) && is_string($editable['meta_description'])) {
+        $page['description'] = $editable['meta_description'];
+    }
+    $page['editable'] = $editable;
+}
+$page['path'] = $path;
+$page['editor_media'] = $mediaLibrary;
 
 render_layout($siteConfig, $page);

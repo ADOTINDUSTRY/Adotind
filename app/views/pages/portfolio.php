@@ -5,11 +5,14 @@ $categories = ['all', 'signage', 'illuminated-signs', 'cnc', 'laser-cutting', 'p
 ?>
 <section class="page-hero">
   <div class="container">
-    <p class="eyebrow">Portfolio</p>
-    <h1>Projects and Production Categories</h1>
-    <p class="lead">
-      Project photos and details will be shown here using your provided assets.
-    </p>
+    <p class="eyebrow"><?= e(editable_text($page, 'eyebrow', 'Portfolio')) ?></p>
+    <h1><?= e(editable_text($page, 'heading', 'Projects and Production Categories')) ?></h1>
+    <p class="lead"><?= e(editable_text($page, 'lead', 'Project photos and details will be shown here using your provided assets.')) ?></p>
+    <?php if (editable_text($page, 'hero_image_url', '') !== ''): ?>
+      <div class="hero-media-card page-hero-media">
+        <img src="<?= e(editable_text($page, 'hero_image_url', '')) ?>" alt="<?= e(editable_text($page, 'heading', 'Portfolio page image')) ?>" loading="lazy" />
+      </div>
+    <?php endif; ?>
   </div>
 </section>
 

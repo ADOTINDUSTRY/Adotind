@@ -1,11 +1,13 @@
 <section class="page-hero">
   <div class="container">
-    <p class="eyebrow">Materials</p>
-    <h1>Materials Used Across Signage and Fabrication Workflows</h1>
-    <p class="lead">
-      Material selection is matched to project environment, finish requirements,
-      and manufacturing process suitability.
-    </p>
+    <p class="eyebrow"><?= e(editable_text($page, 'eyebrow', 'Materials')) ?></p>
+    <h1><?= e(editable_text($page, 'heading', 'Materials Used Across Signage and Fabrication Workflows')) ?></h1>
+    <p class="lead"><?= e(editable_text($page, 'lead', 'Material selection is matched to project environment, finish requirements, and manufacturing process suitability.')) ?></p>
+    <?php if (editable_text($page, 'hero_image_url', '') !== ''): ?>
+      <div class="hero-media-card page-hero-media">
+        <img src="<?= e(editable_text($page, 'hero_image_url', '')) ?>" alt="<?= e(editable_text($page, 'heading', 'Materials page image')) ?>" loading="lazy" />
+      </div>
+    <?php endif; ?>
   </div>
 </section>
 

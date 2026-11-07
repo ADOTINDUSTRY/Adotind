@@ -1,13 +1,14 @@
 <?php $items = $page['machinery']; ?>
 <section class="page-hero">
   <div class="container">
-    <p class="eyebrow">Machinery & Technology</p>
-    <h1>Manufacturing Equipment Overview</h1>
-    <p class="lead">
-      The following equipment list reflects currently reported capabilities.
-      Detailed technical specifications are intentionally withheld until
-      confirmed.
-    </p>
+    <p class="eyebrow"><?= e(editable_text($page, 'eyebrow', 'Machinery & Technology')) ?></p>
+    <h1><?= e(editable_text($page, 'heading', 'Manufacturing Equipment Overview')) ?></h1>
+    <p class="lead"><?= e(editable_text($page, 'lead', 'The following equipment list reflects currently reported capabilities. Detailed technical specifications are intentionally withheld until confirmed.')) ?></p>
+    <?php if (editable_text($page, 'hero_image_url', '') !== ''): ?>
+      <div class="hero-media-card page-hero-media">
+        <img src="<?= e(editable_text($page, 'hero_image_url', '')) ?>" alt="<?= e(editable_text($page, 'heading', 'Machinery page image')) ?>" loading="lazy" />
+      </div>
+    <?php endif; ?>
   </div>
 </section>
 

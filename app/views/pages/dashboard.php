@@ -37,6 +37,7 @@ $categories = ['signage', 'illuminated-signs', 'cnc', 'laser-cutting', 'printing
         </form>
       </div>
     <?php else: ?>
+      <p class="muted small-note">Tip: While logged in, open any page and use the "Edit This Page" bar to update titles, descriptions and featured image.</p>
       <div class="dashboard-actions">
         <form class="quote-form service-card" method="post" action="/dashboard/upload" enctype="multipart/form-data">
           <h2>Upload Project Images</h2>
