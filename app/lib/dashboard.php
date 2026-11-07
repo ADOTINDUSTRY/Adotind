@@ -141,6 +141,9 @@ function dashboard_handle_upload(array $siteConfig): never
         if (!in_array($ext, $allowedExt, true)) {
             continue;
         }
+        if (@getimagesize($tmp) === false) {
+            continue;
+        }
 
         $newName = date('Ymd-His') . '-' . bin2hex(random_bytes(4)) . '.' . $ext;
         $target = $uploadDir . '/' . $newName;

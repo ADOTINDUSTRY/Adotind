@@ -13,38 +13,50 @@ $projects = require __DIR__ . '/app/data/projects.php';
 $machinery = require __DIR__ . '/app/data/machinery.php';
 $mediaLibrary = dashboard_media_load($siteConfig);
 $settings = dashboard_settings_load($siteConfig);
+
+$isValidLogoUrl = static function (string $url) use ($siteConfig): bool {
+    if ($url === '') {
+        return false;
+    }
+    if (!starts_with($url, '/')) {
+        return true;
+    }
+    $localPath = __DIR__ . $url;
+    if (!is_file($localPath) || filesize($localPath) < 100) {
+        return false;
+    }
+    if (starts_with($url, $siteConfig['uploads_url_base'] ?? '')) {
+        return @getimagesize($localPath) !== false;
+    }
+    return true;
+};
+
 $resolvedLogoUrl = '';
-if (!empty($settings['logo_url']) && is_string($settings['logo_url'])) {
+if (!empty($settings['logo_url']) && is_string($settings['logo_url']) && $isValidLogoUrl($settings['logo_url'])) {
     $resolvedLogoUrl = $settings['logo_url'];
 }
 if ($resolvedLogoUrl === '') {
     for ($i = count($mediaLibrary) - 1; $i >= 0; $i--) {
         $item = $mediaLibrary[$i];
         $title = strtolower((string)($item['title'] ?? ''));
-        if (((($item['category'] ?? '') === 'logo') || str_contains($title, 'logo')) && !empty($item['url'])) {
-            $resolvedLogoUrl = (string)$item['url'];
+        $candidate = (string)($item['url'] ?? '');
+        if (((($item['category'] ?? '') === 'logo') || str_contains($title, 'logo')) && $isValidLogoUrl($candidate)) {
+            $resolvedLogoUrl = $candidate;
             break;
         }
     }
 }
 // Fallback for cases where a logo was uploaded without "logo" naming/category.
 if ($resolvedLogoUrl === '' && $mediaLibrary !== []) {
-    $last = $mediaLibrary[array_key_last($mediaLibrary)];
-    if (!empty($last['url']) && is_string($last['url'])) {
-        $resolvedLogoUrl = $last['url'];
+    for ($i = count($mediaLibrary) - 1; $i >= 0; $i--) {
+        $candidate = (string)($mediaLibrary[$i]['url'] ?? '');
+        if ($isValidLogoUrl($candidate)) {
+            $resolvedLogoUrl = $candidate;
+            break;
+        }
     }
 }
-// Use logo URL only when the file is actually present.
-if ($resolvedLogoUrl !== '' && starts_with($resolvedLogoUrl, '/')) {
-    $localPath = __DIR__ . $resolvedLogoUrl;
-    if (is_file($localPath)) {
-        $siteConfig['logo_url'] = $resolvedLogoUrl;
-    } else {
-        $siteConfig['logo_url'] = '';
-    }
-} else {
-    $siteConfig['logo_url'] = $resolvedLogoUrl;
-}
+$siteConfig['logo_url'] = $resolvedLogoUrl;
 $publicMedia = array_values(array_filter(
     $mediaLibrary,
     static function (array $m) use ($siteConfig): bool {
