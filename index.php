@@ -18,11 +18,22 @@ $isValidLogoUrl = static function (string $url) use ($siteConfig): bool {
     if ($url === '') {
         return false;
     }
-    // Only allow local logo files to avoid stale/broken remote URLs.
-    if (!starts_with($url, '/')) {
+    $path = $url;
+    if (preg_match('#^https?://#i', $url) === 1) {
+        $parts = parse_url($url);
+        $siteParts = parse_url((string)($siteConfig['base_url'] ?? ''));
+        $urlHost = strtolower((string)($parts['host'] ?? ''));
+        $siteHost = strtolower((string)($siteParts['host'] ?? ''));
+        if ($urlHost === '' || $siteHost === '' || $urlHost !== $siteHost) {
+            return false;
+        }
+        $path = (string)($parts['path'] ?? '');
+    }
+    // Only allow local uploads to avoid stale/broken remote paths.
+    if (!starts_with($path, '/public/uploads/projects/')) {
         return false;
     }
-    $localPath = __DIR__ . $url;
+    $localPath = __DIR__ . rawurldecode($path);
     if (!is_file($localPath) || filesize($localPath) <= 0) {
         return false;
     }
