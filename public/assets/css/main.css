@@ -359,10 +359,48 @@ img {
 
 .hero-grid {
   position: relative;
+  z-index: 1;
   display: grid;
   grid-template-columns: 1.15fr 0.85fr;
   gap: clamp(2rem, 5vw, 4rem);
   align-items: center;
+}
+
+/* Night-sky starfield over dark sky sections */
+.hero::after,
+.page-hero::after,
+.cta-band::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background-image:
+    radial-gradient(1.4px 1.4px at 24px 36px, rgba(255, 255, 255, 0.95), rgba(255, 255, 255, 0) 60%),
+    radial-gradient(1px 1px at 92px 124px, rgba(255, 255, 255, 0.7), rgba(255, 255, 255, 0) 60%),
+    radial-gradient(1.8px 1.8px at 152px 58px, rgba(253, 230, 19, 0.85), rgba(253, 230, 19, 0) 60%),
+    radial-gradient(1px 1px at 204px 182px, rgba(255, 255, 255, 0.55), rgba(255, 255, 255, 0) 60%),
+    radial-gradient(1.2px 1.2px at 58px 204px, rgba(255, 255, 255, 0.8), rgba(255, 255, 255, 0) 60%),
+    radial-gradient(1px 1px at 182px 22px, rgba(147, 161, 189, 0.9), rgba(147, 161, 189, 0) 60%),
+    radial-gradient(1.3px 1.3px at 122px 152px, rgba(255, 255, 255, 0.6), rgba(255, 255, 255, 0) 60%),
+    radial-gradient(1px 1px at 42px 102px, rgba(255, 255, 255, 0.5), rgba(255, 255, 255, 0) 60%),
+    radial-gradient(1.6px 1.6px at 230px 96px, rgba(255, 255, 255, 0.75), rgba(255, 255, 255, 0) 60%),
+    radial-gradient(1px 1px at 12px 168px, rgba(255, 255, 255, 0.65), rgba(255, 255, 255, 0) 60%);
+  background-size: 260px 260px;
+  background-repeat: repeat;
+  opacity: 0.65;
+  animation: stars-twinkle 5s ease-in-out infinite alternate;
+}
+
+.page-hero .container,
+.cta-band .container {
+  position: relative;
+  z-index: 1;
+}
+
+@keyframes stars-twinkle {
+  from { opacity: 0.4; }
+  to { opacity: 0.85; }
 }
 
 .hero-media-card {
@@ -1021,6 +1059,12 @@ p {
 
   .preloader-logo,
   .preloader-spinner {
+    animation: none;
+  }
+
+  .hero::after,
+  .page-hero::after,
+  .cta-band::after {
     animation: none;
   }
 
