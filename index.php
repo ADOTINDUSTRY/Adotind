@@ -12,6 +12,29 @@ $services = require __DIR__ . '/app/data/services.php';
 $projects = require __DIR__ . '/app/data/projects.php';
 $machinery = require __DIR__ . '/app/data/machinery.php';
 $mediaLibrary = dashboard_media_load($siteConfig);
+$settings = dashboard_settings_load($siteConfig);
+if (!empty($settings['logo_url']) && is_string($settings['logo_url'])) {
+    $siteConfig['logo_url'] = $settings['logo_url'];
+} else {
+    for ($i = count($mediaLibrary) - 1; $i >= 0; $i--) {
+        $item = $mediaLibrary[$i];
+        $title = strtolower((string)($item['title'] ?? ''));
+        if (((($item['category'] ?? '') === 'logo') || str_contains($title, 'logo')) && !empty($item['url'])) {
+            $siteConfig['logo_url'] = (string)$item['url'];
+            break;
+        }
+    }
+}
+$publicMedia = array_values(array_filter(
+    $mediaLibrary,
+    static function (array $m) use ($siteConfig): bool {
+        $title = strtolower((string)($m['title'] ?? ''));
+        if (($m['category'] ?? '') === 'logo' || str_contains($title, 'logo')) {
+            return false;
+        }
+        return (($m['url'] ?? '') !== ($siteConfig['logo_url'] ?? ''));
+    }
+));
 
 $uriPath = parse_url($_SERVER['REQUEST_URI'] ?? '/', PHP_URL_PATH) ?: '/';
 $path = '/' . trim($uriPath, '/');
@@ -25,7 +48,7 @@ $routes = [
         'title' => 'A Dot Industry | Sign Manufacturing, CNC, Laser Cutting & Fabrication in Cyprus',
         'description' => 'A Dot Industry delivers premium signage manufacturing, CNC router services, laser cutting, large-format printing and industrial fabrication in Cyprus.',
         'schema' => 'home',
-        'media' => $mediaLibrary,
+        'media' => $publicMedia,
         'breadcrumbs' => [['label' => 'Home', 'href' => '/']],
     ],
     '/about' => [
@@ -46,7 +69,7 @@ $routes = [
         'title' => 'Portfolio | A Dot Industry Projects',
         'description' => 'Explore project categories across signage, illuminated signs, CNC, laser cutting, printing and fabrication.',
         'projects' => $projects,
-        'media' => $mediaLibrary,
+        'media' => $publicMedia,
         'breadcrumbs' => [['label' => 'Home', 'href' => '/'], ['label' => 'Portfolio', 'href' => '/portfolio']],
     ],
     '/machinery' => [
@@ -97,6 +120,9 @@ if ($path === '/dashboard/upload') {
 }
 if ($path === '/dashboard/update-media') {
     dashboard_handle_update_meta($siteConfig);
+}
+if ($path === '/dashboard/set-logo') {
+    dashboard_handle_set_logo($siteConfig);
 }
 
 $page = $routes[$path] ?? null;

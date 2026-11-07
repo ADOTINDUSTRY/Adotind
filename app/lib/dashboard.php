@@ -40,6 +40,33 @@ function dashboard_media_save(array $siteConfig, array $media): void
     file_put_contents($file, json_encode($media, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES));
 }
 
+function dashboard_settings_load(array $siteConfig): array
+{
+    $file = $siteConfig['media_settings_file'] ?? '';
+    if (!is_string($file) || $file === '' || !is_file($file)) {
+        return [];
+    }
+    $raw = file_get_contents($file);
+    if ($raw === false || $raw === '') {
+        return [];
+    }
+    $data = json_decode($raw, true);
+    return is_array($data) ? $data : [];
+}
+
+function dashboard_settings_save(array $siteConfig, array $settings): void
+{
+    $file = $siteConfig['media_settings_file'] ?? '';
+    if (!is_string($file) || $file === '') {
+        return;
+    }
+    $dir = dirname($file);
+    if (!is_dir($dir)) {
+        mkdir($dir, 0755, true);
+    }
+    file_put_contents($file, json_encode($settings, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES));
+}
+
 function dashboard_handle_login(array $siteConfig): never
 {
     if ($_SERVER['REQUEST_METHOD'] !== 'POST' || !csrf_valid($_POST['csrf_token'] ?? null)) {
@@ -119,14 +146,16 @@ function dashboard_handle_upload(array $siteConfig): never
             continue;
         }
 
-        $title = ucwords(str_replace(['-', '_'], ' ', pathinfo($originalName, PATHINFO_FILENAME)));
+        $baseName = pathinfo($originalName, PATHINFO_FILENAME);
+        $title = ucwords(str_replace(['-', '_'], ' ', $baseName));
+        $defaultCategory = stripos($baseName, 'logo') !== false ? 'logo' : 'signage';
         $media[] = [
             'id' => bin2hex(random_bytes(6)),
             'filename' => $newName,
             'url' => rtrim($siteConfig['uploads_url_base'], '/') . '/' . $newName,
             'title' => $title,
             'description' => 'Project image uploaded via dashboard.',
-            'category' => 'signage',
+            'category' => $defaultCategory,
             'uploaded_at' => date('c'),
         ];
         $added++;
@@ -149,7 +178,7 @@ function dashboard_handle_update_meta(array $siteConfig): never
     $title = trim((string)($_POST['title'] ?? ''));
     $description = trim((string)($_POST['description'] ?? ''));
     $category = trim((string)($_POST['category'] ?? ''));
-    $validCategories = ['signage', 'illuminated-signs', 'cnc', 'laser-cutting', 'printing', 'fabrication'];
+    $validCategories = ['signage', 'illuminated-signs', 'cnc', 'laser-cutting', 'printing', 'fabrication', 'logo'];
     if (!in_array($category, $validCategories, true)) {
         $category = 'signage';
     }
@@ -165,5 +194,35 @@ function dashboard_handle_update_meta(array $siteConfig): never
     unset($item);
     dashboard_media_save($siteConfig, $media);
     flash_set('dashboard_success', 'Image details updated.');
+    redirect('/dashboard', 303);
+}
+
+function dashboard_handle_set_logo(array $siteConfig): never
+{
+    dashboard_require_auth();
+    if ($_SERVER['REQUEST_METHOD'] !== 'POST' || !csrf_valid($_POST['csrf_token'] ?? null)) {
+        flash_set('dashboard_error', 'Invalid logo request.');
+        redirect('/dashboard', 303);
+    }
+    $id = (string)($_POST['id'] ?? '');
+    $media = dashboard_media_load($siteConfig);
+    $logoUrl = null;
+    foreach ($media as &$item) {
+        if (($item['id'] ?? '') === $id) {
+            $logoUrl = (string)($item['url'] ?? '');
+            $item['category'] = 'logo';
+            break;
+        }
+    }
+    unset($item);
+    if ($logoUrl === null || $logoUrl === '') {
+        flash_set('dashboard_error', 'Selected image not found.');
+        redirect('/dashboard', 303);
+    }
+    dashboard_media_save($siteConfig, $media);
+    $settings = dashboard_settings_load($siteConfig);
+    $settings['logo_url'] = $logoUrl;
+    dashboard_settings_save($siteConfig, $settings);
+    flash_set('dashboard_success', 'Logo updated successfully.');
     redirect('/dashboard', 303);
 }

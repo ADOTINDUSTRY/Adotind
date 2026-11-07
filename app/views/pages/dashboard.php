@@ -3,7 +3,7 @@ $isAuthed = dashboard_is_authenticated();
 $media = $page['media'] ?? [];
 $success = flash_get('dashboard_success');
 $error = flash_get('dashboard_error');
-$categories = ['signage', 'illuminated-signs', 'cnc', 'laser-cutting', 'printing', 'fabrication'];
+$categories = ['signage', 'illuminated-signs', 'cnc', 'laser-cutting', 'printing', 'fabrication', 'logo'];
 ?>
 <section class="page-hero">
   <div class="container">
@@ -58,6 +58,11 @@ $categories = ['signage', 'illuminated-signs', 'cnc', 'laser-cutting', 'printing
         <?php foreach ($media as $item): ?>
           <article class="service-card dashboard-media-card">
             <img src="<?= e($item['url']) ?>" alt="<?= e($item['title'] ?? 'Project image') ?>" loading="lazy" />
+            <form method="post" action="/dashboard/set-logo">
+              <input type="hidden" name="csrf_token" value="<?= e(csrf_token()) ?>" />
+              <input type="hidden" name="id" value="<?= e((string)($item['id'] ?? '')) ?>" />
+              <button type="submit" class="btn btn-outline btn-small">Use as Company Logo</button>
+            </form>
             <form class="quote-form" method="post" action="/dashboard/update-media">
               <input type="hidden" name="csrf_token" value="<?= e(csrf_token()) ?>" />
               <input type="hidden" name="id" value="<?= e((string)($item['id'] ?? '')) ?>" />

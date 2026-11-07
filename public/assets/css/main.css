@@ -140,6 +140,11 @@ a {
   color: var(--accent);
 }
 
+.btn.btn-small {
+  padding: 0.45rem 0.75rem;
+  font-size: 0.85rem;
+}
+
 .btn.btn-quote {
   white-space: nowrap;
 }
@@ -464,6 +469,10 @@ p {
   height: 180px;
   object-fit: cover;
   border: 1px solid var(--line);
+  margin-bottom: 0.7rem;
+}
+
+.dashboard-media-card > form {
   margin-bottom: 0.7rem;
 }
 
