@@ -166,9 +166,9 @@ img {
 .footer-logo,
 .preloader-logo {
   filter:
-    brightness(1.1)
-    drop-shadow(-2px 0 5px rgba(30, 50, 154, 0.75))
-    drop-shadow(2px 0 5px rgba(229, 22, 44, 0.55));
+    brightness(1.07)
+    drop-shadow(0 0 5px rgba(253, 230, 19, 0.55))
+    drop-shadow(0 0 12px rgba(253, 230, 19, 0.28));
 }
 
 .brand-logo {
@@ -182,9 +182,9 @@ img {
 
 .brand:hover .brand-logo {
   filter:
-    brightness(1.18)
-    drop-shadow(-3px 0 7px rgba(30, 50, 154, 0.9))
-    drop-shadow(3px 0 7px rgba(229, 22, 44, 0.7));
+    brightness(1.14)
+    drop-shadow(0 0 7px rgba(253, 230, 19, 0.7))
+    drop-shadow(0 0 18px rgba(253, 230, 19, 0.4));
 }
 
 .brand:hover .brand-logo {
