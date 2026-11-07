@@ -33,6 +33,7 @@ $jsVersion = is_file($jsPath) ? (string)filemtime($jsPath) : '1';
       name="twitter:description"
       content="<?= e($page['description'] ?? 'Manufacturing-focused services by A Dot Industry in Cyprus.') ?>"
     />
+    <link rel="preconnect" href="https://cdn.simpleicons.org" crossorigin />
     <?php if (!empty($siteConfig['logo_url']) && is_string($siteConfig['logo_url'])): ?>
       <link rel="preload" as="image" href="<?= e($siteConfig['logo_url']) ?>" />
     <?php endif; ?>

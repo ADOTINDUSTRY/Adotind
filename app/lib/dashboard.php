@@ -86,6 +86,23 @@ function dashboard_bootstrap_storage(array $siteConfig): void
         dashboard_media_save($siteConfig, $media);
     }
 
+    // Mirror the optimized logo to a repo-local static file so Apache serves it
+    // directly (no PHP) and it stays fast after every deployment.
+    $brandingDir = $root . '/public/assets/branding';
+    foreach (['webp', 'png'] as $ext) {
+        $src = $uploadsDir . '/brand-logo.' . $ext;
+        if (!is_file($src)) {
+            continue;
+        }
+        if (!is_dir($brandingDir)) {
+            mkdir($brandingDir, 0755, true);
+        }
+        $dst = $brandingDir . '/brand-logo.' . $ext;
+        if (!is_file($dst) || filemtime($dst) < filemtime($src)) {
+            copy($src, $dst);
+        }
+    }
+
     if ($settingsFile !== '') {
         $settings = dashboard_settings_load($siteConfig);
         $logo = (string)($settings['logo_url'] ?? '');

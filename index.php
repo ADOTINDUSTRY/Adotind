@@ -6,6 +6,12 @@ require_once __DIR__ . '/app/lib/functions.php';
 require_once __DIR__ . '/app/lib/contact_form.php';
 require_once __DIR__ . '/app/lib/dashboard.php';
 
+// Serve media as early as possible: no session, no bootstrap work for image requests.
+$earlyPath = parse_url($_SERVER['REQUEST_URI'] ?? '/', PHP_URL_PATH) ?: '/';
+if (starts_with($earlyPath, '/media/')) {
+    dashboard_serve_media($siteConfig, basename($earlyPath));
+}
+
 session_start();
 
 dashboard_bootstrap_storage($siteConfig);
@@ -116,6 +122,14 @@ if ($resolvedLogoUrl === '' && $mediaLibrary !== []) {
         }
     }
 }
+// Prefer the repo-local static copy of the optimized logo (Apache-served, no PHP).
+$logoBasename = strtolower(basename($resolvedLogoUrl));
+if ($logoBasename === 'brand-logo.png' || $logoBasename === 'brand-logo.webp') {
+    $staticCopy = '/public/assets/branding/' . $logoBasename;
+    if (is_file(__DIR__ . $staticCopy) && filesize(__DIR__ . $staticCopy) > 0) {
+        $resolvedLogoUrl = $staticCopy;
+    }
+}
 $siteConfig['logo_url'] = $resolvedLogoUrl;
 $rawLogoSetting = is_string($settings['logo_url'] ?? null) ? (string)$settings['logo_url'] : '';
 $publicMedia = array_values(array_filter(
@@ -163,9 +177,7 @@ if ($path === '//') {
     $path = '/';
 }
 
-if (starts_with($path, '/media/')) {
-    dashboard_serve_media($siteConfig, basename($path));
-}
+
 
 $routes = [
     '/' => [
