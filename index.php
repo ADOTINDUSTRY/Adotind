@@ -18,17 +18,15 @@ $isValidLogoUrl = static function (string $url) use ($siteConfig): bool {
     if ($url === '') {
         return false;
     }
+    // Only allow local logo files to avoid stale/broken remote URLs.
     if (!starts_with($url, '/')) {
-        return true;
-    }
-    $localPath = __DIR__ . $url;
-    if (!is_file($localPath) || filesize($localPath) < 100) {
         return false;
     }
-    if (starts_with($url, $siteConfig['uploads_url_base'] ?? '')) {
-        return @getimagesize($localPath) !== false;
+    $localPath = __DIR__ . $url;
+    if (!is_file($localPath) || filesize($localPath) <= 0) {
+        return false;
     }
-    return true;
+    return @getimagesize($localPath) !== false;
 };
 
 $resolvedLogoUrl = '';
