@@ -1,7 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 768" role="img" aria-labelledby="title desc">
   <title id="title">A Dot Industry Logo</title>
   <desc id="desc">Blue A with yellow dot and red A DOT INDUSTRY text</desc>
-  <rect width="1024" height="768" fill="#ffffff"/>
   <g transform="translate(110,20)">
     <path d="M0 120C0 53.7 53.7 0 120 0h460c66.3 0 120 53.7 120 120v430c0 17.7-14.3 32-32 32h-166c-17.7 0-32-14.3-32-32V390H230v160c0 17.7-14.3 32-32 32H32c-17.7 0-32-14.3-32-32V120z" fill="#1E329A"/>
     <rect x="230" y="130" width="240" height="170" rx="50" fill="#ffffff"/>
