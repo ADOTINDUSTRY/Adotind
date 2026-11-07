@@ -28,3 +28,40 @@
     });
   });
 })();
+
+(() => {
+  const header = document.querySelector('.site-header');
+  if (!header) return;
+  const onScroll = () => {
+    header.classList.toggle('is-scrolled', window.scrollY > 12);
+  };
+  onScroll();
+  window.addEventListener('scroll', onScroll, { passive: true });
+})();
+
+(() => {
+  const targets = document.querySelectorAll(
+    '.section .container > *, .page-hero .container > *, .cap-grid article, .service-card, .gallery-item, .tags span'
+  );
+  if (!targets.length) return;
+
+  if (!('IntersectionObserver' in window)) {
+    return;
+  }
+
+  targets.forEach((el) => el.classList.add('reveal'));
+
+  const observer = new IntersectionObserver(
+    (entries) => {
+      entries.forEach((entry) => {
+        if (entry.isIntersecting) {
+          entry.target.classList.add('is-visible');
+          observer.unobserve(entry.target);
+        }
+      });
+    },
+    { threshold: 0.08, rootMargin: '0px 0px -40px 0px' }
+  );
+
+  targets.forEach((el) => observer.observe(el));
+})();

@@ -16,7 +16,7 @@
   </div>
 </section>
 
-<section class="section">
+<section class="section section-light">
   <div class="container two-col">
     <div>
       <h2>Our Approach</h2>

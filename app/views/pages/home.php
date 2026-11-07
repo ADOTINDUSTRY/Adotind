@@ -30,7 +30,7 @@ $featuredMedia = $page['featured_media'] ?? [];
   </div>
 </section>
 
-<section class="section">
+<section class="section section-light">
   <div class="container">
     <h2>What We Manufacture</h2>
     <p class="lead">
