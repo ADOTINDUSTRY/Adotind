@@ -13,8 +13,6 @@ $projects = require __DIR__ . '/app/data/projects.php';
 $machinery = require __DIR__ . '/app/data/machinery.php';
 $mediaLibrary = dashboard_media_load($siteConfig);
 $settings = dashboard_settings_load($siteConfig);
-// Always keep a safe local fallback logo for reliability.
-$fallbackLogoUrl = '/public/assets/images/adotind-logo.svg';
 if (!empty($settings['logo_url']) && is_string($settings['logo_url'])) {
     $siteConfig['logo_url'] = $settings['logo_url'];
 } else {
@@ -26,14 +24,6 @@ if (!empty($settings['logo_url']) && is_string($settings['logo_url'])) {
             break;
         }
     }
-}
-if (!empty($siteConfig['logo_url']) && is_string($siteConfig['logo_url']) && starts_with($siteConfig['logo_url'], '/')) {
-    $localLogoPath = __DIR__ . $siteConfig['logo_url'];
-    if (!is_file($localLogoPath)) {
-        $siteConfig['logo_url'] = $fallbackLogoUrl;
-    }
-} elseif (empty($siteConfig['logo_url'])) {
-    $siteConfig['logo_url'] = $fallbackLogoUrl;
 }
 $publicMedia = array_values(array_filter(
     $mediaLibrary,

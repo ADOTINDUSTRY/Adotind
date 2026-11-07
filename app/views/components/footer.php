@@ -2,15 +2,16 @@
   <div class="container footer-grid">
     <div>
       <div class="footer-brand">
-        <img
-          class="footer-logo"
-          src="<?= e($siteConfig['logo_url']) ?>"
-          alt="<?= e($siteConfig['brand']) ?> logo"
-          width="58"
-          height="58"
-          decoding="async"
-          onerror="this.onerror=null;this.src='/public/assets/images/adotind-logo.svg';"
-        />
+        <?php if (!empty($siteConfig['logo_url'])): ?>
+          <img
+            class="footer-logo"
+            src="<?= e($siteConfig['logo_url']) ?>"
+            alt="<?= e($siteConfig['brand']) ?> logo"
+            width="58"
+            height="58"
+            decoding="async"
+          />
+        <?php endif; ?>
         <h2><?= e($siteConfig['brand']) ?></h2>
       </div>
       <p class="muted">

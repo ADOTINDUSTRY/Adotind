@@ -8,7 +8,7 @@ $siteConfig = [
     'phone' => '+357 97840173',
     'phone_href' => '+35797840173',
     'email' => 'info@adotind.com',
-    'logo_url' => '/public/assets/images/adotind-logo.svg',
+    'logo_url' => '',
     'whatsapp' => 'https://wa.me/35797840173',
     'viber' => 'viber://chat?number=%2B35797840173',
     'facebook' => 'https://facebook.com/adotind',

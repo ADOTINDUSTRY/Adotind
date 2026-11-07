@@ -14,16 +14,17 @@ $currentPath = current_path();
 <header class="site-header">
   <div class="container nav-shell">
     <a href="/" class="brand">
-      <img
-        class="brand-logo"
-        src="<?= e($siteConfig['logo_url']) ?>"
-        alt="<?= e($siteConfig['brand']) ?> logo"
-        width="52"
-        height="52"
-        fetchpriority="high"
-        decoding="async"
-        onerror="this.onerror=null;this.src='/public/assets/images/adotind-logo.svg';"
-      />
+      <?php if (!empty($siteConfig['logo_url'])): ?>
+        <img
+          class="brand-logo"
+          src="<?= e($siteConfig['logo_url']) ?>"
+          alt="<?= e($siteConfig['brand']) ?> logo"
+          width="52"
+          height="52"
+          fetchpriority="high"
+          decoding="async"
+        />
+      <?php endif; ?>
       <span class="brand-text"><?= e($siteConfig['brand']) ?></span>
     </a>
     <button class="nav-toggle" type="button" aria-label="Toggle navigation" aria-expanded="false">
