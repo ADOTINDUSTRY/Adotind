@@ -1,4 +1,5 @@
 <?php /** @var array $page */ ?>
+<?php $heroMedia = $page['hero_media'] ?? []; ?>
 <section class="page-hero">
   <div class="container">
     <p class="eyebrow">Services</p>
@@ -7,6 +8,11 @@
       Explore our full capability set, from visual branding systems to precision
       machining and fabrication workflows.
     </p>
+    <?php if (!empty($heroMedia[0]['url'])): ?>
+      <div class="hero-media-card page-hero-media">
+        <img src="<?= e((string)$heroMedia[0]['url']) ?>" alt="<?= e((string)($heroMedia[0]['title'] ?? 'Services image')) ?>" loading="lazy" />
+      </div>
+    <?php endif; ?>
   </div>
 </section>
 

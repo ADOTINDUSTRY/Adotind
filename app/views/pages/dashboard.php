@@ -4,12 +4,13 @@ $media = $page['media'] ?? [];
 $success = flash_get('dashboard_success');
 $error = flash_get('dashboard_error');
 $categories = ['signage', 'illuminated-signs', 'cnc', 'laser-cutting', 'printing', 'fabrication', 'logo'];
+$locations = dashboard_location_options();
 ?>
 <section class="page-hero">
   <div class="container">
     <p class="eyebrow">Private Dashboard</p>
     <h1>Media Management</h1>
-    <p class="lead">Upload project images and edit titles/descriptions used on website pages.</p>
+    <p class="lead">Upload project images to a specific website location and manage their details.</p>
   </div>
 </section>
 
@@ -43,6 +44,13 @@ $categories = ['signage', 'illuminated-signs', 'cnc', 'laser-cutting', 'printing
           <input type="hidden" name="csrf_token" value="<?= e(csrf_token()) ?>" />
           <label>Select multiple images
             <input type="file" name="photos[]" accept=".jpg,.jpeg,.png,.webp" multiple required />
+          </label>
+          <label>Display location
+            <select name="location">
+              <?php foreach ($locations as $value => $label): ?>
+                <option value="<?= e($value) ?>"><?= e($label) ?></option>
+              <?php endforeach; ?>
+            </select>
           </label>
           <button type="submit" class="btn">Upload</button>
         </form>
@@ -82,6 +90,14 @@ $categories = ['signage', 'illuminated-signs', 'cnc', 'laser-cutting', 'printing
                   <?php foreach ($categories as $category): ?>
                     <?php $selected = (($item['category'] ?? '') === $category) ? 'selected' : ''; ?>
                     <option value="<?= e($category) ?>" <?= $selected ?>><?= e(ucwords(str_replace('-', ' ', $category))) ?></option>
+                  <?php endforeach; ?>
+                </select>
+              </label>
+              <label>Display location
+                <select name="location">
+                  <?php foreach ($locations as $value => $label): ?>
+                    <?php $selected = (($item['location'] ?? 'portfolio-gallery') === $value) ? 'selected' : ''; ?>
+                    <option value="<?= e($value) ?>" <?= $selected ?>><?= e($label) ?></option>
                   <?php endforeach; ?>
                 </select>
               </label>

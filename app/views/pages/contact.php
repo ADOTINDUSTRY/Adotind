@@ -4,6 +4,7 @@ $errorMessage = flash_get('form_error');
 $successMessage = flash_get('form_success');
 $old = flash_get('form_old', []);
 $services = require __DIR__ . '/../../data/services.php';
+$heroMedia = $page['hero_media'] ?? [];
 ?>
 <section class="page-hero">
   <div class="container">
@@ -12,6 +13,11 @@ $services = require __DIR__ . '/../../data/services.php';
     <p class="lead">
       Submit your requirements and reference files to receive a tailored quote.
     </p>
+    <?php if (!empty($heroMedia[0]['url'])): ?>
+      <div class="hero-media-card page-hero-media">
+        <img src="<?= e((string)$heroMedia[0]['url']) ?>" alt="<?= e((string)($heroMedia[0]['title'] ?? 'Contact image')) ?>" loading="lazy" />
+      </div>
+    <?php endif; ?>
   </div>
 </section>
 

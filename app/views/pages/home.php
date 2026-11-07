@@ -1,4 +1,7 @@
-<?php $media = $page['media'] ?? []; ?>
+<?php
+$heroMedia = $page['hero_media'] ?? [];
+$featuredMedia = $page['featured_media'] ?? [];
+?>
 <section class="hero">
   <div class="container hero-grid">
     <div>
@@ -14,9 +17,9 @@
         <a href="/services" class="btn btn-outline">Explore Capabilities</a>
       </div>
     </div>
-    <?php if (!empty($media[0]['url'])): ?>
+    <?php if (!empty($heroMedia[0]['url'])): ?>
       <div class="hero-media-card">
-        <img src="<?= e($media[0]['url']) ?>" alt="<?= e((string)($media[0]['title'] ?? 'Project image')) ?>" loading="lazy" />
+        <img src="<?= e($heroMedia[0]['url']) ?>" alt="<?= e((string)($heroMedia[0]['title'] ?? 'Project image')) ?>" loading="lazy" />
       </div>
     <?php else: ?>
       <div class="photo-placeholder" role="img" aria-label="Industrial manufacturing photography placeholder">
@@ -84,8 +87,8 @@
   <div class="container">
     <h2>Featured Projects</h2>
     <div class="gallery-grid">
-      <?php if ($media !== []): ?>
-        <?php foreach (array_slice($media, 0, 3) as $item): ?>
+    <?php if ($featuredMedia !== []): ?>
+      <?php foreach (array_slice($featuredMedia, 0, 3) as $item): ?>
           <figure class="gallery-item">
             <img class="gallery-photo" src="<?= e((string)$item['url']) ?>" alt="<?= e((string)($item['title'] ?? 'Project image')) ?>" loading="lazy" />
             <figcaption><?= e((string)($item['title'] ?? 'Project image')) ?></figcaption>

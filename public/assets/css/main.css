@@ -198,6 +198,11 @@ a {
   border: 1px solid var(--line);
 }
 
+.page-hero-media {
+  margin-top: 1rem;
+  max-width: 460px;
+}
+
 .eyebrow {
   margin: 0 0 0.5rem;
   color: var(--accent);

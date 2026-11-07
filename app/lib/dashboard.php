@@ -13,6 +13,24 @@ function dashboard_require_auth(): void
     }
 }
 
+function dashboard_location_options(): array
+{
+    return [
+        'portfolio-gallery' => 'Portfolio Gallery',
+        'home-hero' => 'Homepage Hero Image',
+        'home-featured' => 'Homepage Featured Projects',
+        'about-hero' => 'About Page Header',
+        'services-hero' => 'Services Page Header',
+        'contact-hero' => 'Contact Page Header',
+    ];
+}
+
+function dashboard_normalize_location(string $location): string
+{
+    $allowed = array_keys(dashboard_location_options());
+    return in_array($location, $allowed, true) ? $location : 'portfolio-gallery';
+}
+
 function dashboard_media_load(array $siteConfig): array
 {
     $file = $siteConfig['media_index_file'];
@@ -231,6 +249,7 @@ function dashboard_handle_upload(array $siteConfig): never
 
     $media = dashboard_media_load($siteConfig);
     $settings = dashboard_settings_load($siteConfig);
+    $uploadLocation = dashboard_normalize_location((string)($_POST['location'] ?? 'portfolio-gallery'));
     $count = count($_FILES['photos']['name']);
     $added = 0;
     $autoLogoUrl = '';
@@ -278,6 +297,7 @@ function dashboard_handle_upload(array $siteConfig): never
             'title' => $title,
             'description' => 'Project image uploaded via dashboard.',
             'category' => $defaultCategory,
+            'location' => $uploadLocation,
             'uploaded_at' => date('c'),
         ];
         $added++;
@@ -313,6 +333,7 @@ function dashboard_handle_update_meta(array $siteConfig): never
     $title = trim((string)($_POST['title'] ?? ''));
     $description = trim((string)($_POST['description'] ?? ''));
     $category = trim((string)($_POST['category'] ?? ''));
+    $location = dashboard_normalize_location((string)($_POST['location'] ?? 'portfolio-gallery'));
     $validCategories = ['signage', 'illuminated-signs', 'cnc', 'laser-cutting', 'printing', 'fabrication', 'logo'];
     if (!in_array($category, $validCategories, true)) {
         $category = 'signage';
@@ -323,6 +344,7 @@ function dashboard_handle_update_meta(array $siteConfig): never
             $item['title'] = $title !== '' ? $title : $item['title'];
             $item['description'] = $description;
             $item['category'] = $category;
+            $item['location'] = $location;
             break;
         }
     }

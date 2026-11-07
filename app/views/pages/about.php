@@ -1,3 +1,4 @@
+<?php $heroMedia = $page['hero_media'] ?? []; ?>
 <section class="page-hero">
   <div class="container">
     <p class="eyebrow">About A Dot Industry</p>
@@ -7,6 +8,11 @@
       for businesses that require technical execution, material understanding,
       and high-quality finish standards.
     </p>
+    <?php if (!empty($heroMedia[0]['url'])): ?>
+      <div class="hero-media-card page-hero-media">
+        <img src="<?= e((string)$heroMedia[0]['url']) ?>" alt="<?= e((string)($heroMedia[0]['title'] ?? 'About image')) ?>" loading="lazy" />
+      </div>
+    <?php endif; ?>
   </div>
 </section>
 

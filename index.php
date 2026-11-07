@@ -93,6 +93,21 @@ $publicMedia = array_values(array_filter(
         return (($m['url'] ?? '') !== ($siteConfig['logo_url'] ?? ''));
     }
 ));
+$mediaByLocation = [
+    'home-hero' => [],
+    'home-featured' => [],
+    'portfolio-gallery' => [],
+    'about-hero' => [],
+    'services-hero' => [],
+    'contact-hero' => [],
+];
+foreach ($publicMedia as $item) {
+    $location = dashboard_normalize_location((string)($item['location'] ?? 'portfolio-gallery'));
+    $mediaByLocation[$location][] = $item;
+}
+$homeHeroMedia = $mediaByLocation['home-hero'] !== [] ? $mediaByLocation['home-hero'] : $publicMedia;
+$homeFeaturedMedia = $mediaByLocation['home-featured'] !== [] ? $mediaByLocation['home-featured'] : $publicMedia;
+$portfolioMedia = $mediaByLocation['portfolio-gallery'] !== [] ? $mediaByLocation['portfolio-gallery'] : $publicMedia;
 
 $uriPath = parse_url($_SERVER['REQUEST_URI'] ?? '/', PHP_URL_PATH) ?: '/';
 $path = '/' . trim($uriPath, '/');
@@ -107,12 +122,15 @@ $routes = [
         'description' => 'A Dot Industry delivers premium signage manufacturing, CNC router services, laser cutting, large-format printing and industrial fabrication in Cyprus.',
         'schema' => 'home',
         'media' => $publicMedia,
+        'hero_media' => $homeHeroMedia,
+        'featured_media' => $homeFeaturedMedia,
         'breadcrumbs' => [['label' => 'Home', 'href' => '/']],
     ],
     '/about' => [
         'view' => 'about',
         'title' => 'About A Dot Industry | Industrial Manufacturing Company in Cyprus',
         'description' => 'Learn about A Dot Industry Enterprises Ltd and our manufacturing approach across signage, CNC, laser processing, printing and fabrication.',
+        'hero_media' => $mediaByLocation['about-hero'],
         'breadcrumbs' => [['label' => 'Home', 'href' => '/'], ['label' => 'About', 'href' => '/about']],
     ],
     '/services' => [
@@ -120,6 +138,7 @@ $routes = [
         'title' => 'Services | A Dot Industry Manufacturing Capabilities',
         'description' => 'Explore sign manufacturing, CNC router services, laser cutting and engraving, printing, fabrication and 3D manufacturing solutions.',
         'services' => $services,
+        'hero_media' => $mediaByLocation['services-hero'],
         'breadcrumbs' => [['label' => 'Home', 'href' => '/'], ['label' => 'Services', 'href' => '/services']],
     ],
     '/portfolio' => [
@@ -127,7 +146,7 @@ $routes = [
         'title' => 'Portfolio | A Dot Industry Projects',
         'description' => 'Explore project categories across signage, illuminated signs, CNC, laser cutting, printing and fabrication.',
         'projects' => $projects,
-        'media' => $publicMedia,
+        'media' => $portfolioMedia,
         'breadcrumbs' => [['label' => 'Home', 'href' => '/'], ['label' => 'Portfolio', 'href' => '/portfolio']],
     ],
     '/machinery' => [
@@ -153,6 +172,7 @@ $routes = [
         'view' => 'contact',
         'title' => 'Contact & Request a Quote | A Dot Industry',
         'description' => 'Request a quote for signage, CNC, laser cutting, printing and fabrication projects in Cyprus.',
+        'hero_media' => $mediaByLocation['contact-hero'],
         'breadcrumbs' => [['label' => 'Home', 'href' => '/'], ['label' => 'Contact', 'href' => '/contact']],
     ],
     '/dashboard' => [
