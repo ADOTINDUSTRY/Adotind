@@ -143,6 +143,16 @@ a {
   color: var(--accent);
 }
 
+.btn.btn-danger {
+  color: #fca5a5;
+  border-color: #7f1d1d;
+}
+
+.btn.btn-danger:hover {
+  background: #3f1414;
+  color: #fecaca;
+}
+
 .btn.btn-small {
   padding: 0.45rem 0.75rem;
   font-size: 0.85rem;

@@ -245,3 +245,54 @@ function dashboard_handle_set_logo(array $siteConfig): never
     flash_set('dashboard_success', 'Logo updated successfully.');
     redirect('/dashboard', 303);
 }
+
+function dashboard_handle_delete_media(array $siteConfig): never
+{
+    dashboard_require_auth();
+    if ($_SERVER['REQUEST_METHOD'] !== 'POST' || !csrf_valid($_POST['csrf_token'] ?? null)) {
+        flash_set('dashboard_error', 'Invalid delete request.');
+        redirect('/dashboard', 303);
+    }
+
+    $id = (string)($_POST['id'] ?? '');
+    if ($id === '') {
+        flash_set('dashboard_error', 'Image not found.');
+        redirect('/dashboard', 303);
+    }
+
+    $media = dashboard_media_load($siteConfig);
+    $deletedItem = null;
+    foreach ($media as $index => $item) {
+        if (($item['id'] ?? '') === $id) {
+            $deletedItem = $item;
+            unset($media[$index]);
+            break;
+        }
+    }
+
+    if ($deletedItem === null) {
+        flash_set('dashboard_error', 'Image not found.');
+        redirect('/dashboard', 303);
+    }
+
+    $filename = basename((string)($deletedItem['filename'] ?? ''));
+    if ($filename !== '') {
+        $uploadDir = rtrim((string)$siteConfig['uploads_dir'], '/');
+        $filePath = $uploadDir . '/' . $filename;
+        if (is_file($filePath)) {
+            unlink($filePath);
+        }
+    }
+
+    dashboard_media_save($siteConfig, array_values($media));
+
+    $settings = dashboard_settings_load($siteConfig);
+    $deletedUrl = (string)($deletedItem['url'] ?? '');
+    if ($deletedUrl !== '' && (($settings['logo_url'] ?? '') === $deletedUrl)) {
+        unset($settings['logo_url']);
+        dashboard_settings_save($siteConfig, $settings);
+    }
+
+    flash_set('dashboard_success', 'Image deleted successfully.');
+    redirect('/dashboard', 303);
+}

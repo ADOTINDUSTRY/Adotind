@@ -182,6 +182,9 @@ if ($path === '/dashboard/update-media') {
 if ($path === '/dashboard/set-logo') {
     dashboard_handle_set_logo($siteConfig);
 }
+if ($path === '/dashboard/delete-media') {
+    dashboard_handle_delete_media($siteConfig);
+}
 
 $page = $routes[$path] ?? null;
 

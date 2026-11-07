@@ -63,6 +63,11 @@ $categories = ['signage', 'illuminated-signs', 'cnc', 'laser-cutting', 'printing
               <input type="hidden" name="id" value="<?= e((string)($item['id'] ?? '')) ?>" />
               <button type="submit" class="btn btn-outline btn-small">Use as Company Logo</button>
             </form>
+            <form method="post" action="/dashboard/delete-media" onsubmit="return confirm('Delete this image permanently?');">
+              <input type="hidden" name="csrf_token" value="<?= e(csrf_token()) ?>" />
+              <input type="hidden" name="id" value="<?= e((string)($item['id'] ?? '')) ?>" />
+              <button type="submit" class="btn btn-outline btn-small btn-danger">Delete Image</button>
+            </form>
             <form class="quote-form" method="post" action="/dashboard/update-media">
               <input type="hidden" name="csrf_token" value="<?= e(csrf_token()) ?>" />
               <input type="hidden" name="id" value="<?= e((string)($item['id'] ?? '')) ?>" />
