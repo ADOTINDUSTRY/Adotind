@@ -1,3 +1,4 @@
+<?php $media = $page['media'] ?? []; ?>
 <section class="hero">
   <div class="container hero-grid">
     <div>
@@ -13,10 +14,16 @@
         <a href="/services" class="btn btn-outline">Explore Capabilities</a>
       </div>
     </div>
-    <div class="photo-placeholder" role="img" aria-label="Industrial manufacturing photography placeholder">
-      <p>Project Gallery Pending</p>
-      <small>Your approved project photos will be added here next.</small>
-    </div>
+    <?php if (!empty($media[0]['url'])): ?>
+      <div class="hero-media-card">
+        <img src="<?= e($media[0]['url']) ?>" alt="<?= e((string)($media[0]['title'] ?? 'Project image')) ?>" loading="lazy" />
+      </div>
+    <?php else: ?>
+      <div class="photo-placeholder" role="img" aria-label="Industrial manufacturing photography placeholder">
+        <p>Project Gallery Pending</p>
+        <small>Upload images from /dashboard to display them here.</small>
+      </div>
+    <?php endif; ?>
   </div>
 </section>
 
@@ -77,18 +84,27 @@
   <div class="container">
     <h2>Featured Projects</h2>
     <div class="gallery-grid">
-      <figure class="gallery-item">
-        <div class="photo-placeholder" role="img" aria-label="Project image placeholder"><p>Project Placeholder</p></div>
-        <figcaption>Signage Project</figcaption>
-      </figure>
-      <figure class="gallery-item">
-        <div class="photo-placeholder" role="img" aria-label="Project image placeholder"><p>Project Placeholder</p></div>
-        <figcaption>CNC Project</figcaption>
-      </figure>
-      <figure class="gallery-item">
-        <div class="photo-placeholder" role="img" aria-label="Project image placeholder"><p>Project Placeholder</p></div>
-        <figcaption>Fabrication Project</figcaption>
-      </figure>
+      <?php if ($media !== []): ?>
+        <?php foreach (array_slice($media, 0, 3) as $item): ?>
+          <figure class="gallery-item">
+            <img class="gallery-photo" src="<?= e((string)$item['url']) ?>" alt="<?= e((string)($item['title'] ?? 'Project image')) ?>" loading="lazy" />
+            <figcaption><?= e((string)($item['title'] ?? 'Project image')) ?></figcaption>
+          </figure>
+        <?php endforeach; ?>
+      <?php else: ?>
+        <figure class="gallery-item">
+          <div class="photo-placeholder" role="img" aria-label="Project image placeholder"><p>Project Placeholder</p></div>
+          <figcaption>Signage Project</figcaption>
+        </figure>
+        <figure class="gallery-item">
+          <div class="photo-placeholder" role="img" aria-label="Project image placeholder"><p>Project Placeholder</p></div>
+          <figcaption>CNC Project</figcaption>
+        </figure>
+        <figure class="gallery-item">
+          <div class="photo-placeholder" role="img" aria-label="Project image placeholder"><p>Project Placeholder</p></div>
+          <figcaption>Fabrication Project</figcaption>
+        </figure>
+      <?php endif; ?>
     </div>
   </div>
 </section>

@@ -8,6 +8,7 @@ $navItems = [
     ['label' => 'Materials', 'href' => '/materials'],
     ['label' => 'Industries', 'href' => '/industries'],
     ['label' => 'Contact', 'href' => '/contact'],
+    ['label' => 'Dashboard', 'href' => '/dashboard'],
 ];
 $currentPath = current_path();
 ?>

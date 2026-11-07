@@ -4,12 +4,14 @@ declare(strict_types=1);
 require_once __DIR__ . '/app/config/site.php';
 require_once __DIR__ . '/app/lib/functions.php';
 require_once __DIR__ . '/app/lib/contact_form.php';
+require_once __DIR__ . '/app/lib/dashboard.php';
 
 session_start();
 
 $services = require __DIR__ . '/app/data/services.php';
 $projects = require __DIR__ . '/app/data/projects.php';
 $machinery = require __DIR__ . '/app/data/machinery.php';
+$mediaLibrary = dashboard_media_load($siteConfig);
 
 $uriPath = parse_url($_SERVER['REQUEST_URI'] ?? '/', PHP_URL_PATH) ?: '/';
 $path = '/' . trim($uriPath, '/');
@@ -23,6 +25,7 @@ $routes = [
         'title' => 'A Dot Industry | Sign Manufacturing, CNC, Laser Cutting & Fabrication in Cyprus',
         'description' => 'A Dot Industry delivers premium signage manufacturing, CNC router services, laser cutting, large-format printing and industrial fabrication in Cyprus.',
         'schema' => 'home',
+        'media' => $mediaLibrary,
         'breadcrumbs' => [['label' => 'Home', 'href' => '/']],
     ],
     '/about' => [
@@ -43,6 +46,7 @@ $routes = [
         'title' => 'Portfolio | A Dot Industry Projects',
         'description' => 'Explore project categories across signage, illuminated signs, CNC, laser cutting, printing and fabrication.',
         'projects' => $projects,
+        'media' => $mediaLibrary,
         'breadcrumbs' => [['label' => 'Home', 'href' => '/'], ['label' => 'Portfolio', 'href' => '/portfolio']],
     ],
     '/machinery' => [
@@ -70,10 +74,29 @@ $routes = [
         'description' => 'Request a quote for signage, CNC, laser cutting, printing and fabrication projects in Cyprus.',
         'breadcrumbs' => [['label' => 'Home', 'href' => '/'], ['label' => 'Contact', 'href' => '/contact']],
     ],
+    '/dashboard' => [
+        'view' => 'dashboard',
+        'title' => 'Dashboard | A Dot Industry',
+        'description' => 'Private dashboard for managing project media.',
+        'media' => $mediaLibrary,
+        'breadcrumbs' => [['label' => 'Home', 'href' => '/'], ['label' => 'Dashboard', 'href' => '/dashboard']],
+    ],
 ];
 
 if ($path === '/contact/submit') {
     handle_contact_submit($siteConfig);
+}
+if ($path === '/dashboard/login') {
+    dashboard_handle_login($siteConfig);
+}
+if ($path === '/dashboard/logout') {
+    dashboard_handle_logout();
+}
+if ($path === '/dashboard/upload') {
+    dashboard_handle_upload($siteConfig);
+}
+if ($path === '/dashboard/update-media') {
+    dashboard_handle_update_meta($siteConfig);
 }
 
 $page = $routes[$path] ?? null;
