@@ -67,6 +67,15 @@ $jsVersion = is_file($jsPath) ? (string)filemtime($jsPath) : '1';
     <?php endif; ?>
   </head>
   <body>
+    <div id="preloader" class="preloader" role="status" aria-label="Loading">
+      <div class="preloader-inner">
+        <?php if (!empty($siteConfig['logo_url']) && is_string($siteConfig['logo_url'])): ?>
+          <img class="preloader-logo" src="<?= e($siteConfig['logo_url']) ?>" alt="" width="72" height="72" />
+        <?php endif; ?>
+        <div class="preloader-spinner" aria-hidden="true"></div>
+        <span class="preloader-text"><?= e($siteConfig['brand']) ?></span>
+      </div>
+    </div>
     <?php require __DIR__ . '/components/header.php'; ?>
     <?php require __DIR__ . '/components/breadcrumbs.php'; ?>
     <main>

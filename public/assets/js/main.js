@@ -1,4 +1,22 @@
 (() => {
+  const preloader = document.getElementById('preloader');
+  if (!preloader) return;
+
+  const hide = () => {
+    preloader.classList.add('is-done');
+    window.setTimeout(() => preloader.remove(), 600);
+  };
+
+  if (document.readyState === 'complete') {
+    hide();
+  } else {
+    window.addEventListener('load', hide, { once: true });
+    // Safety net: never trap the user behind the loader.
+    window.setTimeout(hide, 6000);
+  }
+})();
+
+(() => {
   const toggle = document.querySelector('.nav-toggle');
   const nav = document.querySelector('.main-nav');
   if (!toggle || !nav) return;
