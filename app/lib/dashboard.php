@@ -67,33 +67,6 @@ function dashboard_settings_save(array $siteConfig, array $settings): void
     file_put_contents($file, json_encode($settings, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES));
 }
 
-function dashboard_page_content_load(array $siteConfig): array
-{
-    $file = $siteConfig['page_content_file'] ?? '';
-    if (!is_string($file) || $file === '' || !is_file($file)) {
-        return [];
-    }
-    $raw = file_get_contents($file);
-    if ($raw === false || $raw === '') {
-        return [];
-    }
-    $data = json_decode($raw, true);
-    return is_array($data) ? $data : [];
-}
-
-function dashboard_page_content_save(array $siteConfig, array $pages): void
-{
-    $file = $siteConfig['page_content_file'] ?? '';
-    if (!is_string($file) || $file === '') {
-        return;
-    }
-    $dir = dirname($file);
-    if (!is_dir($dir)) {
-        mkdir($dir, 0755, true);
-    }
-    file_put_contents($file, json_encode($pages, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES));
-}
-
 function dashboard_resolve_local_media_path(array $siteConfig, string $url): string
 {
     if ($url === '') {
@@ -440,58 +413,4 @@ function dashboard_handle_delete_media(array $siteConfig): never
 
     flash_set('dashboard_success', 'Image deleted successfully.');
     redirect('/dashboard', 303);
-}
-
-function dashboard_handle_save_page_content(array $siteConfig): never
-{
-    dashboard_require_auth();
-    if ($_SERVER['REQUEST_METHOD'] !== 'POST' || !csrf_valid($_POST['csrf_token'] ?? null)) {
-        flash_set('dashboard_error', 'Invalid page edit request.');
-        redirect('/dashboard', 303);
-    }
-
-    $path = trim((string)($_POST['path'] ?? ''));
-    if ($path === '' || !starts_with($path, '/')) {
-        flash_set('dashboard_error', 'Invalid page path.');
-        redirect('/dashboard', 303);
-    }
-
-    $editable = [
-        'eyebrow' => trim((string)($_POST['eyebrow'] ?? '')),
-        'heading' => trim((string)($_POST['heading'] ?? '')),
-        'lead' => trim((string)($_POST['lead'] ?? '')),
-        'meta_title' => trim((string)($_POST['meta_title'] ?? '')),
-        'meta_description' => trim((string)($_POST['meta_description'] ?? '')),
-    ];
-
-    $heroImageUrl = trim((string)($_POST['hero_image_url'] ?? ''));
-    if ($heroImageUrl !== '') {
-        $mediaLibrary = dashboard_media_load($siteConfig);
-        $allowedUrls = array_map(
-            static fn(array $item): string => (string)($item['url'] ?? ''),
-            $mediaLibrary
-        );
-        if (!in_array($heroImageUrl, $allowedUrls, true)) {
-            $heroImageUrl = '';
-        }
-    }
-    $editable['hero_image_url'] = $heroImageUrl;
-
-    $cleaned = [];
-    foreach ($editable as $key => $value) {
-        if ($value !== '') {
-            $cleaned[$key] = $value;
-        }
-    }
-
-    $pages = dashboard_page_content_load($siteConfig);
-    if ($cleaned === []) {
-        unset($pages[$path]);
-    } else {
-        $pages[$path] = $cleaned;
-    }
-    dashboard_page_content_save($siteConfig, $pages);
-
-    flash_set('dashboard_success', 'Page content updated.');
-    redirect($path, 303);
 }

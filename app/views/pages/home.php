@@ -1,23 +1,20 @@
-<?php
-$media = $page['media'] ?? [];
-$heroImageOverride = editable_text($page, 'hero_image_url', '');
-?>
+<?php $media = $page['media'] ?? []; ?>
 <section class="hero">
   <div class="container hero-grid">
     <div>
-      <p class="eyebrow"><?= e(editable_text($page, 'eyebrow', 'Industrial Manufacturing in Cyprus')) ?></p>
-      <h1><?= e(editable_text($page, 'heading', 'Premium Signage, Precision CNC, Laser Cutting & Fabrication')) ?></h1>
-      <p class="lead"><?= e(editable_text($page, 'lead', 'A Dot Industry is a professional manufacturing partner for signage, machining and custom production projects. We combine design execution, technical capability and reliable delivery for business clients.')) ?></p>
+      <p class="eyebrow">Industrial Manufacturing in Cyprus</p>
+      <h1>Premium Signage, Precision CNC, Laser Cutting & Fabrication</h1>
+      <p class="lead">
+        A Dot Industry is a professional manufacturing partner for signage,
+        machining and custom production projects. We combine design execution,
+        technical capability and reliable delivery for business clients.
+      </p>
       <div class="cta-group">
         <a href="/contact" class="btn">Request a Custom Quote</a>
         <a href="/services" class="btn btn-outline">Explore Capabilities</a>
       </div>
     </div>
-    <?php if ($heroImageOverride !== ''): ?>
-      <div class="hero-media-card">
-        <img src="<?= e($heroImageOverride) ?>" alt="<?= e(editable_text($page, 'heading', 'A Dot Industry featured image')) ?>" loading="lazy" />
-      </div>
-    <?php elseif (!empty($media[0]['url'])): ?>
+    <?php if (!empty($media[0]['url'])): ?>
       <div class="hero-media-card">
         <img src="<?= e($media[0]['url']) ?>" alt="<?= e((string)($media[0]['title'] ?? 'Project image')) ?>" loading="lazy" />
       </div>

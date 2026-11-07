@@ -21,5 +21,4 @@ $siteConfig = [
     'uploads_dir' => __DIR__ . '/../../public/uploads/projects',
     'media_index_file' => __DIR__ . '/../../storage/media/library.json',
     'media_settings_file' => __DIR__ . '/../../storage/media/settings.json',
-    'page_content_file' => __DIR__ . '/../../storage/content/pages.json',
 ];

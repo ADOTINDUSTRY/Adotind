@@ -3,14 +3,9 @@ $service = $page['service'];
 ?>
 <section class="page-hero">
   <div class="container">
-    <p class="eyebrow"><?= e(editable_text($page, 'eyebrow', 'Service Detail')) ?></p>
-    <h1><?= e(editable_text($page, 'heading', (string)$service['name'])) ?></h1>
-    <p class="lead"><?= e(editable_text($page, 'lead', (string)$service['summary'])) ?></p>
-    <?php if (editable_text($page, 'hero_image_url', '') !== ''): ?>
-      <div class="hero-media-card page-hero-media">
-        <img src="<?= e(editable_text($page, 'hero_image_url', '')) ?>" alt="<?= e(editable_text($page, 'heading', 'Service page image')) ?>" loading="lazy" />
-      </div>
-    <?php endif; ?>
+    <p class="eyebrow">Service Detail</p>
+    <h1><?= e($service['name']) ?></h1>
+    <p class="lead"><?= e($service['summary']) ?></p>
   </div>
 </section>
 

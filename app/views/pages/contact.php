@@ -7,14 +7,11 @@ $services = require __DIR__ . '/../../data/services.php';
 ?>
 <section class="page-hero">
   <div class="container">
-    <p class="eyebrow"><?= e(editable_text($page, 'eyebrow', 'Contact & Request a Quote')) ?></p>
-    <h1><?= e(editable_text($page, 'heading', 'Tell Us About Your Project')) ?></h1>
-    <p class="lead"><?= e(editable_text($page, 'lead', 'Submit your requirements and reference files to receive a tailored quote.')) ?></p>
-    <?php if (editable_text($page, 'hero_image_url', '') !== ''): ?>
-      <div class="hero-media-card page-hero-media">
-        <img src="<?= e(editable_text($page, 'hero_image_url', '')) ?>" alt="<?= e(editable_text($page, 'heading', 'Contact page image')) ?>" loading="lazy" />
-      </div>
-    <?php endif; ?>
+    <p class="eyebrow">Contact & Request a Quote</p>
+    <h1>Tell Us About Your Project</h1>
+    <p class="lead">
+      Submit your requirements and reference files to receive a tailored quote.
+    </p>
   </div>
 </section>
 

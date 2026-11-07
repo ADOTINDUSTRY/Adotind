@@ -1,13 +1,12 @@
 <section class="page-hero">
   <div class="container">
-    <p class="eyebrow"><?= e(editable_text($page, 'eyebrow', 'About A Dot Industry')) ?></p>
-    <h1><?= e(editable_text($page, 'heading', 'Manufacturing-Led Thinking for Custom Industrial Projects')) ?></h1>
-    <p class="lead"><?= e(editable_text($page, 'lead', 'A Dot Industry Enterprises Ltd operates as a practical production partner for businesses that require technical execution, material understanding, and high-quality finish standards.')) ?></p>
-    <?php if (editable_text($page, 'hero_image_url', '') !== ''): ?>
-      <div class="hero-media-card page-hero-media">
-        <img src="<?= e(editable_text($page, 'hero_image_url', '')) ?>" alt="<?= e(editable_text($page, 'heading', 'About page image')) ?>" loading="lazy" />
-      </div>
-    <?php endif; ?>
+    <p class="eyebrow">About A Dot Industry</p>
+    <h1>Manufacturing-Led Thinking for Custom Industrial Projects</h1>
+    <p class="lead">
+      A Dot Industry Enterprises Ltd operates as a practical production partner
+      for businesses that require technical execution, material understanding,
+      and high-quality finish standards.
+    </p>
   </div>
 </section>
 

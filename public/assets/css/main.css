@@ -198,11 +198,6 @@ a {
   border: 1px solid var(--line);
 }
 
-.page-hero-media {
-  margin-top: 1rem;
-  max-width: 460px;
-}
-
 .eyebrow {
   margin: 0 0 0.5rem;
   color: var(--accent);
@@ -492,38 +487,6 @@ p {
 
 .dashboard-media-card > form {
   margin-bottom: 0.7rem;
-}
-
-.page-editor-bar {
-  border-bottom: 1px solid var(--line);
-  background: #0d1730;
-}
-
-.page-editor-bar details {
-  padding: 0.7rem 0;
-}
-
-.page-editor-bar summary {
-  cursor: pointer;
-  color: var(--accent);
-  font-weight: 700;
-  margin-bottom: 0.7rem;
-}
-
-.page-editor-form {
-  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-  gap: 0.7rem 1rem;
-}
-
-.page-editor-form label {
-  margin: 0;
-}
-
-.page-editor-actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.6rem;
-  align-items: end;
 }
 
 .site-footer {

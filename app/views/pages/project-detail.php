@@ -3,14 +3,9 @@ $project = $page['project'];
 ?>
 <section class="page-hero">
   <div class="container">
-    <p class="eyebrow"><?= e(editable_text($page, 'eyebrow', 'Project Detail')) ?></p>
-    <h1><?= e(editable_text($page, 'heading', (string)$project['title'])) ?></h1>
-    <p class="lead"><?= e(editable_text($page, 'lead', (string)$project['description'])) ?></p>
-    <?php if (editable_text($page, 'hero_image_url', '') !== ''): ?>
-      <div class="hero-media-card page-hero-media">
-        <img src="<?= e(editable_text($page, 'hero_image_url', '')) ?>" alt="<?= e(editable_text($page, 'heading', 'Project page image')) ?>" loading="lazy" />
-      </div>
-    <?php endif; ?>
+    <p class="eyebrow">Project Detail</p>
+    <h1><?= e($project['title']) ?></h1>
+    <p class="lead"><?= e($project['description']) ?></p>
   </div>
 </section>
 

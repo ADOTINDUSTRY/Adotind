@@ -1,13 +1,11 @@
 <section class="page-hero">
   <div class="container">
-    <p class="eyebrow"><?= e(editable_text($page, 'eyebrow', 'Industries')) ?></p>
-    <h1><?= e(editable_text($page, 'heading', 'Industries We Support')) ?></h1>
-    <p class="lead"><?= e(editable_text($page, 'lead', 'We provide manufacturing and branding production support for businesses, agencies and technical project teams across Cyprus.')) ?></p>
-    <?php if (editable_text($page, 'hero_image_url', '') !== ''): ?>
-      <div class="hero-media-card page-hero-media">
-        <img src="<?= e(editable_text($page, 'hero_image_url', '')) ?>" alt="<?= e(editable_text($page, 'heading', 'Industries page image')) ?>" loading="lazy" />
-      </div>
-    <?php endif; ?>
+    <p class="eyebrow">Industries</p>
+    <h1>Industries We Support</h1>
+    <p class="lead">
+      We provide manufacturing and branding production support for businesses,
+      agencies and technical project teams across Cyprus.
+    </p>
   </div>
 </section>
 
