@@ -29,8 +29,10 @@ $isValidLogoUrl = static function (string $url) use ($siteConfig): bool {
         }
         $path = (string)($parts['path'] ?? '');
     }
-    // Only allow local uploads to avoid stale/broken remote paths.
-    if (!starts_with($path, '/public/uploads/projects/')) {
+    // Only allow local logo paths to avoid stale/broken remote paths.
+    $isAllowedPath = starts_with($path, '/public/uploads/')
+        || starts_with($path, '/public/assets/');
+    if (!$isAllowedPath) {
         return false;
     }
     $localPath = __DIR__ . rawurldecode($path);
