@@ -13,17 +13,37 @@ $projects = require __DIR__ . '/app/data/projects.php';
 $machinery = require __DIR__ . '/app/data/machinery.php';
 $mediaLibrary = dashboard_media_load($siteConfig);
 $settings = dashboard_settings_load($siteConfig);
+$resolvedLogoUrl = '';
 if (!empty($settings['logo_url']) && is_string($settings['logo_url'])) {
-    $siteConfig['logo_url'] = $settings['logo_url'];
-} else {
+    $resolvedLogoUrl = $settings['logo_url'];
+}
+if ($resolvedLogoUrl === '') {
     for ($i = count($mediaLibrary) - 1; $i >= 0; $i--) {
         $item = $mediaLibrary[$i];
         $title = strtolower((string)($item['title'] ?? ''));
         if (((($item['category'] ?? '') === 'logo') || str_contains($title, 'logo')) && !empty($item['url'])) {
-            $siteConfig['logo_url'] = (string)$item['url'];
+            $resolvedLogoUrl = (string)$item['url'];
             break;
         }
     }
+}
+// Fallback for cases where a logo was uploaded without "logo" naming/category.
+if ($resolvedLogoUrl === '' && $mediaLibrary !== []) {
+    $last = $mediaLibrary[array_key_last($mediaLibrary)];
+    if (!empty($last['url']) && is_string($last['url'])) {
+        $resolvedLogoUrl = $last['url'];
+    }
+}
+// Use logo URL only when the file is actually present.
+if ($resolvedLogoUrl !== '' && starts_with($resolvedLogoUrl, '/')) {
+    $localPath = __DIR__ . $resolvedLogoUrl;
+    if (is_file($localPath)) {
+        $siteConfig['logo_url'] = $resolvedLogoUrl;
+    } else {
+        $siteConfig['logo_url'] = '';
+    }
+} else {
+    $siteConfig['logo_url'] = $resolvedLogoUrl;
 }
 $publicMedia = array_values(array_filter(
     $mediaLibrary,

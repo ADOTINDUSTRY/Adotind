@@ -116,8 +116,10 @@ function dashboard_handle_upload(array $siteConfig): never
     }
 
     $media = dashboard_media_load($siteConfig);
+    $settings = dashboard_settings_load($siteConfig);
     $count = count($_FILES['photos']['name']);
     $added = 0;
+    $autoLogoUrl = '';
 
     for ($i = 0; $i < $count; $i++) {
         $error = (int)$_FILES['photos']['error'][$i];
@@ -149,6 +151,9 @@ function dashboard_handle_upload(array $siteConfig): never
         $baseName = pathinfo($originalName, PATHINFO_FILENAME);
         $title = ucwords(str_replace(['-', '_'], ' ', $baseName));
         $defaultCategory = stripos($baseName, 'logo') !== false ? 'logo' : 'signage';
+        if ($defaultCategory === 'logo') {
+            $autoLogoUrl = rtrim($siteConfig['uploads_url_base'], '/') . '/' . $newName;
+        }
         $media[] = [
             'id' => bin2hex(random_bytes(6)),
             'filename' => $newName,
@@ -162,6 +167,17 @@ function dashboard_handle_upload(array $siteConfig): never
     }
 
     dashboard_media_save($siteConfig, $media);
+    if ($autoLogoUrl !== '') {
+        $settings['logo_url'] = $autoLogoUrl;
+        dashboard_settings_save($siteConfig, $settings);
+    } elseif (empty($settings['logo_url']) && $added > 0 && $media !== []) {
+        // If no explicit logo is set yet, use latest upload as temporary brand logo.
+        $last = $media[array_key_last($media)];
+        if (!empty($last['url'])) {
+            $settings['logo_url'] = (string)$last['url'];
+            dashboard_settings_save($siteConfig, $settings);
+        }
+    }
     flash_set('dashboard_success', $added > 0 ? "Uploaded {$added} image(s)." : 'No files were uploaded.');
     redirect('/dashboard', 303);
 }
