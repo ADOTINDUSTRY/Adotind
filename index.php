@@ -85,6 +85,16 @@ if ($resolvedLogoUrl === '') {
         }
     }
 }
+// Permanent brand logo committed to the repo (public/assets/branding/logo.*).
+if ($resolvedLogoUrl === '') {
+    foreach ((array)($siteConfig['static_logo_candidates'] ?? []) as $staticCandidate) {
+        $resolvedCandidate = $resolveLocalLogoUrl((string)$staticCandidate);
+        if ($resolvedCandidate !== '') {
+            $resolvedLogoUrl = $resolvedCandidate;
+            break;
+        }
+    }
+}
 // Fallback for cases where a logo was uploaded without "logo" naming/category.
 if ($resolvedLogoUrl === '' && $mediaLibrary !== []) {
     for ($i = count($mediaLibrary) - 1; $i >= 0; $i--) {
