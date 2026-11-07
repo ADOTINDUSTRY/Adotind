@@ -14,9 +14,9 @@ $machinery = require __DIR__ . '/app/data/machinery.php';
 $mediaLibrary = dashboard_media_load($siteConfig);
 $settings = dashboard_settings_load($siteConfig);
 
-$isValidLogoUrl = static function (string $url) use ($siteConfig): bool {
+$resolveLocalLogoUrl = static function (string $url) use ($siteConfig): string {
     if ($url === '') {
-        return false;
+        return '';
     }
     $path = $url;
     if (preg_match('#^https?://#i', $url) === 1) {
@@ -25,34 +25,48 @@ $isValidLogoUrl = static function (string $url) use ($siteConfig): bool {
         $urlHost = strtolower((string)($parts['host'] ?? ''));
         $siteHost = strtolower((string)($siteParts['host'] ?? ''));
         if ($urlHost === '' || $siteHost === '' || $urlHost !== $siteHost) {
-            return false;
+            return '';
         }
         $path = (string)($parts['path'] ?? '');
     }
-    // Only allow local logo paths to avoid stale/broken remote paths.
-    $isAllowedPath = starts_with($path, '/public/uploads/')
-        || starts_with($path, '/public/assets/');
-    if (!$isAllowedPath) {
-        return false;
+
+    $candidatePaths = [$path];
+    if (starts_with($path, '/uploads/')) {
+        $candidatePaths[] = '/public' . $path;
     }
-    $localPath = __DIR__ . rawurldecode($path);
-    if (!is_file($localPath) || filesize($localPath) <= 0) {
-        return false;
+    if (starts_with($path, '/assets/')) {
+        $candidatePaths[] = '/public' . $path;
     }
-    return @getimagesize($localPath) !== false;
+
+    foreach ($candidatePaths as $candidatePath) {
+        $isAllowedPath = starts_with($candidatePath, '/public/uploads/')
+            || starts_with($candidatePath, '/public/assets/');
+        if (!$isAllowedPath) {
+            continue;
+        }
+        $localPath = __DIR__ . rawurldecode($candidatePath);
+        if (!is_file($localPath) || filesize($localPath) <= 0) {
+            continue;
+        }
+        if (@getimagesize($localPath) !== false) {
+            return $candidatePath;
+        }
+    }
+    return '';
 };
 
 $resolvedLogoUrl = '';
-if (!empty($settings['logo_url']) && is_string($settings['logo_url']) && $isValidLogoUrl($settings['logo_url'])) {
-    $resolvedLogoUrl = $settings['logo_url'];
+if (!empty($settings['logo_url']) && is_string($settings['logo_url'])) {
+    $resolvedLogoUrl = $resolveLocalLogoUrl($settings['logo_url']);
 }
 if ($resolvedLogoUrl === '') {
     for ($i = count($mediaLibrary) - 1; $i >= 0; $i--) {
         $item = $mediaLibrary[$i];
         $title = strtolower((string)($item['title'] ?? ''));
         $candidate = (string)($item['url'] ?? '');
-        if (((($item['category'] ?? '') === 'logo') || str_contains($title, 'logo')) && $isValidLogoUrl($candidate)) {
-            $resolvedLogoUrl = $candidate;
+        $resolvedCandidate = $resolveLocalLogoUrl($candidate);
+        if (((($item['category'] ?? '') === 'logo') || str_contains($title, 'logo')) && $resolvedCandidate !== '') {
+            $resolvedLogoUrl = $resolvedCandidate;
             break;
         }
     }
@@ -61,8 +75,9 @@ if ($resolvedLogoUrl === '') {
 if ($resolvedLogoUrl === '' && $mediaLibrary !== []) {
     for ($i = count($mediaLibrary) - 1; $i >= 0; $i--) {
         $candidate = (string)($mediaLibrary[$i]['url'] ?? '');
-        if ($isValidLogoUrl($candidate)) {
-            $resolvedLogoUrl = $candidate;
+        $resolvedCandidate = $resolveLocalLogoUrl($candidate);
+        if ($resolvedCandidate !== '') {
+            $resolvedLogoUrl = $resolvedCandidate;
             break;
         }
     }
