@@ -409,6 +409,13 @@ p {
   }
 }
 
+@media (max-width: 640px) {
+  .hero .cta-group {
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+}
+
 .photo-placeholder {
   border: 1px dashed rgba(147, 161, 189, 0.5);
   background: linear-gradient(135deg, #101c42, #0a1330);
