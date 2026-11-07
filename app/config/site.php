@@ -23,8 +23,13 @@ $siteConfig = [
     'maps_url' => 'https://maps.app.goo.gl/YQuh9Twvw16KqsqNA?g_st=ic',
     'dashboard_user' => 'admin',
     'dashboard_password_hash' => '$2y$12$bpYZo9TtXGlQDwF1d2zK5ewzKW5/pWQ56mXvX5u7GLqG5cbsoe6L2',
-    'uploads_url_base' => '/public/uploads/projects',
-    'uploads_dir' => __DIR__ . '/../../public/uploads/projects',
-    'media_index_file' => __DIR__ . '/../../storage/media/library.json',
-    'media_settings_file' => __DIR__ . '/../../storage/media/settings.json',
+    // Media and dashboard data live OUTSIDE the Adotind folder (public_html/adotind-media)
+    // so deployments that replace the Adotind directory never wipe uploads or settings.
+    // Images are served through the /media/<filename> endpoint in the app, so URLs keep
+    // working even though the root .htaccess routes all requests into Adotind.
+    'uploads_url_base' => '/media',
+    'uploads_dir' => dirname(__DIR__, 3) . '/adotind-media/uploads',
+    'media_index_file' => dirname(__DIR__, 3) . '/adotind-media/library.json',
+    'media_settings_file' => dirname(__DIR__, 3) . '/adotind-media/settings.json',
+    'inquiries_dir' => dirname(__DIR__, 3) . '/adotind-media/inquiries',
 ];

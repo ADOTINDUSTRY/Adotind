@@ -57,7 +57,7 @@ function handle_contact_submit(array $siteConfig): never
                     $uploadError = 'Unsupported file type.';
                 } else {
                     $safeName = date('Ymd-His') . '-' . bin2hex(random_bytes(6)) . '.' . $ext;
-                    $targetDir = __DIR__ . '/../../storage/inquiries';
+                    $targetDir = (string)($siteConfig['inquiries_dir'] ?? (__DIR__ . '/../../storage/inquiries'));
                     if (!is_dir($targetDir)) {
                         mkdir($targetDir, 0755, true);
                     }
@@ -107,7 +107,11 @@ function handle_contact_submit(array $siteConfig): never
         'uploaded_file' => $uploadPath ? basename($uploadPath) : null,
         'mail_sent' => $mailSent,
     ], JSON_UNESCAPED_SLASHES);
-    file_put_contents(__DIR__ . '/../../storage/inquiries/inquiries.log', $logLine . PHP_EOL, FILE_APPEND);
+    $logDir = (string)($siteConfig['inquiries_dir'] ?? (__DIR__ . '/../../storage/inquiries'));
+    if (!is_dir($logDir)) {
+        mkdir($logDir, 0755, true);
+    }
+    file_put_contents($logDir . '/inquiries.log', $logLine . PHP_EOL, FILE_APPEND);
 
     if ($mailSent) {
         flash_set('form_success', 'Thank you. Your inquiry was sent successfully.');

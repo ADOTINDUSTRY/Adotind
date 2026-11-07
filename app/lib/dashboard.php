@@ -31,6 +31,106 @@ function dashboard_normalize_location(string $location): string
     return in_array($location, $allowed, true) ? $location : 'portfolio-gallery';
 }
 
+function dashboard_bootstrap_storage(array $siteConfig): void
+{
+    $root = dirname(__DIR__, 2);
+    $uploadsDir = rtrim((string)($siteConfig['uploads_dir'] ?? ''), '/');
+    $mediaFile = (string)($siteConfig['media_index_file'] ?? '');
+    $settingsFile = (string)($siteConfig['media_settings_file'] ?? '');
+    if ($uploadsDir === '' || $mediaFile === '') {
+        return;
+    }
+
+    foreach (array_unique([$uploadsDir, dirname($mediaFile), dirname($settingsFile)]) as $dir) {
+        if ($dir !== '' && !is_dir($dir)) {
+            mkdir($dir, 0755, true);
+        }
+    }
+
+    // One-time migration of dashboard data that used to live inside Adotind/storage.
+    $internalMediaFile = $root . '/storage/media/library.json';
+    $internalSettingsFile = $root . '/storage/media/settings.json';
+    if (!is_file($mediaFile) && is_file($internalMediaFile)) {
+        copy($internalMediaFile, $mediaFile);
+    }
+    if ($settingsFile !== '' && !is_file($settingsFile) && is_file($internalSettingsFile)) {
+        copy($internalSettingsFile, $settingsFile);
+    }
+
+    // Migrate referenced image files into the external uploads folder and rewrite URLs.
+    $media = dashboard_media_load($siteConfig);
+    $urlBase = rtrim((string)($siteConfig['uploads_url_base'] ?? '/media'), '/');
+    $changed = false;
+    foreach ($media as &$item) {
+        $url = (string)($item['url'] ?? '');
+        if ($url === '' || starts_with($url, '/media/')) {
+            continue;
+        }
+        $local = dashboard_resolve_local_media_path($siteConfig, $url);
+        if ($local === '') {
+            continue;
+        }
+        $name = basename($local);
+        $target = $uploadsDir . '/' . $name;
+        if (!is_file($target)) {
+            copy($local, $target);
+        }
+        if (is_file($target)) {
+            $item['url'] = $urlBase . '/' . $name;
+            $item['filename'] = $name;
+            $changed = true;
+        }
+    }
+    unset($item);
+    if ($changed) {
+        dashboard_media_save($siteConfig, $media);
+    }
+
+    if ($settingsFile !== '') {
+        $settings = dashboard_settings_load($siteConfig);
+        $logo = (string)($settings['logo_url'] ?? '');
+        if ($logo !== '' && !starts_with($logo, '/media/')) {
+            $local = dashboard_resolve_local_media_path($siteConfig, $logo);
+            if ($local !== '') {
+                $name = basename($local);
+                $target = $uploadsDir . '/' . $name;
+                if (!is_file($target)) {
+                    copy($local, $target);
+                }
+                if (is_file($target)) {
+                    $settings['logo_url'] = $urlBase . '/' . $name;
+                    dashboard_settings_save($siteConfig, $settings);
+                }
+            }
+        }
+    }
+}
+
+function dashboard_serve_media(array $siteConfig, string $filename): never
+{
+    if ($filename === '' || preg_match('/^[A-Za-z0-9._-]+$/', $filename) !== 1) {
+        http_response_code(404);
+        exit;
+    }
+    $uploadsDir = rtrim((string)($siteConfig['uploads_dir'] ?? ''), '/');
+    $path = $uploadsDir . '/' . $filename;
+    if ($uploadsDir === '' || !is_file($path) || filesize($path) <= 0) {
+        http_response_code(404);
+        exit;
+    }
+    $info = @getimagesize($path);
+    if ($info === false) {
+        http_response_code(404);
+        exit;
+    }
+    header('Content-Type: ' . ($info['mime'] ?? 'application/octet-stream'));
+    header('Content-Length: ' . (string)filesize($path));
+    header('Cache-Control: public, max-age=31536000, immutable');
+    header('X-Content-Type-Options: nosniff');
+    readfile($path);
+    exit;
+}
+
 function dashboard_media_load(array $siteConfig): array
 {
     $file = $siteConfig['media_index_file'];
@@ -101,6 +201,19 @@ function dashboard_resolve_local_media_path(array $siteConfig, string $url): str
             return '';
         }
         $path = (string)($parts['path'] ?? '');
+    }
+
+    // External media folder (survives deployments): /media/<filename>.
+    if (starts_with($path, '/media/')) {
+        $uploadsDir = rtrim((string)($siteConfig['uploads_dir'] ?? ''), '/');
+        $name = basename($path);
+        if ($uploadsDir !== '' && $name !== '') {
+            $localPath = $uploadsDir . '/' . $name;
+            if (is_file($localPath) && filesize($localPath) > 0) {
+                return $localPath;
+            }
+        }
+        return '';
     }
 
     $candidatePaths = [$path];
