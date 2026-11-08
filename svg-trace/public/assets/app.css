@@ -189,3 +189,6 @@ a { color: var(--brand); }
 .auth-guest .fine { margin-top: .5rem; text-align: center; }
 .auth-or { display: flex; align-items: center; gap: .75rem; color: var(--muted); font-size: .85rem; margin: 1.2rem 0 .4rem; }
 .auth-or::before, .auth-or::after { content: ""; flex: 1; height: 1px; background: var(--line); }
+.drop .progress { display: block; height: 6px; border-radius: 3px; background: var(--line); overflow: hidden; margin-top: 6px; }
+.drop .progress[hidden] { display: none; }
+.drop .progress span { display: block; height: 100%; width: 0; background: var(--brand); transition: width .2s; }

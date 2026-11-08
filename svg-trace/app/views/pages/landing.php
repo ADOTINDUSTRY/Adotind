@@ -23,7 +23,7 @@
   <div class="wrap">
     <h2>Formats that fit your workflow</h2>
     <div class="cards">
-      <div class="card"><h3>Upload</h3><p>PNG, JPG, BMP, WEBP up to 20&nbsp;MB and 6000&nbsp;px.</p></div>
+      <div class="card"><h3>Upload</h3><p>JPG, PNG, PDF, AI, EPS, SVG, TIFF, PSD, HEIC, WEBP and more, up to 1&nbsp;GB.</p></div>
       <div class="card"><h3>Export SVG</h3><p>Clean, layered vector paths — ready for editing anywhere.</p></div>
       <div class="card"><h3>Export PNG / PDF</h3><p>High-resolution raster and vector-accurate PDF output.</p></div>
       <div class="card"><h3>DXF for CNC</h3><p>Real geometric entities for laser and CNC workflows — no embedded bitmaps.</p></div>
@@ -60,7 +60,7 @@
     <h2>Frequently asked questions</h2>
     <details><summary>Is it really free?</summary><p>Yes. The first release is completely free with fair-use limits. Use it as a guest right away, or sign in to keep your files on any device.</p></details>
     <details><summary>Who owns my files?</summary><p>You do. We never use your artwork to train AI models and never share it. Files are deleted automatically after 30 days, or immediately when you delete them.</p></details>
-    <details><summary>What can I upload?</summary><p>PNG, JPG, BMP and WEBP images up to 20&nbsp;MB and 6000&nbsp;px. You must have the right to use the images you upload.</p></details>
+    <details><summary>What can I upload?</summary><p>Photos and pictures (JPG, PNG, WEBP, GIF, BMP, TIFF, HEIC from iPhone, PSD) and design files (PDF, AI, EPS, SVG), up to 1&nbsp;GB and 30,000&nbsp;px. PDF files use the first page. You must have the right to use the images you upload.</p></details>
     <details><summary>Is the DXF ready for production?</summary><p>Exports include geometry validation reports. Always verify dimensions and kerf on a test cut, as with any tooling pipeline.</p></details>
   </div>
 </section>

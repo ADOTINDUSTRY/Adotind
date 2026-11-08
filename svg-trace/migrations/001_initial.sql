@@ -234,8 +234,8 @@ CREATE TABLE st_system_settings (
 
 -- Default limits (admin-editable; enforced in the backend).
 INSERT INTO st_system_settings (`key`, value_json, updated_at) VALUES
- ('upload',      JSON_OBJECT('max_bytes', 20971520, 'max_dimension_px', 6000,
-                 'allowed_formats', JSON_ARRAY('png','jpg','jpeg','bmp','webp')), UTC_TIMESTAMP()),
+ ('upload',      JSON_OBJECT('max_bytes', 1073741824, 'max_dimension_px', 30000,
+                 'allowed_formats', JSON_ARRAY()), UTC_TIMESTAMP()),
  ('limits',      JSON_OBJECT('daily_conversions', 50, 'concurrent_jobs', 1,
                  'storage_mb_per_user', 500), UTC_TIMESTAMP()),
  ('worker',      JSON_OBJECT('job_timeout_seconds', 120, 'concurrency', 1,

@@ -17,6 +17,8 @@ require_once dirname(__DIR__) . '/app/lib/config.php';
 require_once dirname(__DIR__) . '/app/lib/db.php';
 require_once dirname(__DIR__) . '/app/lib/storage.php';
 require_once dirname(__DIR__) . '/app/lib/mailer.php';
+require_once dirname(__DIR__) . '/app/lib/migrate.php';
+require_once dirname(__DIR__) . '/app/lib/jobs.php';
 
 $failures = 0;
 $row = static function (string $label, bool $ok, string $detail = '') use (&$failures): void {
@@ -64,8 +66,26 @@ try {
     $count = count($tables);
     $row('st_ tables (migration)', $count >= 14, $count . ' of 14 found'
         . ($count < 14 ? ' — run: mysql -u USER -p DBNAME < svg-trace/migrations/001_initial.sql' : ''));
+    if ($count >= 14) {
+        $new = StMigrate::run();
+        $row('updates (002+)', true, $new ? 'applied ' . implode(', ', $new) : 'up to date');
+    }
 } catch (Throwable $e) {
     $row('connect', false, $e->getMessage());
+}
+
+echo "\n== Uploads ==\n";
+try {
+    $row('file types', true, StImport::labelList());
+    $missing = array_diff(['tiff', 'psd', 'heic', 'pdf', 'eps', 'svg'], array_keys(StImport::supported()));
+    if ($missing) {
+        echo '  [info] not available here         ' . strtoupper(implode(', ', $missing)) . "\n";
+    }
+    $up = StSettings::get('upload');
+    $row('size limit (setting)', true, round((int)$up['max_bytes'] / 1048576) . ' MB, ' . (int)$up['max_dimension_px'] . ' px per side');
+    echo "  [info] website limit comes from svg-trace/public/.user.ini; if the site shows less, raise upload_max_filesize / post_max_size in hPanel > PHP Configuration\n";
+} catch (Throwable $e) {
+    $row('uploads', false, $e->getMessage());
 }
 
 echo "\n== Storage ==\n";

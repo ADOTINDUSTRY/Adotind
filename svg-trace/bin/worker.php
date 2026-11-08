@@ -17,6 +17,7 @@ if (PHP_SAPI !== 'cli') {
 }
 
 require_once dirname(__DIR__) . '/app/lib/jobs.php';
+require_once dirname(__DIR__) . '/app/lib/migrate.php';
 
 $verbose = in_array('--verbose', $argv, true);
 $log = static function (string $m) use ($verbose): void {
@@ -31,6 +32,13 @@ ini_set('memory_limit', '1024M');
 try {
     $config = StConfig::load();
     StDb::pdo($config);
+    try {
+        foreach (StMigrate::run() as $m) {
+            $log("applied migration {$m}");
+        }
+    } catch (Throwable $e) {
+        error_log('[svg-trace] migration: ' . $e->getMessage());
+    }
     @file_put_contents(StStorage::root() . '/worker.heartbeat', (string)time());
     $lock = fopen(StJobs::lockPath(), 'c');
     if ($lock === false || !flock($lock, LOCK_EX | LOCK_NB)) {

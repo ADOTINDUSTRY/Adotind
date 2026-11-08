@@ -194,7 +194,7 @@ switch (true) {
         $user = StAuth::requireUser();
         $route('trace', 'Workspace — A Dot SVG Trace', [
             'presets' => StEngine::PRESETS,
-            'upload' => ['max_bytes' => StJobs::maxUploadBytes()] + StSettings::get('upload'),
+            'upload' => ['max_bytes' => StJobs::maxUploadBytes(), 'formats' => StImport::supported()] + StSettings::get('upload'),
             'scripts' => ['trace.js'],
         ]);
 

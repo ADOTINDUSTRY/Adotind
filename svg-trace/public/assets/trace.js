@@ -11,7 +11,11 @@
   const presetSel = $('preset'), view = $('view'), canvas = $('canvas'), auto = $('auto'), wire = $('wire');
   const imgO = $('img-original'), imgV = $('img-vector'), stats = $('stats'), dl = $('download');
   const figV = imgV.closest('figure');
-  const allowed = ['image/png', 'image/jpeg', 'image/bmp', 'image/x-ms-bmp', 'image/webp'];
+  const exts = JSON.parse(ws.dataset.exts || '[]');
+  const previewable = JSON.parse(ws.dataset.preview || '[]');
+  const progress = $('progress');
+  const extOf = (name) => (name.split('.').pop() || '').toLowerCase();
+  const fmtSize = (n) => n >= 1073741824 ? +(n / 1073741824).toFixed(1) + ' GB' : +(n / 1048576).toFixed(1) + ' MB';
 
   let pendingFile = null;   // chosen but not uploaded yet
   let sourceFileId = null;  // uploaded original, reused for re-traces
@@ -60,12 +64,14 @@
   // ---- file selection ----
   const choose = (file) => {
     if (!file) return;
-    if (!allowed.includes(file.type)) { setStatus('Unsupported file type. Please choose a PNG, JPG, BMP or WEBP image.', 'err'); return; }
-    if (maxBytes && file.size > maxBytes) { setStatus('This file is too large. The maximum is ' + +(maxBytes / 1048576).toFixed(1) + ' MB.', 'err'); return; }
+    const ext = extOf(file.name);
+    if (exts.length && !exts.includes(ext)) { setStatus('This file type is not supported. You can upload: ' + ws.dataset.labels + '.', 'err'); return; }
+    if (maxBytes && file.size > maxBytes) { setStatus('This file is too large (' + fmtSize(file.size) + '). The maximum is ' + fmtSize(maxBytes) + '.', 'err'); return; }
     pendingFile = file;
     sourceFileId = null;
     $('drop-label').textContent = file.name;
-    imgO.src = URL.createObjectURL(file);
+    if (previewable.includes(ext)) imgO.src = URL.createObjectURL(file);
+    else imgO.removeAttribute('src'); // shown after the server converts it
     imgV.removeAttribute('src');
     svgUrl = '';
     stats.textContent = '';
@@ -188,11 +194,9 @@
     figV.classList.add('updating');
     setStatus(pendingFile ? 'Uploading…' : 'Starting…');
     try {
-      const res = await fetch(base + '/api/jobs', {
-        method: 'POST', body: fd, credentials: 'same-origin', headers: { 'X-CSRF-Token': csrf },
-      });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok || !data.job) throw new Error(data.error || 'Upload failed (' + res.status + ').');
+      const res = await send(fd, !!pendingFile);
+      const data = res.data;
+      if (!res.ok || !data.job) throw new Error(data.error || (res.status === 413 ? 'This file is too large for the server.' : 'Upload failed (' + res.status + ').'));
       if (pendingFile) imgO.src = data.job.input.view_url;
       pendingFile = null;
       sourceFileId = data.job.input.file_id;
@@ -203,6 +207,32 @@
     }
   };
   go.addEventListener('click', convert);
+
+  // XMLHttpRequest instead of fetch so large uploads can show progress.
+  const send = (fd, withProgress) => new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open('POST', base + '/api/jobs');
+    xhr.withCredentials = true;
+    xhr.setRequestHeader('X-CSRF-Token', csrf);
+    const bar = progress.firstElementChild;
+    if (withProgress) {
+      xhr.upload.onprogress = (e) => {
+        if (!e.lengthComputable) return;
+        const pc = Math.round(e.loaded / e.total * 100);
+        progress.hidden = false;
+        bar.style.width = pc + '%';
+        setStatus(pc < 100 ? `Uploading… ${pc}% of ${fmtSize(e.total)}` : 'Opening your file…');
+      };
+    }
+    xhr.onload = () => {
+      progress.hidden = true;
+      let data = {};
+      try { data = JSON.parse(xhr.responseText); } catch (_) { /* not JSON */ }
+      resolve({ ok: xhr.status >= 200 && xhr.status < 300, status: xhr.status, data });
+    };
+    xhr.onerror = () => { progress.hidden = true; reject(new Error('The upload failed. Check your connection and try again.')); };
+    xhr.send(fd);
+  });
 
   const finish = () => {
     busy = false; startedAt.t = 0; refreshGo();

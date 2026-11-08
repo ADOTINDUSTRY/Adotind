@@ -16,6 +16,7 @@ require_once __DIR__ . '/storage.php';
 require_once __DIR__ . '/settings.php';
 require_once __DIR__ . '/engine.php';
 require_once __DIR__ . '/prep.php';
+require_once __DIR__ . '/import.php';
 
 /** An error whose message is safe to show to the end user. */
 final class StUserError extends RuntimeException
@@ -28,14 +29,6 @@ final class StUserError extends RuntimeException
 
 final class StJobs
 {
-    private const MIME_EXT = [
-        'image/png' => 'png',
-        'image/jpeg' => 'jpg',
-        'image/bmp' => 'bmp',
-        'image/x-ms-bmp' => 'bmp',
-        'image/webp' => 'webp',
-    ];
-    private const MAX_PIXELS = 36_000_000;
     private const MAX_SVG_BYTES = 150 * 1024 * 1024;
 
     // ------------------------------------------------------------------
@@ -46,7 +39,7 @@ final class StJobs
      * Validate an entry from $_FILES. Reads only the file header for
      * dimensions, so decompression bombs are rejected before decoding.
      *
-     * @return array{tmp:string, ext:string, mime:string, width:int, height:int, size:int, name:string, sha256:string}
+     * @return array{tmp:string, ext:string, width:int, height:int, size:int, name:string, sha256:string}
      */
     public static function validateUpload(?array $file): array
     {
@@ -78,28 +71,22 @@ final class StJobs
             throw new StUserError("This file is too large. The maximum is {$maxMb} MB.", 413);
         }
 
-        $mime = (string)(new finfo(FILEINFO_MIME_TYPE))->file($tmp);
-        $allowedExt = array_map('strtolower', (array)(StSettings::get('upload')['allowed_formats'] ?? []));
-        $ext = self::MIME_EXT[$mime] ?? null;
-        if ($ext === null || !in_array($ext, $allowedExt, true)) {
-            throw new StUserError('Unsupported file type. Please upload a PNG, JPG, BMP or WEBP image.', 415);
-        }
-        $info = @getimagesize($tmp);
-        if ($info === false || (int)$info[0] < 1 || (int)$info[1] < 1) {
-            throw new StUserError('This image could not be read. It may be damaged.');
-        }
-        [$w, $h] = [(int)$info[0], (int)$info[1]];
-        $maxDim = StSettings::int('upload', 'max_dimension_px');
-        if ($w > $maxDim || $h > $maxDim || $w * $h > self::MAX_PIXELS) {
-            throw new StUserError("This image is {$w}×{$h} px. The maximum is {$maxDim} px on each side.", 413);
-        }
-
         $name = basename(str_replace('\\', '/', (string)($file['name'] ?? 'image')));
         $name = preg_replace('/[\x00-\x1f\x7f]+/u', '', $name) ?? 'image';
         $name = mb_substr(trim($name), 0, 200) ?: 'image';
 
-        return ['tmp' => $tmp, 'ext' => $ext, 'mime' => $mime, 'width' => $w, 'height' => $h,
-                'size' => $size, 'name' => $name, 'sha256' => (string)hash_file('sha256', $tmp)];
+        $fmt = StImport::detect($tmp, $name);
+        $allowed = array_map('strtolower', (array)(StSettings::get('upload')['allowed_formats'] ?? []));
+        if ($fmt !== null && $allowed !== [] && !in_array($fmt, $allowed, true)
+            && !($fmt === 'jpg' && in_array('jpeg', $allowed, true))) {
+            throw new StUserError('This file type is not allowed. Please upload a PNG or JPG image.', 415);
+        }
+        $maxDim = max(1, StSettings::int('upload', 'max_dimension_px'));
+        $img = StImport::normalise($tmp, $name, $maxDim);
+        $size = (int)filesize($img['path']);
+
+        return ['tmp' => $img['path'], 'ext' => $img['ext'], 'width' => $img['width'], 'height' => $img['height'],
+                'size' => $size, 'name' => $img['name'], 'sha256' => (string)hash_file('sha256', $img['path'])];
     }
 
     /** Smallest of the admin setting and PHP's own upload limits. */
@@ -432,7 +419,7 @@ final class StJobs
             $tmpSvg = StStorage::pathFor('temporary', StStorage::newStoredName('svg'));
             $prep = StPrep::prepare($src, $tmpPng, $settings);
             if ($prep === null) {
-                self::fail($job, 'This image could not be read. Please upload a valid PNG, JPG, BMP or WEBP file.', false);
+                self::fail($job, 'This image could not be read. Please upload it again or try a PNG or JPG file.', false);
                 return;
             }
             // Speckle size is chosen in original pixels and the tracer sees the scaled

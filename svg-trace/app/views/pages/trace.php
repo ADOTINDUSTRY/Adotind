@@ -1,8 +1,21 @@
 <?php
 /** @var array $page */
 $presets = $page['presets'];
-$maxMb = round(((int)$page['upload']['max_bytes']) / 1048576, 1);
-$maxPx = (int)$page['upload']['max_dimension_px'];
+$maxBytes = (int)$page['upload']['max_bytes'];
+$maxSize = $maxBytes >= 1073741824 ? round($maxBytes / 1073741824, 1) . ' GB' : round($maxBytes / 1048576) . ' MB';
+$maxPx = number_format((int)$page['upload']['max_dimension_px']);
+$formats = $page['upload']['formats'];
+$exts = [];
+$preview = [];
+foreach ($formats as [$label, $list, $browser]) {
+    foreach ($list as $e) {
+        $exts[] = $e;
+        if ($browser) {
+            $preview[] = $e;
+        }
+    }
+}
+$labels = array_column($formats, 0);
 $presetJson = [];
 foreach ($presets as $k => $p) {
     unset($p['label']);
@@ -29,14 +42,16 @@ $slider = static function (string $name, array $s): void { ?>
 <?php };
 ?>
 <section class="section-st ws">
-  <div class="wrap ws-grid" id="ws" data-presets="<?= StSecurity::e(json_encode($presetJson)) ?>" data-max-bytes="<?= (int)$page['upload']['max_bytes'] ?>">
+  <div class="wrap ws-grid" id="ws" data-presets="<?= StSecurity::e(json_encode($presetJson)) ?>" data-max-bytes="<?= $maxBytes ?>" data-exts="<?= StSecurity::e(json_encode($exts)) ?>" data-preview="<?= StSecurity::e(json_encode($preview)) ?>" data-labels="<?= StSecurity::e(implode(', ', $labels)) ?>">
     <aside class="ws-panel">
       <h1 class="ws-title">Trace an image</h1>
 
       <label class="drop" id="drop" for="file">
-        <input type="file" id="file" name="image" accept=".png,.jpg,.jpeg,.bmp,.webp,image/png,image/jpeg,image/bmp,image/webp" hidden />
+        <input type="file" id="file" name="image" accept="<?= StSecurity::e(implode(',', array_map(static fn(string $e): string => '.' . $e, $exts))) ?>" hidden />
         <strong id="drop-label">Drop an image here or click to choose</strong>
-        <span class="muted">PNG, JPG, BMP or WEBP · up to <?= $maxMb ?> MB · max <?= $maxPx ?> px</span>
+        <span class="muted"><?= StSecurity::e(implode(', ', $labels)) ?></span>
+        <span class="muted">Up to <?= $maxSize ?> · <?= $maxPx ?> px</span>
+        <span class="progress" id="progress" hidden><span></span></span>
       </label>
 
       <label class="field">
