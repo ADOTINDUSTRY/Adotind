@@ -47,6 +47,18 @@ function dashboard_bootstrap_storage(array $siteConfig): void
         }
     }
 
+    // The media root sits inside public_html: block direct web access to it.
+    // Images reach visitors only through the /media/ endpoint, and JSON data
+    // (library, settings, customer inquiries) is never served by Apache.
+    $mediaRoot = dirname($uploadsDir);
+    $denyFile = $mediaRoot . '/.htaccess';
+    if ($mediaRoot !== '' && is_dir($mediaRoot) && !is_file($denyFile)) {
+        file_put_contents(
+            $denyFile,
+            "Require all denied\n<IfModule !mod_authz_core.c>\n    Deny from all\n</IfModule>\n"
+        );
+    }
+
     // One-time migration of dashboard data that used to live inside Adotind/storage.
     $internalMediaFile = $root . '/storage/media/library.json';
     $internalSettingsFile = $root . '/storage/media/settings.json';
@@ -339,11 +351,14 @@ function dashboard_handle_login(array $siteConfig): never
     $password = (string)($_POST['password'] ?? '');
 
     if ($username === $siteConfig['dashboard_user'] && password_verify($password, $siteConfig['dashboard_password_hash'])) {
+        session_regenerate_id(true);
         $_SESSION['dashboard_auth'] = true;
         flash_set('dashboard_success', 'Welcome to dashboard.');
         redirect('/dashboard', 303);
     }
 
+    // Slow down brute-force attempts.
+    usleep(800000);
     flash_set('dashboard_error', 'Invalid username or password.');
     redirect('/dashboard', 303);
 }

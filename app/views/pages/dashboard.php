@@ -8,9 +8,15 @@ $locations = dashboard_location_options();
 ?>
 <section class="page-hero">
   <div class="container">
+    <?php if (!$isAuthed): ?>
+    <p class="eyebrow">Restricted Area</p>
+    <h1>Authorised Access Only</h1>
+    <p class="lead">This area is private. Please sign in to continue.</p>
+    <?php else: ?>
     <p class="eyebrow">Private Dashboard</p>
     <h1>Media Management</h1>
     <p class="lead">Upload project images to a specific website location and manage their details.</p>
+    <?php endif; ?>
   </div>
 </section>
 

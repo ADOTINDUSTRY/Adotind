@@ -16,7 +16,11 @@ $jsVersion = is_file($jsPath) ? (string)filemtime($jsPath) : '1';
       name="description"
       content="<?= e($page['description'] ?? 'Premium signage manufacturing, CNC machining, laser cutting, printing, and industrial fabrication services in Cyprus by A Dot Industry.') ?>"
     />
+    <?php if (($page['view'] ?? '') === 'dashboard'): ?>
+    <meta name="robots" content="noindex, nofollow, noarchive" />
+    <?php else: ?>
     <meta name="robots" content="index, follow, max-image-preview:large" />
+    <?php endif; ?>
     <meta name="author" content="<?= e($siteConfig['brand']) ?>" />
     <link rel="canonical" href="<?= e(canonical_url($siteConfig)) ?>" />
     <meta property="og:type" content="website" />

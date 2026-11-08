@@ -13,7 +13,7 @@
   --white: #ffffff;
   --ink: #0b1226;
   --ink-muted: #4a5670;
-  --paper: #f4f6fb;
+  --paper: #e6ebf4;
   --shadow-lg: 0 30px 60px -20px rgba(2, 6, 20, 0.65);
   --ease: cubic-bezier(0.22, 0.61, 0.36, 1);
 }
@@ -381,13 +381,15 @@ img {
 .hero::before {
   content: "";
   position: absolute;
-  inset: 0;
+  inset: -50px 0;
   background-image:
     linear-gradient(rgba(255, 255, 255, 0.035) 1px, transparent 1px),
     linear-gradient(90deg, rgba(255, 255, 255, 0.035) 1px, transparent 1px);
   background-size: 72px 72px;
   mask-image: linear-gradient(180deg, rgba(0,0,0,0.7), transparent 75%);
   pointer-events: none;
+  transform: translate3d(0, var(--px-grid, 0px), 0);
+  will-change: transform;
 }
 
 .hero-grid {
@@ -405,9 +407,11 @@ img {
 .cta-band::after {
   content: "";
   position: absolute;
-  inset: 0;
+  inset: -80px 0;
   z-index: 0;
   pointer-events: none;
+  transform: translate3d(0, var(--px-stars, 0px), 0);
+  will-change: transform;
   background-image:
     radial-gradient(1.4px 1.4px at 24px 36px, rgba(255, 255, 255, 0.95), rgba(255, 255, 255, 0) 60%),
     radial-gradient(1px 1px at 92px 124px, rgba(255, 255, 255, 0.7), rgba(255, 255, 255, 0) 60%),

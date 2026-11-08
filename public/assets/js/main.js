@@ -58,6 +58,34 @@
 })();
 
 (() => {
+  const layers = document.querySelectorAll('.hero, .page-hero, .cta-band');
+  if (!layers.length) return;
+  if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+
+  let ticking = false;
+  const update = () => {
+    ticking = false;
+    const vh = window.innerHeight;
+    layers.forEach((el) => {
+      const rect = el.getBoundingClientRect();
+      if (rect.bottom < -100 || rect.top > vh + 100) return;
+      const progress = (rect.top + rect.height / 2 - vh / 2) / vh;
+      el.style.setProperty('--px-stars', `${(progress * 90).toFixed(1)}px`);
+      el.style.setProperty('--px-grid', `${(progress * 40).toFixed(1)}px`);
+    });
+  };
+  const onScroll = () => {
+    if (!ticking) {
+      ticking = true;
+      window.requestAnimationFrame(update);
+    }
+  };
+  update();
+  window.addEventListener('scroll', onScroll, { passive: true });
+  window.addEventListener('resize', onScroll, { passive: true });
+})();
+
+(() => {
   const targets = document.querySelectorAll(
     '.section .container > *, .page-hero .container > *, .cap-grid article, .service-card, .gallery-item, .tags span'
   );
