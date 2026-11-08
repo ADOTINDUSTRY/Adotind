@@ -15,6 +15,7 @@ require_once __DIR__ . '/security.php';
 require_once __DIR__ . '/storage.php';
 require_once __DIR__ . '/settings.php';
 require_once __DIR__ . '/engine.php';
+require_once __DIR__ . '/prep.php';
 
 /** An error whose message is safe to show to the end user. */
 final class StUserError extends RuntimeException
@@ -172,13 +173,30 @@ final class StJobs
                 if ((int)$active['n'] >= max(1, StSettings::int('limits', 'concurrent_jobs'))) {
                     throw new StUserError('Please wait for your current conversion to finish.', 429);
                 }
-                $today = StDb::one(
-                    'SELECT conversions FROM st_user_daily_usage WHERE user_id = ? AND day = UTC_DATE()',
-                    [$userId]
-                );
-                $dailyLimit = StSettings::int('limits', 'daily_conversions');
-                if ((int)($today['conversions'] ?? 0) >= $dailyLimit) {
-                    throw new StUserError("You have reached today's limit of {$dailyLimit} conversions. It resets at midnight UTC.", 429);
+                // Re-tracing an image already converted (settings tweaks) has its own, larger allowance.
+                $isRetrace = $input !== null && StDb::one(
+                    'SELECT id FROM st_jobs WHERE user_id = ? AND input_file_id = ? LIMIT 1',
+                    [$userId, $input['id']]
+                ) !== null;
+                if ($isRetrace) {
+                    $retraces = StDb::one(
+                        'SELECT COUNT(*) AS n FROM st_jobs j WHERE j.user_id = ? AND j.created_at >= UTC_DATE()
+                            AND EXISTS (SELECT 1 FROM st_jobs p WHERE p.input_file_id = j.input_file_id AND p.id < j.id)',
+                        [$userId]
+                    );
+                    $retraceLimit = StSettings::int('limits', 'daily_retraces');
+                    if ((int)$retraces['n'] >= $retraceLimit) {
+                        throw new StUserError("You have reached today's limit of {$retraceLimit} re-traces. It resets at midnight UTC.", 429);
+                    }
+                } else {
+                    $today = StDb::one(
+                        'SELECT conversions FROM st_user_daily_usage WHERE user_id = ? AND day = UTC_DATE()',
+                        [$userId]
+                    );
+                    $dailyLimit = StSettings::int('limits', 'daily_conversions');
+                    if ((int)($today['conversions'] ?? 0) >= $dailyLimit) {
+                        throw new StUserError("You have reached today's limit of {$dailyLimit} new images. It resets at midnight UTC.", 429);
+                    }
                 }
 
                 $retentionDays = max(1, StSettings::int('retention', 'days'));
@@ -217,11 +235,13 @@ final class StJobs
                     [$userId, $input['project_id'], $input['id'], StEngine::engineName($settings),
                      json_encode($settings), $input['sha256']]
                 );
-                StDb::run(
-                    'INSERT INTO st_user_daily_usage (user_id, day, conversions) VALUES (?, UTC_DATE(), 1)
-                     ON DUPLICATE KEY UPDATE conversions = conversions + 1',
-                    [$userId]
-                );
+                if (!$isRetrace) {
+                    StDb::run(
+                        'INSERT INTO st_user_daily_usage (user_id, day, conversions) VALUES (?, UTC_DATE(), 1)
+                         ON DUPLICATE KEY UPDATE conversions = conversions + 1',
+                        [$userId]
+                    );
+                }
                 StDb::run('UPDATE st_projects SET updated_at = UTC_TIMESTAMP() WHERE id = ?', [$input['project_id']]);
                 return ['job_id' => $jobId, 'duplicate' => false];
             });
@@ -410,12 +430,33 @@ final class StJobs
             StStorage::ensureLayout();
             $tmpPng = StStorage::pathFor('temporary', StStorage::newStoredName('png'));
             $tmpSvg = StStorage::pathFor('temporary', StStorage::newStoredName('svg'));
-            if (!self::normaliseToPng($src, $tmpPng)) {
+            $prep = StPrep::prepare($src, $tmpPng, $settings);
+            if ($prep === null) {
                 self::fail($job, 'This image could not be read. Please upload a valid PNG, JPG, BMP or WEBP file.', false);
                 return;
             }
+            // Speckle size is chosen in original pixels and the tracer sees the scaled
+            // image. Palette snapping already removes noise, so scale by half to keep
+            // small details such as the holes in letters.
+            $engineSettings = $settings;
+            $engineSettings['filter_speckle'] = StPrep::speckle((int)$settings['filter_speckle'], (float)$prep['scale']);
+            $output = $settings['output'] ?? 'fill';
+            // Outlines of stacked shapes would show edges hidden underneath others.
+            if ($prep['cutout'] || $output === 'outline') {
+                $engineSettings['hierarchical'] = 'cutout';
+            }
 
-            $r = StEngine::run($tmpPng, $tmpSvg, $settings, $timeout, $memMb, $config);
+            if ($output === 'centerline') {
+                $t0 = hrtime(true);
+                $cl = StLines::centreline($tmpPng, $prep['key'], $engineSettings);
+                $r = ['ok' => $cl !== null, 'exit_code' => $cl !== null ? 0 : 1, 'timed_out' => false,
+                      'ms' => (int)((hrtime(true) - $t0) / 1e6), 'log' => $cl !== null ? $cl['paths'] . ' lines' : 'centre-line tracing failed'];
+                if ($cl !== null) {
+                    file_put_contents($tmpSvg, $cl['svg']);
+                }
+            } else {
+                $r = StEngine::run($tmpPng, $tmpSvg, $engineSettings, $timeout, $memMb, $config);
+            }
             $log(sprintf('job %d engine exit=%d timed_out=%s ms=%d %s', $job['id'], $r['exit_code'], $r['timed_out'] ? 'yes' : 'no', $r['ms'], trim(substr($r['log'], 0, 120))));
             $outOfMemory = str_contains($r['log'], 'memory allocation') || str_contains($r['log'], 'out of memory');
             if ($r['timed_out'] || $outOfMemory) {
@@ -432,7 +473,14 @@ final class StJobs
                 self::fail($job, 'The result is too large. Try fewer colours or a higher "Remove specks" value.', false);
                 return;
             }
-            $svg = self::finaliseSvg((string)file_get_contents($tmpSvg), (int)$input['width'], (int)$input['height']);
+            $raw = (string)file_get_contents($tmpSvg);
+            if ($prep['key'] !== null && $output !== 'centerline') {
+                $raw = StPrep::removeKey($raw, $prep['key']);
+            }
+            if ($output === 'outline') {
+                $raw = StLines::outline($raw, max($prep['width'], $prep['height']) / 400);
+            }
+            $svg = self::finaliseSvg($raw, $prep['width'], $prep['height'], $prep['source_width'], $prep['source_height']);
             if ($svg === null) {
                 self::fail($job, 'The conversion produced an invalid file. Please try different settings.', true);
                 return;
@@ -514,44 +562,21 @@ final class StJobs
     }
 
     /** Decode any supported raster with GD, apply EXIF orientation, write a clean PNG (no metadata). */
-    private static function normaliseToPng(string $src, string $dest): bool
-    {
-        $data = @file_get_contents($src);
-        if ($data === false) {
-            return false;
-        }
-        $img = @imagecreatefromstring($data);
-        unset($data);
-        if ($img === false) {
-            return false;
-        }
-        if (function_exists('exif_read_data') && str_ends_with($src, '.jpg')) {
-            $exif = @exif_read_data($src);
-            $rotate = [3 => 180, 6 => -90, 8 => 90][(int)($exif['Orientation'] ?? 1)] ?? 0;
-            if ($rotate !== 0) {
-                $rotated = imagerotate($img, $rotate, 0);
-                if ($rotated !== false) {
-                    $img = $rotated;
-                }
-            }
-        }
-        if (!imageistruecolor($img)) {
-            imagepalettetotruecolor($img);
-        }
-        imagealphablending($img, false);
-        imagesavealpha($img, true);
-        return imagepng($img, $dest, 1);
-    }
-
-    /** Sanitise engine output and make it scalable (viewBox). */
-    private static function finaliseSvg(string $svg, int $w, int $h): ?string
+    /**
+     * Sanitise engine output and make it scalable: the viewBox keeps the
+     * traced (working) coordinates, width/height restore the original size.
+     */
+    private static function finaliseSvg(string $svg, int $traceW, int $traceH, int $outW, int $outH): ?string
     {
         $clean = StSecurity::sanitiseSvg($svg, true);
         if ($clean === null) {
             return null;
         }
-        if (!preg_match('/<svg\b[^>]*\bviewBox=/i', $clean) && $w > 0 && $h > 0) {
-            $clean = preg_replace('/<svg\b/i', '<svg viewBox="0 0 ' . $w . ' ' . $h . '"', $clean, 1) ?? $clean;
+        if ($traceW > 0 && $traceH > 0) {
+            $clean = preg_replace_callback('/<svg\b[^>]*>/i', static function (array $m) use ($traceW, $traceH, $outW, $outH): string {
+                $tag = preg_replace('/\s(?:width|height|viewBox)="[^"]*"/i', '', $m[0]) ?? $m[0];
+                return preg_replace('/^<svg\b/i', sprintf('<svg width="%d" height="%d" viewBox="0 0 %d %d"', $outW, $outH, $traceW, $traceH), $tag) ?? $tag;
+            }, $clean, 1) ?? $clean;
         }
         return '<?xml version="1.0" encoding="UTF-8"?>' . "\n"
             . '<!-- Created with A Dot SVG Trace (adotind.com/svg-trace) -->' . "\n" . $clean . "\n";

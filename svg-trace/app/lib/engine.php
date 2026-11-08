@@ -21,22 +21,36 @@ final class StEngine
     /** Presets shown in the workspace. Values mirror the settings schema below. */
     public const PRESETS = [
         'logo' => ['label' => 'Logo / flat colours', 'colormode' => 'color', 'hierarchical' => 'stacked', 'mode' => 'spline',
-                   'filter_speckle' => 8, 'color_precision' => 6, 'gradient_step' => 24,
+                   'output' => 'fill', 'colors' => 0, 'remove_bg' => 1, 'threshold' => 128,
+                   'filter_speckle' => 4, 'color_precision' => 8, 'gradient_step' => 0,
                    'corner_threshold' => 60, 'segment_length' => 4.0, 'splice_threshold' => 45, 'path_precision' => 2],
         'cutout' => ['label' => 'Vinyl / laser cut (no overlaps)', 'colormode' => 'color', 'hierarchical' => 'cutout', 'mode' => 'spline',
-                   'filter_speckle' => 8, 'color_precision' => 5, 'gradient_step' => 32,
-                   'corner_threshold' => 60, 'segment_length' => 4.0, 'splice_threshold' => 45, 'path_precision' => 2],
+                   'output' => 'fill', 'colors' => 0, 'remove_bg' => 1, 'threshold' => 128,
+                   'filter_speckle' => 6, 'color_precision' => 8, 'gradient_step' => 0,
+                   'corner_threshold' => 60, 'segment_length' => 4.5, 'splice_threshold' => 45, 'path_precision' => 2],
         'bw' => ['label' => 'Black & white / line art', 'colormode' => 'bw', 'hierarchical' => 'stacked', 'mode' => 'spline',
-                   'filter_speckle' => 4, 'color_precision' => 6, 'gradient_step' => 16,
+                   'output' => 'fill', 'colors' => 0, 'remove_bg' => 0, 'threshold' => 128,
+                   'filter_speckle' => 4, 'color_precision' => 8, 'gradient_step' => 0,
                    'corner_threshold' => 60, 'segment_length' => 4.0, 'splice_threshold' => 45, 'path_precision' => 2],
         'technical' => ['label' => 'Technical / sharp corners (CNC)', 'colormode' => 'bw', 'hierarchical' => 'stacked', 'mode' => 'polygon',
-                   'filter_speckle' => 4, 'color_precision' => 6, 'gradient_step' => 16,
+                   'output' => 'fill', 'colors' => 0, 'remove_bg' => 0, 'threshold' => 128,
+                   'filter_speckle' => 4, 'color_precision' => 8, 'gradient_step' => 0,
                    'corner_threshold' => 30, 'segment_length' => 4.0, 'splice_threshold' => 45, 'path_precision' => 2],
         'poster' => ['label' => 'Illustration / poster', 'colormode' => 'color', 'hierarchical' => 'stacked', 'mode' => 'spline',
-                   'filter_speckle' => 4, 'color_precision' => 8, 'gradient_step' => 16,
+                   'output' => 'fill', 'colors' => 16, 'remove_bg' => 0, 'threshold' => 128,
+                   'filter_speckle' => 4, 'color_precision' => 8, 'gradient_step' => 0,
+                   'corner_threshold' => 60, 'segment_length' => 4.0, 'splice_threshold' => 45, 'path_precision' => 2],
+        'neon' => ['label' => 'Neon / centre lines (single stroke)', 'colormode' => 'color', 'hierarchical' => 'stacked', 'mode' => 'spline',
+                   'output' => 'centerline', 'colors' => 0, 'remove_bg' => 2, 'threshold' => 128,
+                   'filter_speckle' => 4, 'color_precision' => 8, 'gradient_step' => 0,
+                   'corner_threshold' => 60, 'segment_length' => 4.0, 'splice_threshold' => 45, 'path_precision' => 2],
+        'outline' => ['label' => 'Outlines only (cutting / outline neon)', 'colormode' => 'color', 'hierarchical' => 'cutout', 'mode' => 'spline',
+                   'output' => 'outline', 'colors' => 0, 'remove_bg' => 2, 'threshold' => 128,
+                   'filter_speckle' => 4, 'color_precision' => 8, 'gradient_step' => 0,
                    'corner_threshold' => 60, 'segment_length' => 4.0, 'splice_threshold' => 45, 'path_precision' => 2],
         'photo' => ['label' => 'Photo (artistic)', 'colormode' => 'color', 'hierarchical' => 'stacked', 'mode' => 'spline',
-                   'filter_speckle' => 10, 'color_precision' => 8, 'gradient_step' => 48,
+                   'output' => 'fill', 'colors' => 32, 'remove_bg' => 0, 'threshold' => 128,
+                   'filter_speckle' => 8, 'color_precision' => 8, 'gradient_step' => 0,
                    'corner_threshold' => 180, 'segment_length' => 4.0, 'splice_threshold' => 45, 'path_precision' => 2],
     ];
 
@@ -44,6 +58,7 @@ final class StEngine
         'colormode' => ['color', 'bw'],
         'hierarchical' => ['stacked', 'cutout'],
         'mode' => ['spline', 'polygon', 'pixel'],
+        'output' => ['fill', 'outline', 'centerline'], // filled shapes, outlines, or centre lines (neon)
     ];
     /** name => [min, max, isFloat] */
     private const RANGES = [
@@ -54,6 +69,9 @@ final class StEngine
         'segment_length' => [3.5, 10.0, true],
         'splice_threshold' => [0, 180, false],
         'path_precision' => [0, 8, false],
+        'colors' => [0, 32, false],        // 0 = automatic
+        'threshold' => [1, 254, false],    // black & white cut-off
+        'remove_bg' => [0, 2, false],     // 0 off, 1 outside only, 2 everywhere
     ];
 
     /**
@@ -87,6 +105,9 @@ final class StEngine
 
     public static function engineName(array $settings): string
     {
+        if (($settings['output'] ?? 'fill') === 'centerline') {
+            return 'centreline-' . ($settings['colormode'] === 'bw' ? 'bw' : 'color');
+        }
         return 'vtracer-' . ($settings['colormode'] === 'bw' ? 'bw' : 'color');
     }
 

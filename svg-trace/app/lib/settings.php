@@ -13,7 +13,7 @@ final class StSettings
     private const DEFAULTS = [
         'upload' => ['max_bytes' => 20971520, 'max_dimension_px' => 6000,
                      'allowed_formats' => ['png', 'jpg', 'jpeg', 'bmp', 'webp']],
-        'limits' => ['daily_conversions' => 50, 'concurrent_jobs' => 1, 'storage_mb_per_user' => 500],
+        'limits' => ['daily_conversions' => 50, 'daily_retraces' => 400, 'concurrent_jobs' => 1, 'storage_mb_per_user' => 500],
         'worker' => ['job_timeout_seconds' => 120, 'concurrency' => 1, 'memory_limit_mb' => 768],
         'retention' => ['days' => 30],
         'maintenance' => ['enabled' => 0],

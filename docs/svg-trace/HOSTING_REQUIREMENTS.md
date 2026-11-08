@@ -38,7 +38,7 @@ Date: 2026-11-08
 | VTracer 0.6.4 static musl binary | MIT | Real `<path>` output, no embedded bitmaps. Logo 1200×600: 88 ms. Logo 6000×3000: 2.3 s / 435 MB peak |
 | 6000×4000 noisy photo | — | >10 min → hard timeouts + pre-trace photo simplification mandatory |
 | Potrace / AutoTrace | GPL | Not bundled; optional CLI only after licence review |
-| Centreline | — | Own skeletonisation engine (Rust, MIT/Apache deps); "coming soon" until verified |
+| Centreline | — | Own pure-PHP skeleton tracer (`svg-trace/app/lib/lines.php`): per-colour thinning, spur pruning, smooth single-stroke paths for neon |
 | resvg / svg2pdf | Apache-2.0 | PNG / vector PDF export candidates |
 | DXF | — | Own writer, validated with ezdxf (MIT) in tests |
 
