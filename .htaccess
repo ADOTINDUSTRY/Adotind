@@ -25,6 +25,10 @@ RewriteEngine On
 # Keep dashboard path independent if this directory is ever accessed directly.
 RewriteRule ^my-dashboard(/|$) - [L]
 
+# A Dot SVG Trace application (isolated front controller).
+RewriteRule ^svg-trace/assets/(.+)$ svg-trace/public/assets/$1 [L]
+RewriteRule ^svg-trace(/.*)?$ svg-trace/public/index.php [QSA,L]
+
 # Legacy static URLs from earlier custom build.
 RewriteRule ^index\.html$ / [R=301,L,NC]
 RewriteRule ^(about|services|portfolio|machinery|materials|industries|contact)\.html$ /$1 [R=301,L,NC]
