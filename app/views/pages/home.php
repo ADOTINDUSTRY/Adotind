@@ -22,10 +22,7 @@ $featuredMedia = $page['featured_media'] ?? [];
         <img src="<?= e($heroMedia[0]['url']) ?>" alt="<?= e((string)($heroMedia[0]['title'] ?? 'Project image')) ?>" loading="lazy" />
       </div>
     <?php else: ?>
-      <div class="photo-placeholder" role="img" aria-label="Industrial manufacturing photography placeholder">
-        <p>Project Gallery Pending</p>
-        <small>Upload images from /dashboard to display them here.</small>
-      </div>
+      <?= placeholder_html('factory', 'Project Gallery Pending', 'Upload images from /dashboard to display them here.') ?>
     <?php endif; ?>
   </div>
 </section>
@@ -96,15 +93,15 @@ $featuredMedia = $page['featured_media'] ?? [];
         <?php endforeach; ?>
       <?php else: ?>
         <figure class="gallery-item">
-          <div class="photo-placeholder" role="img" aria-label="Project image placeholder"><p>Project Placeholder</p></div>
+          <?= placeholder_html('sign', 'Signage Project') ?>
           <figcaption>Signage Project</figcaption>
         </figure>
         <figure class="gallery-item">
-          <div class="photo-placeholder" role="img" aria-label="Project image placeholder"><p>Project Placeholder</p></div>
+          <?= placeholder_html('cnc', 'CNC Project') ?>
           <figcaption>CNC Project</figcaption>
         </figure>
         <figure class="gallery-item">
-          <div class="photo-placeholder" role="img" aria-label="Project image placeholder"><p>Project Placeholder</p></div>
+          <?= placeholder_html('fab', 'Fabrication Project') ?>
           <figcaption>Fabrication Project</figcaption>
         </figure>
       <?php endif; ?>

@@ -35,10 +35,7 @@ $categories = ['all', 'signage', 'illuminated-signs', 'cnc', 'laser-cutting', 'p
       <?php else: ?>
         <?php foreach ($projects as $project): ?>
           <article class="gallery-item portfolio-item" data-category="<?= e($project['category']) ?>">
-            <div class="photo-placeholder" role="img" aria-label="<?= e($project['title']) ?> image placeholder">
-              <p>Project Placeholder</p>
-              <small>Upload images from dashboard</small>
-            </div>
+            <?= placeholder_html(placeholder_icon_for_category((string)$project['category']), (string)$project['title'], 'Upload images from dashboard') ?>
             <h3><?= e($project['title']) ?></h3>
             <p class="muted"><?= e($project['description']) ?></p>
             <a href="/portfolio/<?= e($project['slug']) ?>" class="text-link">View details</a>
