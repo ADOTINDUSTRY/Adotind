@@ -15,13 +15,18 @@ require_once dirname(__DIR__) . '/app/lib/auth.php';
 
 $config = StConfig::load();
 
-// Maintenance mode (admin-configurable) — applied before routing.
+// If configuration or the database is unavailable, public pages still render
+// and account features show a clear "setup in progress" message instead of a 500.
+$dbReady = false;
+$maintenanceOn = false;
 try {
+    StDb::pdo($config);
+    $dbReady = true;
     $maintenance = StDb::one("SELECT value_json FROM st_system_settings WHERE `key` = 'maintenance'");
     $maintenanceOn = $maintenance !== null
         && (bool)(json_decode((string)$maintenance['value_json'], true)['enabled'] ?? false);
-} catch (Throwable) {
-    $maintenanceOn = false;
+} catch (Throwable $e) {
+    error_log('[svg-trace] startup: ' . $e->getMessage());
 }
 
 $path = parse_url($_SERVER['REQUEST_URI'] ?? '/', PHP_URL_PATH) ?: '/';
@@ -32,7 +37,15 @@ if (str_starts_with($path, $base)) {
 }
 $path = rtrim($path, '/') ?: '/';
 
-$user = StAuth::user();
+$user = $dbReady ? StAuth::user() : null;
+
+$publicPaths = ['/', '/privacy', '/terms'];
+if (!$dbReady && !in_array($path, $publicPaths, true)) {
+    http_response_code(503);
+    $page = ['title' => 'Coming soon — A Dot SVG Trace', 'view' => 'unavailable'];
+    require dirname(__DIR__) . '/app/views/layout.php';
+    exit;
+}
 
 if ($maintenanceOn && $user === null && $path !== '/login') {
     http_response_code(503);

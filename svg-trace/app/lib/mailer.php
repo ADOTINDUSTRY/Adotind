@@ -26,6 +26,7 @@ final class StMailer
 
         $fp = @fsockopen('ssl://' . $host, $port, $errno, $errstr, 15);
         if (!is_resource($fp)) {
+            error_log(sprintf('[svg-trace] SMTP connect to %s:%d failed: %s', $host, $port, $errstr));
             return false;
         }
         stream_set_timeout($fp, 15);
@@ -44,29 +45,24 @@ final class StMailer
             return $read();
         };
 
+        // Log the failing step and the server reply code only (never credentials).
+        $expect = static function (string $step, string $reply, string $code) use ($host, $port): bool {
+            if (str_starts_with($reply, $code)) {
+                return true;
+            }
+            error_log(sprintf('[svg-trace] SMTP %s:%d failed at %s: %s', $host, $port, $step, substr(trim($reply), 0, 120)));
+            return false;
+        };
+
         try {
-            if (!str_starts_with($read(), '220')) {
-                return false;
-            }
-            if (!str_starts_with($cmd('EHLO ' . ($_SERVER['SERVER_NAME'] ?? 'localhost')), '250')) {
-                return false;
-            }
-            if (!str_starts_with($cmd('AUTH LOGIN'), '334')) {
-                return false;
-            }
-            if (!str_starts_with($cmd(base64_encode($user)), '334')) {
-                return false;
-            }
-            if (!str_starts_with($cmd(base64_encode($pass)), '235')) {
-                return false;
-            }
-            if (!str_starts_with($cmd('MAIL FROM:<' . $from . '>'), '250')) {
-                return false;
-            }
-            if (!str_starts_with($cmd('RCPT TO:<' . $toEmail . '>'), '25')) {
-                return false;
-            }
-            if (!str_starts_with($cmd('DATA'), '354')) {
+            if (!$expect('greeting', $read(), '220')
+                || !$expect('EHLO', $cmd('EHLO ' . ($_SERVER['SERVER_NAME'] ?? 'localhost')), '250')
+                || !$expect('AUTH', $cmd('AUTH LOGIN'), '334')
+                || !$expect('username', $cmd(base64_encode($user)), '334')
+                || !$expect('password', $cmd(base64_encode($pass)), '235')
+                || !$expect('MAIL FROM', $cmd('MAIL FROM:<' . $from . '>'), '250')
+                || !$expect('RCPT TO', $cmd('RCPT TO:<' . $toEmail . '>'), '25')
+                || !$expect('DATA', $cmd('DATA'), '354')) {
                 return false;
             }
 
@@ -86,7 +82,7 @@ final class StMailer
             $body = preg_replace('/^\./m', '..', $body) ?? $body;
             $payload = implode("\r\n", $headers) . "\r\n\r\n"
                 . chunk_split(base64_encode($body)) . "\r\n.";
-            if (!str_starts_with($cmd($payload), '250')) {
+            if (!$expect('message', $cmd($payload), '250')) {
                 return false;
             }
             $cmd('QUIT');
