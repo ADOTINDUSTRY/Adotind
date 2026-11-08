@@ -85,6 +85,14 @@ $row('proc_open available', function_exists('proc_open'));
 $phpCli = StJobs::phpCli($config);
 $row('PHP CLI for worker', $phpCli !== null, (string)$phpCli);
 printf("  [info] %-28s %s\n", 'cron command (every minute)', ($phpCli ?? 'php') . ' ' . __DIR__ . '/worker.php');
+$beat = @file_get_contents(StStorage::root() . '/worker.heartbeat');
+if ($beat === false) {
+    printf("  [WARN] %-28s %s\n", 'worker last run', 'never - cron job is not running yet');
+} else {
+    $age = time() - (int)$beat;
+    printf("  [%s] %-28s %s\n", $age <= 180 ? ' OK ' : 'WARN', 'worker last run',
+        $age . ' s ago' . ($age <= 180 ? ' (cron is working)' : ' - check the cron job'));
+}
 try {
     $q = StDb::one("SELECT SUM(status='queued') AS q, SUM(status='processing') AS p FROM st_jobs");
     printf("  [info] %-28s %d queued, %d processing\n", 'queue', (int)($q['q'] ?? 0), (int)($q['p'] ?? 0));

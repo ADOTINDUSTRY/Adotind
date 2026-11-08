@@ -31,6 +31,7 @@ ini_set('memory_limit', '1024M');
 try {
     $config = StConfig::load();
     StDb::pdo($config);
+    @file_put_contents(StStorage::root() . '/worker.heartbeat', (string)time());
     $lock = fopen(StJobs::lockPath(), 'c');
     if ($lock === false || !flock($lock, LOCK_EX | LOCK_NB)) {
         $log('another worker is running; exiting');

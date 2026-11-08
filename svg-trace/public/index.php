@@ -102,18 +102,22 @@ switch (true) {
         }
         // Prevent account enumeration: identical response whether or not the
         // account exists. Rate limit by IP + email.
-        if (StAuth::rateLimit('magic_link_requested', $email, 5, 600)) {
-            StAuth::securityEvent('magic_link_requested', $email);
-            $token = StAuth::magicLinkCreate($email);
-            $link = StAuth::baseUrl($config) . '/auth/email/verify?email='
-                . urlencode($email) . '&token=' . urlencode($token);
-            StMailer::send(
-                $config,
-                $email,
-                'Your sign-in link for A Dot SVG Trace',
-                "Hello,\n\nClick this link to sign in (valid for 15 minutes):\n\n{$link}\n\n"
-                . "If you did not request this, you can ignore this email.\n\nA Dot Industry Enterprises Ltd"
-            );
+        if (!StAuth::rateLimit('magic_link_requested', $email, 5, 600)) {
+            $route('login', 'Sign in — A Dot SVG Trace', ['error' => 'Too many sign-in links requested. Please wait 10 minutes, then use the newest email you received.'], 429);
+        }
+        StAuth::securityEvent('magic_link_requested', $email);
+        $token = StAuth::magicLinkCreate($email);
+        $link = StAuth::baseUrl($config) . '/auth/email/verify?email='
+            . urlencode($email) . '&token=' . urlencode($token);
+        $mailed = StMailer::send(
+            $config,
+            $email,
+            'Your sign-in link for A Dot SVG Trace',
+            "Hello,\n\nClick this link to sign in (valid for 15 minutes):\n\n{$link}\n\n"
+            . "If you did not request this, you can ignore this email.\n\nA Dot Industry Enterprises Ltd"
+        );
+        if (!$mailed) {
+            $route('login', 'Sign in — A Dot SVG Trace', ['error' => 'We could not send the email right now. Please try again in a few minutes.'], 503);
         }
         $route('login', 'Sign in — A Dot SVG Trace', ['sent' => $email]);
 

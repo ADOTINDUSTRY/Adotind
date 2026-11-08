@@ -27,6 +27,9 @@ RewriteRule ^my-dashboard(/|$) - [L]
 
 # A Dot SVG Trace application (isolated front controller).
 RewriteRule ^svg-trace/assets/(.+)$ svg-trace/public/assets/$1 [L]
+# Per-directory rewrites run again after [L]; stop the rewritten asset path
+# from falling into the catch-all below and being served as HTML.
+RewriteRule ^svg-trace/public/assets/[^/]+$ - [L]
 RewriteRule ^svg-trace(/.*)?$ svg-trace/public/index.php [QSA,L]
 
 # Legacy static URLs from earlier custom build.
