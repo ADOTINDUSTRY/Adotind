@@ -68,10 +68,13 @@ final class StShapes
             'k' => max(4, (int)round(2 * max(1.0, $scale)) + 2),
             // Blur from upscaling rounds corners by about `scale` px; never move a corner further.
             'reach' => 2 * max(1.0, $scale) + 3,
+            'rms' => max(0.5, 0.25 * $scale),
             'corner' => max(10.0, min(170.0, (float)($s['corner_threshold'] ?? 35))),
             'tol' => max(0.4, (float)($s['segment_length'] ?? 4.0) * 0.2),
             'lmin' => max(10.0, $side * 0.012),
             'snap' => 2.0,
+            // Curves may stray a little further: upscaled pixel steps are about `scale` px tall.
+            'ctol' => max(0.4, (float)($s['segment_length'] ?? 4.0) * 0.2) + 0.5 * max(0.0, $scale - 1.0),
             // Upscaled pixel steps are `scale` px tall; smooth enough to hide them (sigma ~ scale).
             'smooth' => max(2, (int)ceil(2 * max(1.0, $scale) ** 2)),
         ];
@@ -227,20 +230,44 @@ final class StShapes
         }
         $pts = self::smoothClosed($pts);
         $k = $p['k'];
-        $corners = $n >= 4 * $k ? self::corners($pts, $k, $p['corner'], $p['reach']) : [];
+        $corners = $n >= 4 * $k ? self::corners($pts, $k, $p['corner'], $p['reach'], $p['rms']) : [];
         // Curves and lines are fitted to a smoother copy so pixel steps never show.
         for ($r = $p['smooth']; $r > 0; $r--) {
             $pts = self::smoothClosed($pts);
         }
 
         $segs = [];
-        if (!$corners) {
-            // Smooth closed shape (O, dots): split in two halves.
-            $half = intdiv($n, 2);
-            $t0 = self::tangentAt($pts, 0);
-            $th = self::tangentAt($pts, $half);
-            $run1 = array_slice($pts, 0, $half + 1);
-            $run2 = array_merge(array_slice($pts, $half), [$pts[0]]);
+        if (!$corners && ($circle = self::fitCircle($pts, $p['ctol'])) !== null) {
+            // A true circle: two exact half-circle arcs from its top.
+            [$cx, $cy, $r] = $circle;
+            $t = [$cx, $cy - $r];
+            $bt = [$cx, $cy + $r];
+            $ccw = self::area($loop) < 0; // outer boundaries run one way, holes the other
+            $sw = $ccw ? 0 : 1;
+            $segs = [['A', $t, [$r, $r], [0, $sw], $bt], ['A', $bt, [$r, $r], [0, $sw], $t]];
+        } elseif (!$corners) {
+            // Smooth closed shape (O, dots): split at its top and bottom, where a
+            // font has its nodes and the tangent is exactly horizontal.
+            $top = $bot = 0;
+            foreach ($pts as $i => $q) {
+                if ($q[1] < $pts[$top][1]) {
+                    $top = $i;
+                }
+                if ($q[1] > $pts[$bot][1]) {
+                    $bot = $i;
+                }
+            }
+            $rot = array_merge(array_slice($pts, $top), array_slice($pts, 0, $top));
+            $half = ($bot - $top + $n) % $n;
+            if ($half < 2 || $half > $n - 2) {
+                $half = intdiv($n, 2);
+            }
+            $t0 = self::tangentAt($rot, 0);
+            $th = self::tangentAt($rot, $half);
+            $t0 = [$t0[0] >= 0 ? 1.0 : -1.0, 0.0];
+            $th = [$th[0] >= 0 ? 1.0 : -1.0, 0.0];
+            $run1 = array_slice($rot, 0, $half + 1);
+            $run2 = array_merge(array_slice($rot, $half), [$rot[0]]);
             $segs = array_merge(
                 self::fitRun($run1, $t0, self::neg($th), $p),
                 self::fitRun($run2, $th, self::neg($t0), $p)
@@ -268,13 +295,16 @@ final class StShapes
         if (!$segs) {
             return '';
         }
-        $segs = self::snap($segs, $p['snap']);
+        $segs = self::tidy(self::snap(self::tidy($segs, $p['lmin']), $p['snap']), $p['lmin']);
 
         $f = static fn(float $v): string => self::num($v, $prec);
         $d = 'M' . $f($segs[0][1][0]) . ' ' . $f($segs[0][1][1]);
         foreach ($segs as $sg) {
             if ($sg[0] === 'L') {
                 $d .= 'L' . $f($sg[4][0]) . ' ' . $f($sg[4][1]);
+            } elseif ($sg[0] === 'A') {
+                $d .= 'A' . $f($sg[2][0]) . ' ' . $f($sg[2][0]) . ' 0 ' . $sg[3][0] . ' ' . $sg[3][1]
+                    . ' ' . $f($sg[4][0]) . ' ' . $f($sg[4][1]);
             } else {
                 $d .= 'C' . $f($sg[2][0]) . ' ' . $f($sg[2][1]) . ' ' . $f($sg[3][0]) . ' ' . $f($sg[3][1])
                     . ' ' . $f($sg[4][0]) . ' ' . $f($sg[4][1]);
@@ -287,7 +317,7 @@ final class StShapes
      * @param list<array{0:float,1:float}> $pts closed dense outline
      * @return list<array{0:int,1:array{0:float,1:float},2:bool}> [index, position, refined]
      */
-    private static function corners(array $pts, int $k, float $minTurn, float $reach): array
+    private static function corners(array $pts, int $k, float $minTurn, float $reach, float $rmsMax = 0.5): array
     {
         $n = count($pts);
         $turn = static function (int $i, int $s) use ($pts, $n): float {
@@ -342,7 +372,7 @@ final class StShapes
                 $la = self::fitLine($pts, $i - $reachA, $i - $k, $n);
                 $lb = self::fitLine($pts, $i + $k, $i + $reachB, $n);
                 // Only sharpen when both sides really are straight (not a small curvy letter part).
-                $x = ($la !== null && $lb !== null && $la[4] <= 0.5 && $lb[4] <= 0.5) ? self::intersect($la, $lb) : null;
+                $x = ($la !== null && $lb !== null && $la[4] <= $rmsMax && $lb[4] <= $rmsMax) ? self::intersect($la, $lb) : null;
                 if ($x !== null && hypot($x[0] - $pos[0], $x[1] - $pos[1]) <= min(2.5 * $k, $reach)) {
                     $pos = $x;
                     $refined = true;
@@ -420,11 +450,12 @@ final class StShapes
                 $segs[] = self::line($pts[0], $pts[count($pts) - 1]);
                 return;
             }
+            $free1 = $t1 === null;
+            $free2 = $t2 === null;
             $t1 ??= self::unit([$pts[min(3, count($pts) - 1)][0] - $pts[0][0], $pts[min(3, count($pts) - 1)][1] - $pts[0][1]]);
             $last = count($pts) - 1;
             $t2 ??= self::unit([$pts[max(0, $last - 3)][0] - $pts[$last][0], $pts[max(0, $last - 3)][1] - $pts[$last][1]]);
-            $tol = $p['tol'];
-            self::fitCubic($pts, 0, $last, $t1, $t2, $tol * $tol, $segs, 0);
+            self::fitStretch($pts, $t1, $t2, $p, $segs, $free1, $free2);
         };
         foreach ($lines as $li => [$a, $b]) {
             $addCurve($cursor, $a, $tangentIn, self::neg($dir[$li]));
@@ -540,6 +571,360 @@ final class StShapes
              + $m[0][2] * ($m[1][0] * $m[2][1] - $m[1][1] * $m[2][0]);
     }
 
+    /**
+     * Fit one curved stretch like a type designer would: an exact circle arc if
+     * it is one, otherwise nodes only at horizontal/vertical extremes (with
+     * level/upright handles there) and as few cubic curves as the tolerance allows.
+     *
+     * @param list<array{0:float,1:float}> $pts
+     */
+    private static function fitStretch(array $pts, array $t1, array $t2, array $p, array &$segs, bool $free1 = false, bool $free2 = false): void
+    {
+        $last = count($pts) - 1;
+        $tol = $p['ctol'];
+        // Ends at a sharp corner have no direction to match.
+        if (($arc = self::fitArc($pts, 0, $last, $free1 ? null : $t1, $free2 ? null : $t2, $tol)) !== null) {
+            $segs[] = $arc;
+            return;
+        }
+        $cuts = self::extrema($pts, max(6.0, $p['lmin'] * 0.5));
+        $bounds = array_merge([[0, null]], $cuts, [[$last, null]]);
+        $m = count($bounds);
+        for ($j = 0; $j < $m - 1; $j++) {
+            [$a, $ta] = $bounds[$j];
+            [$b, $tb] = $bounds[$j + 1];
+            $ta = $j === 0 ? $t1 : $ta;
+            $tb = $j === $m - 2 ? $t2 : self::neg($tb);
+            $sub = array_slice($pts, $a, $b - $a + 1);
+            $sl = count($sub) - 1;
+            if ($sl < 1) {
+                continue;
+            }
+            if ($sl === 1) {
+                $segs[] = self::line($sub[0], $sub[1]);
+                continue;
+            }
+            $fa = $j === 0 && $free1;
+            $fb = $j === $m - 2 && $free2;
+            if (($arc = self::fitArc($sub, 0, $sl, $fa ? null : $ta, $fb ? null : $tb, $tol)) !== null) {
+                $segs[] = $arc;
+                continue;
+            }
+            self::fitGreedy($sub, $ta, $tb, $tol, $segs);
+        }
+    }
+
+    /**
+     * As few cubics as possible: each one runs as far along the points as a single
+     * curve can follow within $tol, and joins the next one smoothly.
+     */
+    private static function fitGreedy(array $d, array $t1, array $t2, float $tol, array &$segs): void
+    {
+        $last = count($d) - 1;
+        $err2 = $tol * $tol;
+        $i = 0;
+        $tin = $t1;
+        $guard = 0;
+        while ($i < $last && $guard++ < 1000) {
+            $tanAt = static function (int $j) use ($d, $last, $t2): array {
+                if ($j >= $last) {
+                    return $t2;
+                }
+                $w = max(1, min(4, $j, $last - $j));
+                return self::unit([$d[$j - $w][0] - $d[$j + $w][0], $d[$j - $w][1] - $d[$j + $w][1]]);
+            };
+            $try = static fn(int $j): ?array => self::fitOne($d, $i, $j, $tin, $tanAt($j), $err2);
+            $best = null;
+            $bestJ = $i + 1;
+            if (($b = $try($last)) !== null) {
+                $best = $b;
+                $bestJ = $last;
+            } else {
+                $lo = $i + 1;
+                $hi = $last - 1;
+                while ($lo <= $hi) {
+                    $mid = intdiv($lo + $hi, 2);
+                    if (($b = $try($mid)) !== null) {
+                        $best = $b;
+                        $bestJ = $mid;
+                        $lo = $mid + 1;
+                    } else {
+                        $hi = $mid - 1;
+                    }
+                }
+            }
+            if ($best === null) {
+                $p0 = $d[$i];
+                $p3 = $d[$bestJ];
+                $dist = hypot($p3[0] - $p0[0], $p3[1] - $p0[1]) / 3;
+                $best = [$p0, self::add($p0, $tin, $dist), self::add($p3, $tanAt($bestJ), $dist), $p3];
+            }
+            $segs[] = ['C', ...$best];
+            $tin = self::neg($tanAt($bestJ));
+            $i = $bestJ;
+        }
+    }
+
+    /** Single cubic through $d[$a..$b] with fixed end directions, or null if it misses by more than sqrt($err2). */
+    private static function fitOne(array $d, int $a, int $b, array $t1, array $t2, float $err2): ?array
+    {
+        if ($b - $a < 2) {
+            $p0 = $d[$a];
+            $p3 = $d[$b];
+            $dist = hypot($p3[0] - $p0[0], $p3[1] - $p0[1]) / 3;
+            return [$p0, self::add($p0, $t1, $dist), self::add($p3, $t2, $dist), $p3];
+        }
+        $u = self::chordParams($d, $a, $b);
+        $bez = self::generate($d, $a, $b, $u, $t1, $t2);
+        for ($it = 0; $it < 8; $it++) {
+            [$max] = self::maxError($d, $a, $b, $bez, $u);
+            if ($max < $err2) {
+                return $bez;
+            }
+            if ($max > $err2 * 25) {
+                return null;
+            }
+            $u = self::reparam($d, $a, $b, $u, $bez);
+            $bez = self::generate($d, $a, $b, $u, $t1, $t2);
+        }
+        [$max] = self::maxError($d, $a, $b, $bez, $u);
+        return $max < $err2 ? $bez : null;
+    }
+
+    /**
+     * Interior points where the outline is exactly level or upright (top, bottom,
+     * left, right of a bowl). Noise on near-flat parts is ignored by hysteresis.
+     *
+     * @return list<array{0:int,1:array{0:float,1:float}}> [index, travel direction there]
+     */
+    private static function extrema(array $pts, float $gap): array
+    {
+        $n = count($pts);
+        if ($n < 12) {
+            return [];
+        }
+        $w = 3;
+        $tan = [];
+        for ($i = 0; $i < $n; $i++) {
+            $a = $pts[max(0, $i - $w)];
+            $b = $pts[min($n - 1, $i + $w)];
+            $tan[$i] = self::unit([$b[0] - $a[0], $b[1] - $a[1]]);
+        }
+        $found = [];
+        foreach ([0, 1] as $axis) { // axis 1: dy changes sign (top/bottom); axis 0: dx (left/right)
+            $sign = 0;
+            $from = 0;
+            for ($i = 0; $i < $n; $i++) {
+                $v = $tan[$i][$axis];
+                if (abs($v) < 0.17) { // within ~10 degrees of the extreme: undecided
+                    continue;
+                }
+                $sg = $v > 0 ? 1 : -1;
+                if ($sign !== 0 && $sg !== $sign) {
+                    // Extreme is the most level/upright point of the undecided zone.
+                    $best = $from;
+                    for ($j = $from; $j <= $i; $j++) {
+                        if (abs($tan[$j][$axis]) < abs($tan[$best][$axis])) {
+                            $best = $j;
+                        }
+                    }
+                    $other = 1 - $axis;
+                    $dir = $axis === 1 ? [$tan[$best][0] >= 0 ? 1.0 : -1.0, 0.0] : [0.0, $tan[$best][1] >= 0 ? 1.0 : -1.0];
+                    $found[$best] = $dir;
+                    unset($other);
+                }
+                $sign = $sg;
+                $from = $i;
+            }
+        }
+        ksort($found);
+        // Arc length from the start, to keep nodes apart.
+        $len = [0.0];
+        for ($i = 1; $i < $n; $i++) {
+            $len[$i] = $len[$i - 1] + hypot($pts[$i][0] - $pts[$i - 1][0], $pts[$i][1] - $pts[$i - 1][1]);
+        }
+        $out = [];
+        $prev = 0.0;
+        foreach ($found as $i => $dir) {
+            if ($len[$i] - $prev < $gap || $len[$n - 1] - $len[$i] < $gap) {
+                continue;
+            }
+            $out[] = [$i, $dir];
+            $prev = $len[$i];
+        }
+        return $out;
+    }
+
+    /**
+     * Circle arc from $pts[$a] to $pts[$b] through the points between, or null
+     * when they are not on one circle within $tol, or the arc would not meet
+     * its neighbours smoothly.
+     */
+    private static function fitArc(array $pts, int $a, int $b, ?array $t1, ?array $t2, float $tol): ?array
+    {
+        if ($b - $a < 6) {
+            return null;
+        }
+        $p0 = $pts[$a];
+        $p1 = $pts[$b];
+        $mx = ($p0[0] + $p1[0]) / 2;
+        $my = ($p0[1] + $p1[1]) / 2;
+        $cx = $p1[0] - $p0[0];
+        $cy = $p1[1] - $p0[1];
+        $cl = hypot($cx, $cy);
+        if ($cl < 1e-6) {
+            return null;
+        }
+        $h = $cl / 2;
+        $nx = -$cy / $cl;
+        $ny = $cx / $cl;
+        // Centre lies on the chord's perpendicular bisector; the algebraic fit is linear there.
+        $num = $den = 0.0;
+        for ($i = $a + 1; $i < $b; $i++) {
+            $qx = $pts[$i][0] - $mx;
+            $qy = $pts[$i][1] - $my;
+            $B = 2 * ($qx * $nx + $qy * $ny);
+            $num += ($qx * $qx + $qy * $qy - $h * $h) * $B;
+            $den += $B * $B;
+        }
+        if ($den < 1e-9) {
+            return null;
+        }
+        $cands = [$num / $den];
+        // With a fixed direction at an end the centre is also on that end's normal.
+        foreach ([[$t1, $p0], [$t2, $p1]] as [$t, $q]) {
+            if ($t === null) {
+                continue;
+            }
+            // Solve q + a*perp(t) = M + s*n for s.
+            $px = -$t[1];
+            $py = $t[0];
+            $dn = $nx * $py - $ny * $px;
+            if (abs($dn) < 1e-6) {
+                continue; // end direction parallel to the bisector: no finite centre
+            }
+            $wx = $q[0] - $mx;
+            $wy = $q[1] - $my;
+            $cands[] = ($wx * $py - $wy * $px) / $dn;
+        }
+        foreach ($cands as $sOff) {
+            $arc = self::arcThrough($pts, $a, $b, $t1, $t2, $tol, $mx + $sOff * $nx, $my + $sOff * $ny, sqrt($h * $h + $sOff * $sOff));
+            if ($arc !== null) {
+                return $arc;
+            }
+        }
+        return null;
+    }
+
+    private static function arcThrough(array $pts, int $a, int $b, ?array $t1, ?array $t2, float $tol, float $ox, float $oy, float $r): ?array
+    {
+        $p0 = $pts[$a];
+        $p1 = $pts[$b];
+        $total = 0.0;
+        $prevAng = atan2($p0[1] - $oy, $p0[0] - $ox);
+        for ($i = $a + 1; $i <= $b; $i++) {
+            $q = $pts[$i];
+            if (abs(hypot($q[0] - $ox, $q[1] - $oy) - $r) > $tol) {
+                return null;
+            }
+            $ang = atan2($q[1] - $oy, $q[0] - $ox);
+            $d = $ang - $prevAng;
+            $d -= 2 * M_PI * round($d / (2 * M_PI));
+            $total += $d;
+            $prevAng = $ang;
+        }
+        $sweep = abs($total);
+        if ($sweep < deg2rad(20) || $sweep > 2 * M_PI - 0.05) {
+            return null;
+        }
+        $dirS = $total > 0 ? 1.0 : -1.0;
+        // Travel direction at both ends must match the neighbours (no kinks).
+        $cosMax = cos(deg2rad(2));
+        $u0 = [($p0[0] - $ox) / $r, ($p0[1] - $oy) / $r];
+        $u1 = [($p1[0] - $ox) / $r, ($p1[1] - $oy) / $r];
+        $tan0 = [-$u0[1] * $dirS, $u0[0] * $dirS];
+        $tan1 = [-$u1[1] * $dirS, $u1[0] * $dirS];
+        if ($t1 !== null && $t1[0] * $tan0[0] + $t1[1] * $tan0[1] < $cosMax) {
+            return null;
+        }
+        if ($t2 !== null && -($t2[0] * $tan1[0] + $t2[1] * $tan1[1]) < $cosMax) {
+            return null;
+        }
+        return ['A', $p0, [$r, $r], [$sweep > M_PI ? 1 : 0, $total > 0 ? 1 : 0], $p1];
+    }
+
+    /** [cx, cy, r] when all points lie on one circle within $tol. */
+    private static function fitCircle(array $pts, float $tol): ?array
+    {
+        $n = count($pts);
+        if ($n < 16) {
+            return null;
+        }
+        // Kasa fit: x^2 + y^2 + D x + E y + F = 0 by least squares (centred for stability).
+        $mx = $my = 0.0;
+        foreach ($pts as $q) {
+            $mx += $q[0];
+            $my += $q[1];
+        }
+        $mx /= $n;
+        $my /= $n;
+        $suu = $suv = $svv = $suuu = $svvv = $suvv = $svuu = 0.0;
+        foreach ($pts as $q) {
+            $u = $q[0] - $mx;
+            $v = $q[1] - $my;
+            $suu += $u * $u;
+            $suv += $u * $v;
+            $svv += $v * $v;
+            $suuu += $u * $u * $u;
+            $svvv += $v * $v * $v;
+            $suvv += $u * $v * $v;
+            $svuu += $v * $u * $u;
+        }
+        $det = $suu * $svv - $suv * $suv;
+        if (abs($det) < 1e-9) {
+            return null;
+        }
+        $bu = ($suuu + $suvv) / 2;
+        $bv = ($svvv + $svuu) / 2;
+        $uc = ($bu * $svv - $bv * $suv) / $det;
+        $vc = ($suu * $bv - $suv * $bu) / $det;
+        $cx = $uc + $mx;
+        $cy = $vc + $my;
+        $r = sqrt($uc * $uc + $vc * $vc + ($suu + $svv) / $n);
+        foreach ($pts as $q) {
+            if (abs(hypot($q[0] - $cx, $q[1] - $cy) - $r) > $tol) {
+                return null;
+            }
+        }
+        return [$cx, $cy, $r];
+    }
+
+    /** Join lines that continue in the same direction and drop zero-length pieces. */
+    private static function tidy(array $segs, float $short = 0.0): array
+    {
+        $out = [];
+        foreach ($segs as $sg) {
+            if (hypot($sg[4][0] - $sg[1][0], $sg[4][1] - $sg[1][1]) < 0.01 && $sg[0] !== 'C') {
+                continue;
+            }
+            $k = count($out) - 1;
+            if ($k >= 0 && $sg[0] === 'L' && $out[$k][0] === 'L') {
+                $u = self::unit([$out[$k][4][0] - $out[$k][1][0], $out[$k][4][1] - $out[$k][1][1]]);
+                $v = self::unit([$sg[4][0] - $sg[1][0], $sg[4][1] - $sg[1][1]]);
+                $dot = $u[0] * $v[0] + $u[1] * $v[1];
+                $minLen = min(hypot($out[$k][4][0] - $out[$k][1][0], $out[$k][4][1] - $out[$k][1][1]),
+                              hypot($sg[4][0] - $sg[1][0], $sg[4][1] - $sg[1][1]));
+                // Same direction, or a short stub left over from a blurred corner.
+                if ($dot > cos(deg2rad(0.5)) || ($dot > cos(deg2rad(5)) && $minLen < $short)) {
+                    $out[$k][3] = $out[$k][4] = $sg[4];
+                    continue;
+                }
+            }
+            $out[] = $sg;
+        }
+        return $out ?: $segs;
+    }
+
     /** Make near-horizontal / near-vertical lines exact, moving neighbours with them. */
     private static function snap(array $segs, float $maxDeg): array
     {
@@ -568,6 +953,24 @@ final class StShapes
             self::moveEnd($segs, ($i - 1 + $m) % $m, $na);
             self::moveEnd($segs, $i, $nb);
             self::moveStart($segs, ($i + 1) % $m, $nb);
+            // Curves that joined the line smoothly must leave along its new direction.
+            $u = self::unit([$nb[0] - $na[0], $nb[1] - $na[1]]);
+            $pi = ($i - 1 + $m) % $m;
+            if ($segs[$pi][0] === 'C') {
+                $h = [$na[0] - $segs[$pi][3][0], $na[1] - $segs[$pi][3][1]];
+                $hl = hypot($h[0], $h[1]);
+                if ($hl > 1e-9 && ($h[0] * $u[0] + $h[1] * $u[1]) / $hl > cos(deg2rad(10))) {
+                    $segs[$pi][3] = [$na[0] - $u[0] * $hl, $na[1] - $u[1] * $hl];
+                }
+            }
+            $ni = ($i + 1) % $m;
+            if ($segs[$ni][0] === 'C') {
+                $h = [$segs[$ni][2][0] - $nb[0], $segs[$ni][2][1] - $nb[1]];
+                $hl = hypot($h[0], $h[1]);
+                if ($hl > 1e-9 && ($h[0] * $u[0] + $h[1] * $u[1]) / $hl > cos(deg2rad(10))) {
+                    $segs[$ni][2] = [$nb[0] + $u[0] * $hl, $nb[1] + $u[1] * $hl];
+                }
+            }
         }
         return $segs;
     }
@@ -611,8 +1014,8 @@ final class StShapes
             $out[] = ['C', ...$bez];
             return;
         }
-        if ($max < $err2 * 4) {
-            for ($it = 0; $it < 4; $it++) {
+        if ($max < $err2 * 16) {
+            for ($it = 0; $it < 6; $it++) {
                 $u = self::reparam($d, $first, $last, $u, $bez);
                 $bez = self::generate($d, $first, $last, $u, $t1, $t2);
                 [$max, $split] = self::maxError($d, $first, $last, $bez, $u);
@@ -672,7 +1075,8 @@ final class StShapes
         $al = abs($det) > 1e-12 ? ($x0 * $c11 - $x1 * $c01) / $det : 0.0;
         $ar = abs($det) > 1e-12 ? ($c00 * $x1 - $c01 * $x0) / $det : 0.0;
         $seg = hypot($p3[0] - $p0[0], $p3[1] - $p0[1]);
-        if ($al < 1e-6 * $seg || $ar < 1e-6 * $seg) {
+        // Handles longer than the chord make the curve loop between the sampled points.
+        if ($al < 1e-6 * $seg || $ar < 1e-6 * $seg || $al > 1.2 * $seg || $ar > 1.2 * $seg) {
             $al = $ar = $seg / 3;
         }
         return [$p0, self::add($p0, $t1, $al), self::add($p3, $t2, $ar), $p3];

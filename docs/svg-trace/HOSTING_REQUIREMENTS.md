@@ -39,7 +39,8 @@ Date: 2026-11-08
 | 6000×4000 noisy photo | — | >10 min → hard timeouts + pre-trace photo simplification mandatory |
 | Potrace / AutoTrace | GPL | Not bundled; optional CLI only after licence review |
 | Centreline | — | Own pure-PHP skeleton tracer (`svg-trace/app/lib/lines.php`): per-colour thinning, spur pruning, smooth single-stroke paths for neon |
-| Precise letters (CNC) | — | Own pure-PHP outline tracer (`svg-trace/app/lib/shapes.php`): exact boundary following, sharp refined corners, exact straight lines (H/V snapped), smooth Bézier curves; "Letters / CNC cutting" preset, "Precise" curve type |
+| Precise letters (CNC) | — | Own pure-PHP outline tracer (`svg-trace/app/lib/shapes.php`): exact boundary following, sharp refined corners, exact straight lines (H/V snapped), true circle arcs (SVG `A`) and whole circles, Bézier curves with points only at a curve's level/upright extremes (font-style, fewest points); "Letters / CNC cutting" preset, "Precise" curve type |
+| Point editor | — | Browser-only (`svg-trace/public/assets/editor.js`): "Edit points" after a trace; drag points and handles, add/delete points, straight ↔ curve, smooth point, undo, delete shapes; edited SVG is built in the browser, nothing extra runs on the server |
 | File import | — | `svg-trace/app/lib/import.php`: type from file bytes; JPG/PNG/WEBP/BMP/GIF via GD, TIFF/PSD/HEIC/AVIF/JP2/ICO via Imagick, PDF/AI/EPS via Ghostscript, SVG through a strict whitelist. Everything is stored as PNG/JPG ≤ 6000 px. Upload limit 1 GB / 30,000 px (`public/.user.ini`, migration 002) |
 | resvg / svg2pdf | Apache-2.0 | PNG / vector PDF export candidates |
 | DXF | — | Own writer, validated with ezdxf (MIT) in tests |

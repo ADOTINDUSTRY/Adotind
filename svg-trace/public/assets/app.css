@@ -192,3 +192,27 @@ a { color: var(--brand); }
 .drop .progress { display: block; height: 6px; border-radius: 3px; background: var(--line); overflow: hidden; margin-top: 6px; }
 .drop .progress[hidden] { display: none; }
 .drop .progress span { display: block; height: 100%; width: 0; background: var(--brand); transition: width .2s; }
+
+/* Point editor */
+body.ed-open { overflow: hidden; }
+.ed { position: fixed; inset: 0; z-index: 100; display: grid; grid-template-rows: auto 1fr auto; background: var(--bg); }
+.ed[hidden] { display: none; }
+.ed-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 18px; padding: 10px 14px; border-bottom: 1px solid var(--line); background: var(--panel); }
+.ed-title { font-size: 1rem; }
+.ed-group { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.ed-group .check { margin: 0 0 0 6px; }
+.ed-end { margin-left: auto; }
+.ed .btn-sm { padding: .35rem .7rem; font-size: .85rem; }
+.ed-svg { width: 100%; height: 100%; min-height: 0; background: #fff; touch-action: none; cursor: default; user-select: none; }
+.ed-svg.grab { cursor: grabbing; }
+.ed-foot { display: flex; flex-wrap: wrap; gap: 4px 16px; padding: 8px 14px; font-size: .8rem; border-top: 1px solid var(--line); background: var(--panel); }
+.ed-foot #ed-info { font-weight: 600; }
+.ed-img { opacity: .35; pointer-events: none; }
+.ed-path { stroke-width: 1.2; vector-effect: non-scaling-stroke; cursor: pointer; }
+.ed-over * { vector-effect: non-scaling-stroke; }
+.ed-hl { fill: rgba(30, 50, 154, .08); stroke: #1e6bff; stroke-width: 2; pointer-events: none; }
+.ed-seg { fill: none; stroke: #e5162c; stroke-width: 3.5; pointer-events: none; }
+.ed-arm { stroke: #1e6bff; stroke-width: 1; pointer-events: none; }
+.ed-handle { fill: #fff; stroke: #1e6bff; stroke-width: 1.5; cursor: move; }
+.ed-node { fill: #fff; stroke: #1e6bff; stroke-width: 1.5; cursor: move; }
+.ed-node.on { fill: #1e6bff; }

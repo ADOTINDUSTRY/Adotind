@@ -195,7 +195,7 @@ switch (true) {
         $route('trace', 'Workspace — A Dot SVG Trace', [
             'presets' => StEngine::PRESETS,
             'upload' => ['max_bytes' => StJobs::maxUploadBytes(), 'formats' => StImport::supported()] + StSettings::get('upload'),
-            'scripts' => ['trace.js'],
+            'scripts' => ['trace.js', 'editor.js'],
         ]);
 
     case $path === '/api/jobs' && $_SERVER['REQUEST_METHOD'] === 'POST':

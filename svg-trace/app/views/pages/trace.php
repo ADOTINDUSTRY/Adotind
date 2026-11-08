@@ -136,9 +136,38 @@ $slider = static function (string $name, array $s): void { ?>
         <div class="ws-stats" id="stats"></div>
         <div class="ws-actions">
           <a class="btn btn-primary" id="download" href="#" download hidden>Download SVG</a>
+          <button class="btn" id="edit" type="button" hidden title="Move, add or remove points and fix curves by hand">Edit points</button>
           <span class="muted fine" id="hint">Tip: for neon signs choose Centre lines; for laser / CNC cutting choose Outlines.</span>
         </div>
       </div>
+    </div>
+  </div>
+  <div class="ed" id="ed" hidden role="dialog" aria-label="Edit points">
+    <div class="ed-bar">
+      <strong class="ed-title">Edit points</strong>
+      <div class="ed-group">
+        <button type="button" class="btn btn-sm" id="ed-undo" title="Undo (Ctrl+Z)">Undo</button>
+        <button type="button" class="btn btn-sm" id="ed-straight" title="Make the selected segment, or both sides of the selected point, a straight line">Straight</button>
+        <button type="button" class="btn btn-sm" id="ed-curve" title="Turn the selected segment, or both sides of the selected point, into a curve with handles">Curve</button>
+        <button type="button" class="btn btn-sm" id="ed-smooth" title="Line up the handles so the selected point has no corner">Smooth point</button>
+        <button type="button" class="btn btn-sm" id="ed-delete" title="Delete the selected point, or the whole shape if no point is selected (Delete key)">Delete</button>
+      </div>
+      <div class="ed-group">
+        <button type="button" class="btn btn-sm" id="ed-out" title="Zoom out">−</button>
+        <button type="button" class="btn btn-sm" id="ed-in" title="Zoom in">+</button>
+        <button type="button" class="btn btn-sm" id="ed-fit">Fit</button>
+        <label class="check"><input type="checkbox" id="ed-orig" checked /> Show original</label>
+      </div>
+      <div class="ed-group ed-end">
+        <button type="button" class="btn btn-sm" id="ed-download">Download edited SVG</button>
+        <button type="button" class="btn btn-sm btn-primary" id="ed-apply">Done</button>
+        <button type="button" class="btn btn-sm" id="ed-cancel">Cancel</button>
+      </div>
+    </div>
+    <svg class="ed-svg" id="ed-svg" xmlns="http://www.w3.org/2000/svg"></svg>
+    <div class="ed-foot">
+      <span id="ed-info"></span>
+      <span class="muted">Click a shape, then drag its points (squares) or handles (circles). Click a line to select that segment. Double-click a line to add a point. Arrow keys nudge a point (Shift = 10). Hold Alt while dragging a handle to make a sharp corner. Scroll to zoom, drag empty space to move.</span>
     </div>
   </div>
 </section>

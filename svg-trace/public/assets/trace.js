@@ -69,6 +69,7 @@
     if (maxBytes && file.size > maxBytes) { setStatus('This file is too large (' + fmtSize(file.size) + '). The maximum is ' + fmtSize(maxBytes) + '.', 'err'); return; }
     pendingFile = file;
     sourceFileId = null;
+    ws.dispatchEvent(new CustomEvent('st:reset'));
     $('drop-label').textContent = file.name;
     if (previewable.includes(ext)) imgO.src = URL.createObjectURL(file);
     else imgO.removeAttribute('src'); // shown after the server converts it
@@ -176,6 +177,20 @@
   };
   wire.addEventListener('change', showVector);
 
+  // ---- edited in the point editor ----
+  let editUrl = '';
+  ws.addEventListener('st:edited', (e) => {
+    if (editUrl) URL.revokeObjectURL(editUrl);
+    if (wireUrl) URL.revokeObjectURL(wireUrl);
+    editUrl = URL.createObjectURL(new Blob([e.detail.text], { type: 'image/svg+xml' }));
+    wireUrl = makeWire(e.detail.text);
+    svgUrl = editUrl;
+    dl.href = editUrl;
+    dl.setAttribute('download', 'traced-edited.svg');
+    showVector();
+    setStatus('Your edits are applied. Download SVG now saves the edited version.', 'ok');
+  });
+
   // ---- convert ----
   const convert = async () => {
     clearTimeout(autoTimer);
@@ -274,12 +289,14 @@
     } else if (job.status === 'completed' && job.output) {
       setStatus('Done in ' + ((job.duration_ms || 0) / 1000).toFixed(1) + ' s.', 'ok');
       dl.href = job.output.download_url;
+      dl.setAttribute('download', '');
       dl.hidden = false;
       svgUrl = job.output.view_url;
       if (wireUrl) { URL.revokeObjectURL(wireUrl); wireUrl = ''; }
       try {
         const text = await (await fetch(job.output.view_url, { credentials: 'same-origin' })).text();
         wireUrl = makeWire(text);
+        ws.dispatchEvent(new CustomEvent('st:result', { detail: { text, original: imgO.currentSrc || imgO.src } }));
         const paths = (text.match(/<path\b/g) || []).length;
         const cols = new Set((text.match(/(?:fill|stroke)="(#[0-9a-fA-F]{3,8})"/g) || []).map((m) => m.split('"')[1].toLowerCase()));
         const lines = /fill="none"/.test(text) && !/fill="#/.test(text);
