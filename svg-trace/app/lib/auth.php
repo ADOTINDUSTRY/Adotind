@@ -346,6 +346,57 @@ final class StAuth
     }
 
     // ------------------------------------------------------------------
+    // Guest accounts
+    // ------------------------------------------------------------------
+
+    /** Guests get a placeholder address on the reserved .invalid TLD, so no
+     *  email can ever be sent to them and the schema stays unchanged. */
+    public const GUEST_DOMAIN = 'guest.invalid';
+
+    public static function isGuest(?array $user): bool
+    {
+        return $user !== null && str_ends_with((string)($user['email'] ?? ''), '@' . self::GUEST_DOMAIN);
+    }
+
+    /** Create an anonymous account bound to this browser. Null if rate limited. */
+    public static function createGuest(): ?array
+    {
+        if (!self::rateLimit('guest_created', null, 10, 3600)) {
+            return null;
+        }
+        self::securityEvent('guest_created');
+        $publicId = self::ulid();
+        $now = StDb::utcNow();
+        $userId = StDb::insert(
+            'INSERT INTO st_users (public_id, email, display_name, created_at, updated_at)
+             VALUES (?, ?, ?, ?, ?)',
+            [$publicId, 'guest-' . strtolower($publicId) . '@' . self::GUEST_DOMAIN, 'Guest', $now, $now]
+        );
+        self::event($userId, 'register', ['provider' => 'guest']);
+        return StDb::one('SELECT * FROM st_users WHERE id = ?', [$userId]);
+    }
+
+    /** Move a guest's work into the account they just signed in to, then retire the guest. */
+    public static function mergeGuestInto(array $guest, int $targetUserId): void
+    {
+        $guestId = (int)$guest['id'];
+        if (!self::isGuest($guest) || $guestId === $targetUserId) {
+            return;
+        }
+        StDb::tx(static function () use ($guestId, $targetUserId): void {
+            foreach (['st_projects', 'st_files', 'st_jobs', 'st_usage_events'] as $table) {
+                StDb::run("UPDATE {$table} SET user_id = ? WHERE user_id = ?", [$targetUserId, $guestId]);
+            }
+            StDb::run('DELETE FROM st_sessions WHERE user_id = ?', [$guestId]);
+            StDb::run(
+                "UPDATE st_users SET status = 'deleted', deleted_at = UTC_TIMESTAMP(), updated_at = UTC_TIMESTAMP() WHERE id = ?",
+                [$guestId]
+            );
+        });
+        self::event($targetUserId, 'guest_merged', ['guest_id' => $guestId]);
+    }
+
+    // ------------------------------------------------------------------
     // Utilities
     // ------------------------------------------------------------------
 

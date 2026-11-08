@@ -5,10 +5,17 @@
     <h1>Turn Any Image Into a Clean, Editable Vector.</h1>
     <p class="lead-st">Convert raster images into scalable SVG vectors with powerful tracing and editing tools. Designed for designers, sign makers, laser operators and CNC professionals.</p>
     <div class="hero-cta">
-      <a class="btn btn-primary btn-lg" href="<?= $base ?>/login">Start Tracing Free</a>
-      <a class="btn btn-ghost btn-lg" href="#how">How it works</a>
+      <?php if ($user !== null): ?>
+        <a class="btn btn-primary btn-lg" href="<?= $base ?>/trace">Open workspace</a>
+      <?php else: ?>
+        <form method="post" action="<?= $base ?>/auth/guest" class="inline">
+          <?= StSecurity::csrfField() ?>
+          <button class="btn btn-primary btn-lg" type="submit">Start Tracing Free</button>
+        </form>
+        <a class="btn btn-ghost btn-lg" href="<?= $base ?>/login">Sign in</a>
+      <?php endif; ?>
     </div>
-    <p class="fine">Free account required · Files auto-delete after 30 days · No credit card</p>
+    <p class="fine">No sign-up needed · Files auto-delete after 30 days · No credit card</p>
   </div>
 </section>
 
@@ -51,7 +58,7 @@
 <section class="section-st alt">
   <div class="wrap faq">
     <h2>Frequently asked questions</h2>
-    <details><summary>Is it really free?</summary><p>Yes. The first release is completely free with a registered account and fair-use limits.</p></details>
+    <details><summary>Is it really free?</summary><p>Yes. The first release is completely free with fair-use limits. Use it as a guest right away, or sign in to keep your files on any device.</p></details>
     <details><summary>Who owns my files?</summary><p>You do. We never use your artwork to train AI models and never share it. Files are deleted automatically after 30 days, or immediately when you delete them.</p></details>
     <details><summary>What can I upload?</summary><p>PNG, JPG, BMP and WEBP images up to 20&nbsp;MB and 6000&nbsp;px. You must have the right to use the images you upload.</p></details>
     <details><summary>Is the DXF ready for production?</summary><p>Exports include geometry validation reports. Always verify dimensions and kerf on a test cut, as with any tooling pipeline.</p></details>
@@ -61,6 +68,13 @@
 <section class="section-st cta-st">
   <div class="wrap">
     <h2>Ready to trace?</h2>
-    <a class="btn btn-primary btn-lg" href="<?= $base ?>/login">Start Tracing Free</a>
+    <?php if ($user !== null): ?>
+      <a class="btn btn-primary btn-lg" href="<?= $base ?>/trace">Open workspace</a>
+    <?php else: ?>
+      <form method="post" action="<?= $base ?>/auth/guest" class="inline">
+        <?= StSecurity::csrfField() ?>
+        <button class="btn btn-primary btn-lg" type="submit">Start Tracing Free</button>
+      </form>
+    <?php endif; ?>
   </div>
 </section>

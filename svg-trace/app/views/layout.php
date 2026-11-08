@@ -33,10 +33,14 @@ $cssVersion = is_file($cssPath) ? (string)filemtime($cssPath) : '1';
         <?php if ((int)($user['is_admin'] ?? 0) === 1): ?>
           <a href="<?= $base ?>/admin">Admin</a>
         <?php endif; ?>
+        <?php if (StAuth::isGuest($user)): ?>
+          <a class="btn btn-primary" href="<?= $base ?>/login" title="You are a guest. Sign in to keep your files.">Save my files</a>
+        <?php else: ?>
         <form method="post" action="<?= $base ?>/logout" class="inline">
           <?= StSecurity::csrfField() ?>
           <button class="btn btn-ghost" type="submit">Sign out</button>
         </form>
+        <?php endif; ?>
       <?php else: ?>
         <a href="<?= $base ?>/privacy">Privacy</a>
         <a class="btn btn-primary" href="<?= $base ?>/login">Sign in</a>

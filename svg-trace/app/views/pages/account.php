@@ -9,9 +9,15 @@ $quotaMb = StSettings::int('limits', 'storage_mb_per_user');
     <div class="cards">
       <div class="card">
         <h3>Profile</h3>
+        <?php if (StAuth::isGuest($user)): ?>
+        <p><strong>Guest</strong><br />
+        <span class="muted">Your files are only reachable from this browser. Sign in to keep them on any device.</span></p>
+        <a class="btn btn-primary" href="<?= $base ?>/login">Save my files</a>
+        <?php else: ?>
         <p><?= StSecurity::e($user['display_name'] ?? '') ?><br />
         <?= StSecurity::e($user['email'] ?? '') ?><br />
         <span class="muted">Member since <?= StSecurity::e(substr((string)($user['created_at'] ?? ''), 0, 10)) ?></span></p>
+        <?php endif; ?>
       </div>
       <div class="card">
         <h3>Storage</h3>

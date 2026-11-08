@@ -5,7 +5,7 @@
     <p><em>A Dot SVG Trace is operated by A Dot Industry Enterprises Ltd, Cyprus. Contact: <a href="mailto:info@adotind.com">info@adotind.com</a>.</em></p>
     <h2>What we store</h2>
     <ul>
-      <li>Your email address, display name and sign-in provider.</li>
+      <li>Your email address, display name and sign-in provider (guests: none — a random anonymous ID only).</li>
       <li>Images you upload and the vectors we generate from them, for <strong>30 days</strong>, then they are permanently deleted. You can delete them sooner at any time.</li>
       <li>Technical logs (sign-ins, processing events, security events) for operating and securing the service.</li>
     </ul>

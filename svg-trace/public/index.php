@@ -83,13 +83,14 @@ switch (true) {
         // no break (never returns)
 
     case $path === '/login':
-        if ($user !== null) {
+        if ($user !== null && !StAuth::isGuest($user)) {
             header('Location: ' . StAuth::baseUrl($config) . '/trace', true, 303);
             exit;
         }
         $route('login', 'Sign in — A Dot SVG Trace', [
             'google_enabled' => $config->has('GOOGLE_CLIENT_ID'),
             'facebook_enabled' => $config->has('FACEBOOK_APP_ID'),
+            'is_guest' => StAuth::isGuest($user),
         ]);
 
     case $path === '/auth/email' && $_SERVER['REQUEST_METHOD'] === 'POST':
@@ -121,6 +122,20 @@ switch (true) {
         }
         $route('login', 'Sign in — A Dot SVG Trace', ['sent' => $email]);
 
+    case $path === '/auth/guest' && $_SERVER['REQUEST_METHOD'] === 'POST':
+        if (!StSecurity::csrfValidate($_POST['csrf_token'] ?? null)) {
+            $route('login', 'Sign in — A Dot SVG Trace', ['error' => 'Your session expired. Please try again.'], 400);
+        }
+        if ($user === null) {
+            $guest = StAuth::createGuest();
+            if ($guest === null) {
+                $route('login', 'Sign in — A Dot SVG Trace', ['error' => 'Too many guest sessions from your network. Please wait an hour or sign in with email.'], 429);
+            }
+            StAuth::loginUser((int)$guest['id']);
+        }
+        header('Location: ' . StAuth::baseUrl($config) . '/trace', true, 303);
+        exit;
+
     case $path === '/auth/email/verify':
         $email = (string)($_GET['email'] ?? '');
         $token = (string)($_GET['token'] ?? '');
@@ -131,6 +146,9 @@ switch (true) {
         }
         if (($userRow['status'] ?? '') !== 'active') {
             $route('login', 'Sign in — A Dot SVG Trace', ['error' => 'This account is not active.'], 403);
+        }
+        if (StAuth::isGuest($user)) {
+            StAuth::mergeGuestInto($user, (int)$userRow['id']);
         }
         StAuth::loginUser((int)$userRow['id']);
         header('Location: ' . StAuth::baseUrl($config) . '/trace', true, 303);
@@ -153,6 +171,9 @@ switch (true) {
         }
         if (($userRow['status'] ?? '') !== 'active') {
             $route('login', 'Sign in — A Dot SVG Trace', ['error' => 'This account is not active.'], 403);
+        }
+        if (StAuth::isGuest($user)) {
+            StAuth::mergeGuestInto($user, (int)$userRow['id']);
         }
         StAuth::loginUser((int)$userRow['id']);
         header('Location: ' . StAuth::baseUrl($config) . '/trace', true, 303);
