@@ -12,6 +12,7 @@ require_once dirname(__DIR__) . '/app/lib/security.php';
 require_once dirname(__DIR__) . '/app/lib/storage.php';
 require_once dirname(__DIR__) . '/app/lib/mailer.php';
 require_once dirname(__DIR__) . '/app/lib/auth.php';
+require_once dirname(__DIR__) . '/app/lib/jobs.php';
 
 $config = StConfig::load();
 
@@ -61,6 +62,21 @@ $route = static function (string $view, string $title, array $data = [], int $st
     exit;
 };
 
+$json = static function (array $data, int $status = 200): never {
+    http_response_code($status);
+    header('Content-Type: application/json; charset=utf-8');
+    header('Cache-Control: no-store');
+    header('X-Content-Type-Options: nosniff');
+    echo json_encode($data, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+    exit;
+};
+$apiUser = static function () use ($user, $json): array {
+    if ($user === null) {
+        $json(['error' => 'Please sign in again.'], 401);
+    }
+    return $user;
+};
+
 switch (true) {
     case $path === '/':
         $route('landing', 'A Dot SVG Trace — Turn Any Image Into a Clean, Editable Vector');
@@ -68,7 +84,7 @@ switch (true) {
 
     case $path === '/login':
         if ($user !== null) {
-            header('Location: ' . StAuth::baseUrl($config) . '/account', true, 303);
+            header('Location: ' . StAuth::baseUrl($config) . '/trace', true, 303);
             exit;
         }
         $route('login', 'Sign in — A Dot SVG Trace', [
@@ -113,7 +129,7 @@ switch (true) {
             $route('login', 'Sign in — A Dot SVG Trace', ['error' => 'This account is not active.'], 403);
         }
         StAuth::loginUser((int)$userRow['id']);
-        header('Location: ' . StAuth::baseUrl($config) . '/account', true, 303);
+        header('Location: ' . StAuth::baseUrl($config) . '/trace', true, 303);
         exit;
 
     case $path === '/auth/google' || $path === '/auth/facebook':
@@ -135,7 +151,7 @@ switch (true) {
             $route('login', 'Sign in — A Dot SVG Trace', ['error' => 'This account is not active.'], 403);
         }
         StAuth::loginUser((int)$userRow['id']);
-        header('Location: ' . StAuth::baseUrl($config) . '/account', true, 303);
+        header('Location: ' . StAuth::baseUrl($config) . '/trace', true, 303);
         exit;
 
     case $path === '/logout' && $_SERVER['REQUEST_METHOD'] === 'POST':
@@ -148,6 +164,69 @@ switch (true) {
     case $path === '/account':
         $user = StAuth::requireUser();
         $route('account', 'My account — A Dot SVG Trace');
+
+    case $path === '/trace':
+        $user = StAuth::requireUser();
+        $route('trace', 'Workspace — A Dot SVG Trace', [
+            'presets' => StEngine::PRESETS,
+            'upload' => ['max_bytes' => StJobs::maxUploadBytes()] + StSettings::get('upload'),
+            'scripts' => ['trace.js'],
+        ]);
+
+    case $path === '/api/jobs' && $_SERVER['REQUEST_METHOD'] === 'POST':
+        $u = $apiUser();
+        if (!StSecurity::csrfValidate($_SERVER['HTTP_X_CSRF_TOKEN'] ?? ($_POST['csrf_token'] ?? null))) {
+            $json(['error' => 'Your session expired. Please reload the page.'], 400);
+        }
+        try {
+            $hasUpload = isset($_FILES['image']) && (int)($_FILES['image']['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_NO_FILE;
+            if (!$hasUpload && empty($_POST['source_file_id']) && empty($_FILES)
+                && (int)($_SERVER['CONTENT_LENGTH'] ?? 0) > 0) {
+                // PHP discards bodies larger than post_max_size.
+                throw new StUserError('This file is too large.', 413);
+            }
+            $upload = $hasUpload ? StJobs::validateUpload($_FILES['image']) : null;
+            $source = !$hasUpload && ctype_digit((string)($_POST['source_file_id'] ?? '')) ? (int)$_POST['source_file_id'] : null;
+            $res = StJobs::enqueue((int)$u['id'], $upload, $source, $_POST);
+            if (!$res['duplicate']) {
+                StAuth::event((int)$u['id'], 'conversion_started', ['job_id' => $res['job_id']]);
+                StJobs::kickWorker($config);
+            }
+            $json(['job' => StJobs::publicJob($res['job_id'], (int)$u['id']), 'duplicate' => $res['duplicate']], 201);
+        } catch (StUserError $e) {
+            $json(['error' => $e->getMessage()], $e->httpStatus);
+        } catch (Throwable $e) {
+            error_log('[svg-trace] enqueue: ' . $e->getMessage());
+            $json(['error' => 'Something went wrong. Please try again.'], 500);
+        }
+
+    case preg_match('#^/api/jobs/(\d{1,19})$#', $path, $m) === 1:
+        $u = $apiUser();
+        $job = StJobs::publicJob((int)$m[1], (int)$u['id']);
+        if ($job === null) {
+            $json(['error' => 'Not found.'], 404);
+        }
+        if ($job['status'] === 'queued') {
+            StJobs::kickWorker($config); // no-op when a worker is already running
+        }
+        $json(['job' => $job]);
+
+    case preg_match('#^/files/(\d{1,19})/(view|download)$#', $path, $m) === 1:
+        $u = StAuth::requireUser();
+        $file = StDb::one(
+            'SELECT * FROM st_files WHERE id = ? AND user_id = ? AND deleted_at IS NULL',
+            [(int)$m[1], (int)$u['id']]
+        );
+        if ($file === null) {
+            $route('404', 'Not found — A Dot SVG Trace', [], 404);
+        }
+        $kindDir = ['original' => 'originals', 'output' => 'outputs', 'preview' => 'previews', 'export' => 'outputs'][$file['kind']];
+        $mimes = ['svg' => 'image/svg+xml', 'png' => 'image/png', 'jpg' => 'image/jpeg', 'bmp' => 'image/bmp',
+                  'webp' => 'image/webp', 'pdf' => 'application/pdf', 'dxf' => 'application/dxf'];
+        // Even sanitised SVG is rendered in a locked-down sandbox.
+        header("Content-Security-Policy: default-src 'none'; style-src 'unsafe-inline'; img-src data:; sandbox");
+        StStorage::stream($kindDir, (string)$file['stored_name'], (string)$file['original_name'],
+            $mimes[$file['format']] ?? 'application/octet-stream', $m[2] === 'view');
 
     case $path === '/privacy':
         $route('privacy', 'Privacy Policy — A Dot SVG Trace');

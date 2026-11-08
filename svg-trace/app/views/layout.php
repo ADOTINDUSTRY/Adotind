@@ -16,6 +16,9 @@ $cssVersion = is_file($cssPath) ? (string)filemtime($cssPath) : '1';
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" />
 <link rel="stylesheet" href="<?= $base ?>/assets/app.css?v=<?= $cssVersion ?>" />
+<?php if ($user !== null): ?>
+<meta name="csrf-token" content="<?= StSecurity::e(StSecurity::csrfToken()) ?>" />
+<?php endif; ?>
 </head>
 <body>
 <header class="top">
@@ -56,5 +59,9 @@ $cssVersion = is_file($cssPath) ? (string)filemtime($cssPath) : '1';
     </div>
   </div>
 </footer>
+<?php foreach ((array)($page['scripts'] ?? []) as $script):
+    $jsPath = __DIR__ . '/../../public/assets/' . basename((string)$script); ?>
+<script src="<?= $base ?>/assets/<?= StSecurity::e(basename((string)$script)) ?>?v=<?= is_file($jsPath) ? filemtime($jsPath) : '1' ?>" defer></script>
+<?php endforeach; ?>
 </body>
 </html>

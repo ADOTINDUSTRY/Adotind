@@ -61,7 +61,8 @@ Gmail allows about 2,000 messages per day per account. Check delivery with
 | Variable | Default | Purpose |
 |---|---|---|
 | `SVGTRACE_STORAGE_DIR` | `/home/<user>/domains/adotind.com/svgtrace-storage` | Private file storage root (outside web root) |
-| `SVGTRACE_BIN_DIR` | `/home/<user>/svgtrace/bin` | Tracing engine binaries |
+| `SVGTRACE_BIN_DIR` | `/home/<user>/svgtrace/bin` | Tracing engine binaries (see WORKER_SETUP.md) |
+| `SVGTRACE_PHP_CLI` | auto-detected | PHP CLI binary used to start background workers |
 | `SVGTRACE_BASE_URL` | `https://adotind.com/svg-trace` | Public base URL |
 
 ## Complete starter file

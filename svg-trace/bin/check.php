@@ -77,6 +77,20 @@ try {
     $row('private storage writable', false, $e->getMessage());
 }
 
+echo "\n== Tracing engine & worker ==\n";
+require_once dirname(__DIR__) . '/app/lib/jobs.php';
+$row('VTracer installed', StEngine::isInstalled($config), StEngine::isInstalled($config)
+    ? StEngine::vtracerPath($config) : 'run: php ' . __DIR__ . '/install-engine.php');
+$row('proc_open available', function_exists('proc_open'));
+$phpCli = StJobs::phpCli($config);
+$row('PHP CLI for worker', $phpCli !== null, (string)$phpCli);
+printf("  [info] %-28s %s\n", 'cron command (every minute)', ($phpCli ?? 'php') . ' ' . __DIR__ . '/worker.php');
+try {
+    $q = StDb::one("SELECT SUM(status='queued') AS q, SUM(status='processing') AS p FROM st_jobs");
+    printf("  [info] %-28s %d queued, %d processing\n", 'queue', (int)($q['q'] ?? 0), (int)($q['p'] ?? 0));
+} catch (Throwable) {
+}
+
 echo "\n== SMTP reachability ==\n";
 $targets = [[$config->get('MAIL_HOST', 'smtp.hostinger.com'), (int)$config->get('MAIL_PORT', '465')]];
 if ($targets[0][0] !== 'smtp.gmail.com') {

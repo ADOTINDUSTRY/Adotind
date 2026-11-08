@@ -91,12 +91,17 @@ final class StSecurity
      * strips scripts, event handlers, external references, and foreignObject.
      * Operates on the DOM; returns null if the document is not parseable XML.
      */
-    public static function sanitiseSvg(string $svg): ?string
+    public static function sanitiseSvg(string $svg, bool $trustedLarge = false): ?string
     {
+        // Untrusted documents must never contain a DOCTYPE (entity expansion).
+        if (preg_match('/<!DOCTYPE/i', $svg) === 1) {
+            return null;
+        }
         $prev = libxml_use_internal_errors(true);
         $dom = new DOMDocument();
         $dom->preserveWhiteSpace = true;
-        $ok = $dom->loadXML($svg, LIBXML_NONET);
+        // Engine output may have path data beyond libxml's 10 MB node limit.
+        $ok = $dom->loadXML($svg, LIBXML_NONET | ($trustedLarge ? LIBXML_PARSEHUGE : 0));
         libxml_use_internal_errors($prev);
         if (!$ok || $dom->documentElement === null
             || strtolower($dom->documentElement->tagName) !== 'svg') {
