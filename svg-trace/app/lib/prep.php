@@ -2,6 +2,7 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/lines.php';
+require_once __DIR__ . '/import.php';
 
 /*
  * A Dot SVG Trace — image preparation before tracing (GD only).
@@ -32,13 +33,8 @@ final class StPrep
      */
     public static function prepare(string $src, string $dest, array $s): ?array
     {
-        $data = @file_get_contents($src);
-        if ($data === false) {
-            return null;
-        }
-        $img = @imagecreatefromstring($data);
-        unset($data);
-        if ($img === false) {
+        $img = StImport::openGd($src);
+        if ($img === null) {
             return null;
         }
         $img = self::exifRotate($img, $src);

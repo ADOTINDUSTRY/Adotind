@@ -338,6 +338,51 @@ final class StImport
         return $r;
     }
 
+    /**
+     * Open a stored image as GD for tracing. Some phone / WhatsApp / old-software
+     * files decode in browsers and ImageMagick but not in GD, so fall back.
+     * EXIF orientation is NOT applied here (StPrep does that).
+     */
+    public static function openGd(string $path): ?\GdImage
+    {
+        @ini_set('gd.jpeg_ignore_warning', '1');
+        $data = @file_get_contents($path);
+        if ($data === false) {
+            return null;
+        }
+        error_clear_last();
+        $img = @imagecreatefromstring($data);
+        unset($data);
+        if ($img !== false) {
+            return $img;
+        }
+        $fmt = self::detect($path, basename($path));
+        error_log('[svg-trace] GD could not read ' . basename($path) . ' (' . ($fmt ?? 'unknown')
+            . '): ' . (error_get_last()['message'] ?? 'no reason') . '; trying Imagick');
+        if ($fmt === null || self::FORMATS[$fmt][4] || !class_exists('Imagick')) {
+            return null;
+        }
+        try {
+            self::limits();
+            $im = new Imagick();
+            $im->readImage(self::coderPath($fmt, $path));
+            if ($fmt === 'ico') {
+                $im = self::largestFrame($im);
+            }
+            if ($im->getImageColorspace() === Imagick::COLORSPACE_CMYK) {
+                $im->transformImageColorspace(Imagick::COLORSPACE_SRGB);
+            }
+            $im->setImageDepth(8);
+            $im->setImageFormat('PNG');
+            $img = @imagecreatefromstring($im->getImageBlob());
+            $im->clear();
+            return $img === false ? null : $img;
+        } catch (Throwable $e) {
+            error_log('[svg-trace] Imagick could not read ' . basename($path) . ': ' . $e->getMessage());
+            return null;
+        }
+    }
+
     private static function largestFrame(Imagick $im): Imagick
     {
         $best = 0;
