@@ -167,8 +167,8 @@ img {
 .preloader-logo {
   filter:
     brightness(1.07)
-    drop-shadow(0 0 5px rgba(253, 230, 19, 0.55))
-    drop-shadow(0 0 12px rgba(253, 230, 19, 0.28));
+    drop-shadow(0 0 5px rgba(120, 181, 255, 0.6))
+    drop-shadow(0 0 12px rgba(120, 181, 255, 0.3));
 }
 
 .brand-logo {
@@ -183,8 +183,8 @@ img {
 .brand:hover .brand-logo {
   filter:
     brightness(1.14)
-    drop-shadow(0 0 7px rgba(253, 230, 19, 0.7))
-    drop-shadow(0 0 18px rgba(253, 230, 19, 0.4));
+    drop-shadow(0 0 7px rgba(120, 181, 255, 0.75))
+    drop-shadow(0 0 18px rgba(120, 181, 255, 0.42));
 }
 
 .brand:hover .brand-logo {
@@ -200,20 +200,20 @@ img {
   font-size: 1rem;
   text-shadow:
     0 0 1px #ffffff,
-    0 0 4px rgba(255, 255, 255, 0.95),
-    0 0 12px rgba(255, 255, 255, 0.65),
-    0 0 30px rgba(255, 255, 255, 0.35),
-    0 0 55px rgba(255, 255, 255, 0.18);
+    0 0 5px rgba(255, 255, 255, 1),
+    0 0 13px rgba(255, 255, 255, 0.72),
+    0 0 33px rgba(255, 255, 255, 0.39),
+    0 0 60px rgba(255, 255, 255, 0.2);
   transition: text-shadow 0.3s var(--ease);
 }
 
 .brand:hover .brand-text {
   text-shadow:
     0 0 2px #ffffff,
-    0 0 6px rgba(255, 255, 255, 1),
-    0 0 18px rgba(255, 255, 255, 0.8),
-    0 0 42px rgba(255, 255, 255, 0.5),
-    0 0 70px rgba(255, 255, 255, 0.25);
+    0 0 7px rgba(255, 255, 255, 1),
+    0 0 20px rgba(255, 255, 255, 0.88),
+    0 0 46px rgba(255, 255, 255, 0.55),
+    0 0 77px rgba(255, 255, 255, 0.28);
 }
 
 .main-nav {
