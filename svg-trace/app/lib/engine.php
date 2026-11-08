@@ -36,6 +36,10 @@ final class StEngine
                    'output' => 'fill', 'colors' => 0, 'remove_bg' => 0, 'threshold' => 128,
                    'filter_speckle' => 4, 'color_precision' => 8, 'gradient_step' => 0,
                    'corner_threshold' => 30, 'segment_length' => 4.0, 'splice_threshold' => 45, 'path_precision' => 2],
+        'letters' => ['label' => 'Letters / CNC cutting (sharp, straight)', 'colormode' => 'color', 'hierarchical' => 'cutout', 'mode' => 'precise',
+                   'output' => 'outline', 'colors' => 0, 'remove_bg' => 2, 'threshold' => 128,
+                   'filter_speckle' => 4, 'color_precision' => 8, 'gradient_step' => 0,
+                   'corner_threshold' => 35, 'segment_length' => 4.0, 'splice_threshold' => 45, 'path_precision' => 2],
         'poster' => ['label' => 'Illustration / poster', 'colormode' => 'color', 'hierarchical' => 'stacked', 'mode' => 'spline',
                    'output' => 'fill', 'colors' => 16, 'remove_bg' => 0, 'threshold' => 128,
                    'filter_speckle' => 4, 'color_precision' => 8, 'gradient_step' => 0,
@@ -57,7 +61,7 @@ final class StEngine
     private const ENUMS = [
         'colormode' => ['color', 'bw'],
         'hierarchical' => ['stacked', 'cutout'],
-        'mode' => ['spline', 'polygon', 'pixel'],
+        'mode' => ['spline', 'polygon', 'pixel', 'precise'], // precise = own letter tracer (StShapes)
         'output' => ['fill', 'outline', 'centerline'], // filled shapes, outlines, or centre lines (neon)
     ];
     /** name => [min, max, isFloat] */
@@ -107,6 +111,9 @@ final class StEngine
     {
         if (($settings['output'] ?? 'fill') === 'centerline') {
             return 'centreline-' . ($settings['colormode'] === 'bw' ? 'bw' : 'color');
+        }
+        if (($settings['mode'] ?? '') === 'precise') {
+            return 'shapes-' . ($settings['colormode'] === 'bw' ? 'bw' : 'color');
         }
         return 'vtracer-' . ($settings['colormode'] === 'bw' ? 'bw' : 'color');
     }

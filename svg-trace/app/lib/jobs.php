@@ -17,6 +17,7 @@ require_once __DIR__ . '/settings.php';
 require_once __DIR__ . '/engine.php';
 require_once __DIR__ . '/prep.php';
 require_once __DIR__ . '/import.php';
+require_once __DIR__ . '/shapes.php';
 
 /** An error whose message is safe to show to the end user. */
 final class StUserError extends RuntimeException
@@ -419,6 +420,8 @@ final class StJobs
             $tmpSvg = StStorage::pathFor('temporary', StStorage::newStoredName('svg'));
             $prep = StPrep::prepare($src, $tmpPng, $settings);
             if ($prep === null) {
+                $log(sprintf('job %d prep failed for %s (%s, %d bytes)', $job['id'], (string)$input['stored_name'],
+                    (string)($input['format'] ?? '?'), is_file($src) ? (int)filesize($src) : -1));
                 self::fail($job, 'This image could not be read. Please upload it again or try a PNG or JPG file.', false);
                 return;
             }
@@ -441,6 +444,14 @@ final class StJobs
                 if ($cl !== null) {
                     file_put_contents($tmpSvg, $cl['svg']);
                 }
+            } elseif (($settings['mode'] ?? '') === 'precise') {
+                $t0 = hrtime(true);
+                $sh = StShapes::trace($tmpPng, $prep['key'], $engineSettings, (float)$prep['scale']);
+                $r = ['ok' => $sh !== null, 'exit_code' => $sh !== null ? 0 : 1, 'timed_out' => false,
+                      'ms' => (int)((hrtime(true) - $t0) / 1e6), 'log' => $sh !== null ? $sh['paths'] . ' shapes' : 'shape tracing failed'];
+                if ($sh !== null) {
+                    file_put_contents($tmpSvg, $sh['svg']);
+                }
             } else {
                 $r = StEngine::run($tmpPng, $tmpSvg, $engineSettings, $timeout, $memMb, $config);
             }
@@ -461,7 +472,7 @@ final class StJobs
                 return;
             }
             $raw = (string)file_get_contents($tmpSvg);
-            if ($prep['key'] !== null && $output !== 'centerline') {
+            if ($prep['key'] !== null && $output !== 'centerline' && ($settings['mode'] ?? '') !== 'precise') {
                 $raw = StPrep::removeKey($raw, $prep['key']);
             }
             if ($output === 'outline') {

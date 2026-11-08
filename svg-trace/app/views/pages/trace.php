@@ -98,6 +98,7 @@ $slider = static function (string $name, array $s): void { ?>
           <label><input type="radio" name="mode" value="spline" /> Curves</label>
           <label><input type="radio" name="mode" value="polygon" /> Straight</label>
           <label data-only="shapes"><input type="radio" name="mode" value="pixel" /> Pixel</label>
+          <label data-only="shapes" title="Sharp corners, exact straight lines and smooth curves: best for letters and CNC cutting"><input type="radio" name="mode" value="precise" /> Precise</label>
         </div>
         <?php foreach ($advanced as $name => $s) { $slider($name, $s); } ?>
       </details>
