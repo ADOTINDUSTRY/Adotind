@@ -343,11 +343,25 @@ final class StImport
      * files decode in browsers and ImageMagick but not in GD, so fall back.
      * EXIF orientation is NOT applied here (StPrep does that).
      */
+    /** Why the last openGd() call failed (for logs and bin/diagnose.php). */
+    public static string $lastError = '';
+
     public static function openGd(string $path): ?\GdImage
     {
+        self::$lastError = '';
         @ini_set('gd.jpeg_ignore_warning', '1');
+        if (!function_exists('imagecreatefromstring')) {
+            self::$lastError = 'PHP GD extension is not loaded in ' . PHP_BINARY;
+            return null;
+        }
+        if (!is_file($path)) {
+            self::$lastError = 'file missing: ' . $path;
+            return null;
+        }
+        error_clear_last();
         $data = @file_get_contents($path);
-        if ($data === false) {
+        if ($data === false || $data === '') {
+            self::$lastError = 'cannot read file (' . (error_get_last()['message'] ?? 'empty') . ')';
             return null;
         }
         error_clear_last();
@@ -359,6 +373,7 @@ final class StImport
         $fmt = self::detect($path, basename($path));
         error_log('[svg-trace] GD could not read ' . basename($path) . ' (' . ($fmt ?? 'unknown')
             . '): ' . (error_get_last()['message'] ?? 'no reason') . '; trying Imagick');
+        self::$lastError = 'GD: ' . (error_get_last()['message'] ?? 'unknown') . ' (type ' . ($fmt ?? 'unknown') . ')';
         if ($fmt === null || self::FORMATS[$fmt][4] || !class_exists('Imagick')) {
             return null;
         }
@@ -376,8 +391,13 @@ final class StImport
             $im->setImageFormat('PNG');
             $img = @imagecreatefromstring($im->getImageBlob());
             $im->clear();
-            return $img === false ? null : $img;
+            if ($img === false) {
+                self::$lastError .= '; Imagick PNG not readable by GD';
+                return null;
+            }
+            return $img;
         } catch (Throwable $e) {
+            self::$lastError .= '; Imagick: ' . $e->getMessage();
             error_log('[svg-trace] Imagick could not read ' . basename($path) . ': ' . $e->getMessage());
             return null;
         }

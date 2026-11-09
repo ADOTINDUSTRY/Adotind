@@ -420,8 +420,10 @@ final class StJobs
             $tmpSvg = StStorage::pathFor('temporary', StStorage::newStoredName('svg'));
             $prep = StPrep::prepare($src, $tmpPng, $settings);
             if ($prep === null) {
-                $log(sprintf('job %d prep failed for %s (%s, %d bytes)', $job['id'], (string)$input['stored_name'],
-                    (string)($input['format'] ?? '?'), is_file($src) ? (int)filesize($src) : -1));
+                $why = sprintf('job %d prep failed for %s (%s, %d bytes): %s', $job['id'], (string)$input['stored_name'],
+                    (string)($input['format'] ?? '?'), is_file($src) ? (int)filesize($src) : -1, StPrep::$lastError);
+                $log($why);
+                self::note($why);
                 self::fail($job, 'This image could not be read. Please upload it again or try a PNG or JPG file.', false);
                 return;
             }
@@ -524,6 +526,8 @@ final class StJobs
             }
         } catch (Throwable $e) {
             error_log('[svg-trace] worker error job ' . $job['id'] . ': ' . $e->getMessage());
+            self::note('job ' . $job['id'] . ' error: ' . get_class($e) . ': ' . $e->getMessage() . ' at '
+                . basename($e->getFile()) . ':' . $e->getLine());
             if (isset($storedName)) {
                 StStorage::delete('outputs', $storedName); // its DB row was rolled back
             }
@@ -537,6 +541,20 @@ final class StJobs
                     @unlink($t);
                 }
             }
+        }
+    }
+
+    /** Append a line to <storage>/worker.log (kept under ~1 MB) so failures can be diagnosed later. */
+    public static function note(string $line): void
+    {
+        try {
+            $f = StStorage::root() . '/worker.log';
+            if (is_file($f) && filesize($f) > 1_000_000) {
+                @rename($f, $f . '.old');
+            }
+            @file_put_contents($f, gmdate('Y-m-d H:i:s') . ' ' . $line . "\n", FILE_APPEND | LOCK_EX);
+        } catch (Throwable $e) {
+            // logging must never break a job
         }
     }
 

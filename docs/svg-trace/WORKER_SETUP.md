@@ -59,3 +59,7 @@ php ~/domains/adotind.com/public_html/Adotind/svg-trace/bin/worker.php --verbose
 - `another worker is running` — normal; a worker already holds the lock.
 - Jobs stay `queued` — check the cron job and that the engine is installed.
 - Engine errors are written to the PHP error log with the prefix `[svg-trace]`.
+- Conversions fail (for example "This image could not be read"): run
+  `php ~/domains/adotind.com/public_html/Adotind/svg-trace/bin/diagnose.php`.
+  It re-runs the last jobs step by step and prints the exact reason. Failure
+  reasons are also appended to `svgtrace-storage/worker.log`.

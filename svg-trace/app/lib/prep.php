@@ -21,6 +21,9 @@ require_once __DIR__ . '/import.php';
 
 final class StPrep
 {
+    /** Why the last prepare() call returned null. */
+    public static string $lastError = '';
+
     private const TARGET_SIDE = 2000;
     private const MAX_UPSCALE = 4.0;
     private const MAX_WORK_PIXELS = 8_000_000;
@@ -33,8 +36,10 @@ final class StPrep
      */
     public static function prepare(string $src, string $dest, array $s): ?array
     {
+        self::$lastError = '';
         $img = StImport::openGd($src);
         if ($img === null) {
+            self::$lastError = 'open: ' . StImport::$lastError;
             return null;
         }
         $img = self::exifRotate($img, $src);
@@ -78,6 +83,7 @@ final class StPrep
         if ($scale !== 1.0) {
             $scaled = imagescale($img, max(1, (int)round($w * $scale)), max(1, (int)round($h * $scale)), IMG_BICUBIC);
             if ($scaled === false) {
+                self::$lastError = sprintf('imagescale %dx%d x%.2f failed', $w, $h, $scale);
                 return null;
             }
             $img = $scaled;
@@ -155,7 +161,9 @@ final class StPrep
         }
 
         imagepalettetotruecolor($pal);
-        if (!imagepng($pal, $dest, 1)) {
+        error_clear_last();
+        if (!@imagepng($pal, $dest, 1)) {
+            self::$lastError = 'cannot write ' . $dest . ': ' . (error_get_last()['message'] ?? 'unknown');
             return null;
         }
         return [
