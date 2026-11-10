@@ -32,4 +32,5 @@ $siteConfig = [
     'media_index_file' => dirname(__DIR__, 3) . '/adotind-media/library.json',
     'media_settings_file' => dirname(__DIR__, 3) . '/adotind-media/settings.json',
     'inquiries_dir' => dirname(__DIR__, 3) . '/adotind-media/inquiries',
+    'quote_db_file' => dirname(__DIR__, 3) . '/adotind-media/quote-system.sqlite',
 ];

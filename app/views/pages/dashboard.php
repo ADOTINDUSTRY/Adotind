@@ -5,6 +5,8 @@ $success = flash_get('dashboard_success');
 $error = flash_get('dashboard_error');
 $categories = ['signage', 'illuminated-signs', 'cnc', 'laser-cutting', 'printing', 'fabrication', 'logo'];
 $locations = dashboard_location_options();
+$quoteAdmin = is_array($page['quote_admin'] ?? null) ? $page['quote_admin'] : ['machines' => [], 'materials' => [], 'rates' => [], 'settings' => [], 'orders' => []];
+$quoteSettings = is_array($quoteAdmin['settings'] ?? null) ? $quoteAdmin['settings'] : [];
 ?>
 <section class="page-hero">
   <div class="container">
@@ -114,6 +116,210 @@ $locations = dashboard_location_options();
         <?php if ($media === []): ?>
           <p class="muted">No images uploaded yet.</p>
         <?php endif; ?>
+      </div>
+
+      <hr class="dashboard-divider" />
+      <h2>Quote System Settings (Database)</h2>
+      <form class="quote-form service-card dashboard-settings-card" method="post" action="/dashboard/quote/settings">
+        <input type="hidden" name="csrf_token" value="<?= e(csrf_token()) ?>" />
+        <div class="dashboard-table-grid">
+          <label>Currency symbol
+            <input type="text" name="currency_symbol" value="<?= e((string)($quoteSettings['currency_symbol'] ?? '€')) ?>" />
+          </label>
+          <label>VAT %
+            <input type="number" name="vat_percent" min="0" step="0.01" value="<?= e((string)($quoteSettings['vat_percent'] ?? '19')) ?>" />
+          </label>
+          <label>Markup %
+            <input type="number" name="markup_percent" min="0" step="0.01" value="<?= e((string)($quoteSettings['markup_percent'] ?? '0')) ?>" />
+          </label>
+          <label>Round-to step
+            <input type="number" name="round_to" min="0" step="0.01" value="<?= e((string)($quoteSettings['round_to'] ?? '0.5')) ?>" />
+          </label>
+          <label>Instant measure extensions
+            <input type="text" name="instant_exts" value="<?= e((string)($quoteSettings['instant_exts'] ?? 'svg,dxf')) ?>" />
+          </label>
+        </div>
+        <button type="submit" class="btn">Save Quote Settings</button>
+      </form>
+
+      <h2>Machines</h2>
+      <div class="dashboard-table-wrap">
+        <table class="dashboard-table">
+          <thead>
+            <tr><th>Name</th><th>Code</th><th>Setup min</th><th>Setup cost</th><th>Hourly</th><th>Min charge</th><th>Sort</th><th>Active</th><th>Actions</th></tr>
+          </thead>
+          <tbody>
+            <?php foreach (($quoteAdmin['machines'] ?? []) as $machine): ?>
+            <tr>
+              <form method="post" action="/dashboard/quote/machine">
+                <input type="hidden" name="csrf_token" value="<?= e(csrf_token()) ?>" />
+                <input type="hidden" name="id" value="<?= e((string)$machine['id']) ?>" />
+                <td><input type="text" name="name" value="<?= e((string)$machine['name']) ?>" required /></td>
+                <td><input type="text" name="code" value="<?= e((string)$machine['code']) ?>" required /></td>
+                <td><input type="number" name="setup_minutes" min="0" step="0.01" value="<?= e((string)$machine['setup_minutes']) ?>" /></td>
+                <td><input type="number" name="setup_cost" min="0" step="0.01" value="<?= e((string)$machine['setup_cost']) ?>" /></td>
+                <td><input type="number" name="hourly_rate" min="0" step="0.01" value="<?= e((string)$machine['hourly_rate']) ?>" /></td>
+                <td><input type="number" name="min_charge" min="0" step="0.01" value="<?= e((string)$machine['min_charge']) ?>" /></td>
+                <td><input type="number" name="sort_order" step="1" value="<?= e((string)$machine['sort_order']) ?>" /></td>
+                <td><input type="checkbox" name="active" value="1" <?= ((int)$machine['active'] === 1) ? 'checked' : '' ?> /></td>
+                <td class="dashboard-table-actions">
+                  <button type="submit" class="btn btn-small">Save</button>
+                  <button type="submit" class="btn btn-small btn-danger" name="action" value="delete" onclick="return confirm('Delete this machine?');">Delete</button>
+                </td>
+              </form>
+            </tr>
+            <?php endforeach; ?>
+            <tr>
+              <form method="post" action="/dashboard/quote/machine">
+                <input type="hidden" name="csrf_token" value="<?= e(csrf_token()) ?>" />
+                <td><input type="text" name="name" placeholder="New machine" required /></td>
+                <td><input type="text" name="code" placeholder="code" required /></td>
+                <td><input type="number" name="setup_minutes" min="0" step="0.01" value="10" /></td>
+                <td><input type="number" name="setup_cost" min="0" step="0.01" value="0" /></td>
+                <td><input type="number" name="hourly_rate" min="0" step="0.01" value="75" /></td>
+                <td><input type="number" name="min_charge" min="0" step="0.01" value="35" /></td>
+                <td><input type="number" name="sort_order" step="1" value="999" /></td>
+                <td><input type="checkbox" name="active" value="1" checked /></td>
+                <td><button type="submit" class="btn btn-small">Add</button></td>
+              </form>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h2>Materials</h2>
+      <div class="dashboard-table-wrap">
+        <table class="dashboard-table">
+          <thead>
+            <tr><th>Name</th><th>Sheet W mm</th><th>Sheet H mm</th><th>Sheet price</th><th>Waste %</th><th>Sort</th><th>Active</th><th>Actions</th></tr>
+          </thead>
+          <tbody>
+            <?php foreach (($quoteAdmin['materials'] ?? []) as $material): ?>
+            <tr>
+              <form method="post" action="/dashboard/quote/material">
+                <input type="hidden" name="csrf_token" value="<?= e(csrf_token()) ?>" />
+                <input type="hidden" name="id" value="<?= e((string)$material['id']) ?>" />
+                <td><input type="text" name="name" value="<?= e((string)$material['name']) ?>" required /></td>
+                <td><input type="number" name="sheet_width_mm" min="1" step="0.01" value="<?= e((string)$material['sheet_width_mm']) ?>" /></td>
+                <td><input type="number" name="sheet_height_mm" min="1" step="0.01" value="<?= e((string)$material['sheet_height_mm']) ?>" /></td>
+                <td><input type="number" name="sheet_price" min="0" step="0.01" value="<?= e((string)$material['sheet_price']) ?>" /></td>
+                <td><input type="number" name="waste_percent" min="0" step="0.01" value="<?= e((string)$material['waste_percent']) ?>" /></td>
+                <td><input type="number" name="sort_order" step="1" value="<?= e((string)$material['sort_order']) ?>" /></td>
+                <td><input type="checkbox" name="active" value="1" <?= ((int)$material['active'] === 1) ? 'checked' : '' ?> /></td>
+                <td class="dashboard-table-actions">
+                  <button type="submit" class="btn btn-small">Save</button>
+                  <button type="submit" class="btn btn-small btn-danger" name="action" value="delete" onclick="return confirm('Delete this material?');">Delete</button>
+                </td>
+              </form>
+            </tr>
+            <?php endforeach; ?>
+            <tr>
+              <form method="post" action="/dashboard/quote/material">
+                <input type="hidden" name="csrf_token" value="<?= e(csrf_token()) ?>" />
+                <td><input type="text" name="name" placeholder="New material" required /></td>
+                <td><input type="number" name="sheet_width_mm" min="1" step="0.01" value="2440" /></td>
+                <td><input type="number" name="sheet_height_mm" min="1" step="0.01" value="1220" /></td>
+                <td><input type="number" name="sheet_price" min="0" step="0.01" value="0" /></td>
+                <td><input type="number" name="waste_percent" min="0" step="0.01" value="10" /></td>
+                <td><input type="number" name="sort_order" step="1" value="999" /></td>
+                <td><input type="checkbox" name="active" value="1" checked /></td>
+                <td><button type="submit" class="btn btn-small">Add</button></td>
+              </form>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h2>Cutting Speeds (Machine × Material)</h2>
+      <div class="dashboard-table-wrap">
+        <table class="dashboard-table">
+          <thead>
+            <tr><th>Machine</th><th>Material</th><th>Speed mm/min</th><th>Pierce sec/part</th><th>Active</th><th>Actions</th></tr>
+          </thead>
+          <tbody>
+            <?php foreach (($quoteAdmin['rates'] ?? []) as $rate): ?>
+            <tr>
+              <form method="post" action="/dashboard/quote/rate">
+                <input type="hidden" name="csrf_token" value="<?= e(csrf_token()) ?>" />
+                <input type="hidden" name="id" value="<?= e((string)$rate['id']) ?>" />
+                <td>
+                  <select name="machine_id">
+                    <?php foreach (($quoteAdmin['machines'] ?? []) as $machine): ?>
+                      <option value="<?= e((string)$machine['id']) ?>" <?= ((int)$machine['id'] === (int)$rate['machine_id']) ? 'selected' : '' ?>><?= e((string)$machine['name']) ?></option>
+                    <?php endforeach; ?>
+                  </select>
+                </td>
+                <td>
+                  <select name="material_id">
+                    <?php foreach (($quoteAdmin['materials'] ?? []) as $material): ?>
+                      <option value="<?= e((string)$material['id']) ?>" <?= ((int)$material['id'] === (int)$rate['material_id']) ? 'selected' : '' ?>><?= e((string)$material['name']) ?></option>
+                    <?php endforeach; ?>
+                  </select>
+                </td>
+                <td><input type="number" name="cut_speed_mm_min" min="0.1" step="0.01" value="<?= e((string)$rate['cut_speed_mm_min']) ?>" /></td>
+                <td><input type="number" name="pierce_time_sec" min="0" step="0.01" value="<?= e((string)$rate['pierce_time_sec']) ?>" /></td>
+                <td><input type="checkbox" name="active" value="1" <?= ((int)$rate['active'] === 1) ? 'checked' : '' ?> /></td>
+                <td class="dashboard-table-actions">
+                  <button type="submit" class="btn btn-small">Save</button>
+                  <button type="submit" class="btn btn-small btn-danger" name="action" value="delete" onclick="return confirm('Delete this speed entry?');">Delete</button>
+                </td>
+              </form>
+            </tr>
+            <?php endforeach; ?>
+            <tr>
+              <form method="post" action="/dashboard/quote/rate">
+                <input type="hidden" name="csrf_token" value="<?= e(csrf_token()) ?>" />
+                <td>
+                  <select name="machine_id" required>
+                    <option value="">Select machine</option>
+                    <?php foreach (($quoteAdmin['machines'] ?? []) as $machine): ?>
+                      <option value="<?= e((string)$machine['id']) ?>"><?= e((string)$machine['name']) ?></option>
+                    <?php endforeach; ?>
+                  </select>
+                </td>
+                <td>
+                  <select name="material_id" required>
+                    <option value="">Select material</option>
+                    <?php foreach (($quoteAdmin['materials'] ?? []) as $material): ?>
+                      <option value="<?= e((string)$material['id']) ?>"><?= e((string)$material['name']) ?></option>
+                    <?php endforeach; ?>
+                  </select>
+                </td>
+                <td><input type="number" name="cut_speed_mm_min" min="0.1" step="0.01" value="1000" required /></td>
+                <td><input type="number" name="pierce_time_sec" min="0" step="0.01" value="0" /></td>
+                <td><input type="checkbox" name="active" value="1" checked /></td>
+                <td><button type="submit" class="btn btn-small">Add</button></td>
+              </form>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h2>Quote Orders</h2>
+      <div class="dashboard-table-wrap">
+        <table class="dashboard-table">
+          <thead>
+            <tr><th>ID</th><th>Date</th><th>Customer</th><th>Machine</th><th>Material</th><th>Qty</th><th>Length (mm)</th><th>Total</th><th>Status</th></tr>
+          </thead>
+          <tbody>
+            <?php foreach (($quoteAdmin['orders'] ?? []) as $order): ?>
+            <tr>
+              <td>#<?= e((string)$order['id']) ?></td>
+              <td><?= e((string)$order['created_at']) ?></td>
+              <td><?= e((string)$order['customer_name']) ?><br /><small><?= e((string)$order['email']) ?></small></td>
+              <td><?= e((string)$order['machine_name']) ?></td>
+              <td><?= e((string)$order['material_name']) ?></td>
+              <td><?= e((string)$order['quantity']) ?></td>
+              <td><?= e((string)round((float)$order['vector_length_mm'], 2)) ?></td>
+              <td><?= e((string)number_format((float)$order['estimate_total'], 2)) ?></td>
+              <td><?= e((string)$order['status']) ?></td>
+            </tr>
+            <?php endforeach; ?>
+            <?php if (($quoteAdmin['orders'] ?? []) === []): ?>
+              <tr><td colspan="9" class="muted">No quote orders yet.</td></tr>
+            <?php endif; ?>
+          </tbody>
+        </table>
       </div>
     <?php endif; ?>
   </div>

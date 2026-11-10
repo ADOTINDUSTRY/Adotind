@@ -5,6 +5,7 @@ require_once __DIR__ . '/app/config/site.php';
 require_once __DIR__ . '/app/lib/functions.php';
 require_once __DIR__ . '/app/lib/contact_form.php';
 require_once __DIR__ . '/app/lib/online_quote.php';
+require_once __DIR__ . '/app/lib/quote_system.php';
 require_once __DIR__ . '/app/lib/dashboard.php';
 
 // Serve media as early as possible: no session, no bootstrap work for image requests.
@@ -16,6 +17,7 @@ if (starts_with($earlyPath, '/media/')) {
 session_start();
 
 dashboard_bootstrap_storage($siteConfig);
+quote_db($siteConfig);
 
 $services = require __DIR__ . '/app/data/services.php';
 $projects = require __DIR__ . '/app/data/projects.php';
@@ -242,16 +244,19 @@ $routes = [
     ],
     '/online-quote' => [
         'view' => 'online-quote',
-        'title' => 'Online Quote (Under Development) | A Dot Industry',
-        'description' => 'Early access to A Dot Industry online quotation for CO2 laser, fiber laser and CNC routing projects.',
+        'title' => 'Online Quote | A Dot Industry',
+        'description' => 'Online quotation for CO2 laser, fiber laser and CNC routing projects based on measured vector cutting length.',
         'quote_unlocked' => online_quote_unlocked(),
+        'quote_data' => quote_active_options($siteConfig),
+        'quote_result' => $_SESSION['online_quote_result'] ?? null,
         'breadcrumbs' => [['label' => 'Home', 'href' => '/'], ['label' => 'Online Quote', 'href' => '/online-quote']],
     ],
     '/dashboard' => [
         'view' => 'dashboard',
         'title' => 'Dashboard | A Dot Industry',
-        'description' => 'Private dashboard for managing project media.',
+        'description' => 'Private dashboard for managing media and online quote settings.',
         'media' => $mediaLibrary,
+        'quote_admin' => quote_dashboard_data($siteConfig),
         'breadcrumbs' => [['label' => 'Home', 'href' => '/'], ['label' => 'Dashboard', 'href' => '/dashboard']],
     ],
 ];
@@ -264,6 +269,12 @@ if ($path === '/online-quote/pin') {
 }
 if ($path === '/online-quote/updates') {
     handle_online_quote_updates_submit($siteConfig);
+}
+if ($path === '/online-quote/calculate') {
+    handle_online_quote_calculate($siteConfig);
+}
+if ($path === '/online-quote/book') {
+    handle_online_quote_book($siteConfig);
 }
 if ($path === '/dashboard/login') {
     dashboard_handle_login($siteConfig);
@@ -282,6 +293,18 @@ if ($path === '/dashboard/set-logo') {
 }
 if ($path === '/dashboard/delete-media') {
     dashboard_handle_delete_media($siteConfig);
+}
+if ($path === '/dashboard/quote/settings') {
+    quote_dashboard_handle_settings($siteConfig);
+}
+if ($path === '/dashboard/quote/machine') {
+    quote_dashboard_handle_machine($siteConfig);
+}
+if ($path === '/dashboard/quote/material') {
+    quote_dashboard_handle_material($siteConfig);
+}
+if ($path === '/dashboard/quote/rate') {
+    quote_dashboard_handle_rate($siteConfig);
 }
 
 $page = $routes[$path] ?? null;
