@@ -1015,6 +1015,55 @@ p {
   margin-bottom: 0.8rem;
 }
 
+/* ---------- Online Quote ---------- */
+
+.quote-gate-grid {
+  align-items: start;
+}
+
+.quote-lock-card {
+  position: sticky;
+  top: 6.5rem;
+}
+
+.quote-pin-form {
+  max-width: 360px;
+}
+
+.quote-feature-list {
+  margin-bottom: 1.1rem;
+}
+
+.quote-help-cta .btn {
+  text-align: center;
+}
+
+.quote-prototype {
+  border: 1px solid var(--line);
+  background: var(--panel);
+  padding: 1.4rem;
+}
+
+.quote-prototype-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.9rem;
+}
+
+.quote-estimate-card {
+  border: 1px solid var(--line);
+  background: var(--panel-2);
+  padding: 1rem;
+}
+
+.quote-estimate-amount {
+  margin: 0.2rem 0 0.5rem;
+  font-size: clamp(1.6rem, 3vw, 2.2rem);
+  font-weight: 800;
+  color: var(--accent);
+  letter-spacing: 0.02em;
+}
+
 /* ---------- Footer ---------- */
 
 .site-footer {
@@ -1224,6 +1273,20 @@ p {
   }
 
   .dashboard-actions {
+    grid-template-columns: 1fr;
+  }
+
+  .quote-lock-card {
+    position: static;
+  }
+
+  .quote-prototype-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 620px) {
+  .quote-prototype-grid {
     grid-template-columns: 1fr;
   }
 }

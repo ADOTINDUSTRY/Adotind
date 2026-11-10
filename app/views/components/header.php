@@ -7,6 +7,7 @@ $navItems = [
     ['label' => 'Machinery', 'href' => '/machinery'],
     ['label' => 'Materials', 'href' => '/materials'],
     ['label' => 'Industries', 'href' => '/industries'],
+    ['label' => 'Online Quote', 'href' => '/online-quote'],
     ['label' => 'Contact', 'href' => '/contact'],
 ];
 $currentPath = current_path();
@@ -39,6 +40,6 @@ $currentPath = current_path();
         <a class="<?= $active ? 'is-active' : '' ?>" href="<?= e($item['href']) ?>"><?= e($item['label']) ?></a>
       <?php endforeach; ?>
     </nav>
-    <a href="/contact" class="btn btn-quote">Request a Quote</a>
+    <a href="/online-quote" class="btn btn-quote">Request a Quote</a>
   </div>
 </header>

@@ -4,6 +4,7 @@ declare(strict_types=1);
 require_once __DIR__ . '/app/config/site.php';
 require_once __DIR__ . '/app/lib/functions.php';
 require_once __DIR__ . '/app/lib/contact_form.php';
+require_once __DIR__ . '/app/lib/online_quote.php';
 require_once __DIR__ . '/app/lib/dashboard.php';
 
 // Serve media as early as possible: no session, no bootstrap work for image requests.
@@ -239,6 +240,13 @@ $routes = [
         'hero_media' => $mediaByLocation['contact-hero'],
         'breadcrumbs' => [['label' => 'Home', 'href' => '/'], ['label' => 'Contact', 'href' => '/contact']],
     ],
+    '/online-quote' => [
+        'view' => 'online-quote',
+        'title' => 'Online Quote (Under Development) | A Dot Industry',
+        'description' => 'Early access to A Dot Industry online quotation for CO2 laser, fiber laser and CNC routing projects.',
+        'quote_unlocked' => online_quote_unlocked(),
+        'breadcrumbs' => [['label' => 'Home', 'href' => '/'], ['label' => 'Online Quote', 'href' => '/online-quote']],
+    ],
     '/dashboard' => [
         'view' => 'dashboard',
         'title' => 'Dashboard | A Dot Industry',
@@ -250,6 +258,12 @@ $routes = [
 
 if ($path === '/contact/submit') {
     handle_contact_submit($siteConfig);
+}
+if ($path === '/online-quote/pin') {
+    handle_online_quote_pin_submit();
+}
+if ($path === '/online-quote/updates') {
+    handle_online_quote_updates_submit($siteConfig);
 }
 if ($path === '/dashboard/login') {
     dashboard_handle_login($siteConfig);
