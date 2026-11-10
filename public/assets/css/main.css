@@ -997,6 +997,37 @@ p {
   margin-bottom: 1.6rem;
 }
 
+.dashboard-topbar {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 1rem;
+  align-items: center;
+  margin-bottom: 1.1rem;
+}
+
+.dashboard-menu {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.dashboard-menu a {
+  text-decoration: none;
+  border: 1px solid var(--line);
+  color: var(--muted);
+  padding: 0.5rem 0.7rem;
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.dashboard-menu a.is-active,
+.dashboard-menu a:hover {
+  color: var(--ink);
+  background: var(--accent);
+  border-color: var(--accent);
+}
+
 .dashboard-media-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
@@ -1371,6 +1402,10 @@ p {
   }
 
   .dashboard-actions {
+    grid-template-columns: 1fr;
+  }
+
+  .dashboard-topbar {
     grid-template-columns: 1fr;
   }
 

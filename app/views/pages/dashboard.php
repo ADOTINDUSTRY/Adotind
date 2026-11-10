@@ -7,6 +7,19 @@ $categories = ['signage', 'illuminated-signs', 'cnc', 'laser-cutting', 'printing
 $locations = dashboard_location_options();
 $quoteAdmin = is_array($page['quote_admin'] ?? null) ? $page['quote_admin'] : ['machines' => [], 'materials' => [], 'rates' => [], 'settings' => [], 'orders' => []];
 $quoteSettings = is_array($quoteAdmin['settings'] ?? null) ? $quoteAdmin['settings'] : [];
+$dashboardTabs = [
+  'overview' => 'Overview',
+  'media' => 'Media',
+  'quote-settings' => 'Quote Settings',
+  'machines' => 'Machines',
+  'materials' => 'Materials',
+  'rates' => 'Speeds',
+  'orders' => 'Orders',
+];
+$activeTab = (string)($_GET['tab'] ?? 'overview');
+if (!isset($dashboardTabs[$activeTab])) {
+  $activeTab = 'overview';
+}
 ?>
 <section class="page-hero">
   <div class="container">
@@ -16,8 +29,8 @@ $quoteSettings = is_array($quoteAdmin['settings'] ?? null) ? $quoteAdmin['settin
     <p class="lead">This area is private. Please sign in to continue.</p>
     <?php else: ?>
     <p class="eyebrow">Private Dashboard</p>
-    <h1>Media Management</h1>
-    <p class="lead">Upload project images to a specific website location and manage their details.</p>
+    <h1>Dashboard Control Panel</h1>
+    <p class="lead">Manage media, quote logic, machines, materials, speeds and incoming quote orders.</p>
     <?php endif; ?>
   </div>
 </section>
@@ -46,6 +59,29 @@ $quoteSettings = is_array($quoteAdmin['settings'] ?? null) ? $quoteAdmin['settin
         </form>
       </div>
     <?php else: ?>
+      <div class="dashboard-topbar">
+        <nav class="dashboard-menu" aria-label="Dashboard menu">
+          <?php foreach ($dashboardTabs as $tab => $label): ?>
+            <a href="/dashboard?tab=<?= e($tab) ?>" class="<?= $activeTab === $tab ? 'is-active' : '' ?>"><?= e($label) ?></a>
+          <?php endforeach; ?>
+        </nav>
+        <form method="post" action="/dashboard/logout">
+          <input type="hidden" name="csrf_token" value="<?= e(csrf_token()) ?>" />
+          <button type="submit" class="btn btn-outline">Logout</button>
+        </form>
+      </div>
+
+      <?php if ($activeTab === 'overview'): ?>
+      <div class="quote-stats">
+        <div><strong><?= e((string)count($media)) ?></strong><span>Uploaded media files</span></div>
+        <div><strong><?= e((string)count($quoteAdmin['machines'] ?? [])) ?></strong><span>Machines configured</span></div>
+        <div><strong><?= e((string)count($quoteAdmin['materials'] ?? [])) ?></strong><span>Materials configured</span></div>
+        <div><strong><?= e((string)count($quoteAdmin['orders'] ?? [])) ?></strong><span>Recent quote orders</span></div>
+      </div>
+      <p class="muted">Use the menu above to manage one area at a time.</p>
+      <?php endif; ?>
+
+      <?php if ($activeTab === 'media'): ?>
       <div class="dashboard-actions">
         <form class="quote-form service-card" method="post" action="/dashboard/upload" enctype="multipart/form-data">
           <h2>Upload Project Images</h2>
@@ -61,11 +97,6 @@ $quoteSettings = is_array($quoteAdmin['settings'] ?? null) ? $quoteAdmin['settin
             </select>
           </label>
           <button type="submit" class="btn">Upload</button>
-        </form>
-
-        <form method="post" action="/dashboard/logout">
-          <input type="hidden" name="csrf_token" value="<?= e(csrf_token()) ?>" />
-          <button type="submit" class="btn btn-outline">Logout</button>
         </form>
       </div>
 
@@ -117,7 +148,9 @@ $quoteSettings = is_array($quoteAdmin['settings'] ?? null) ? $quoteAdmin['settin
           <p class="muted">No images uploaded yet.</p>
         <?php endif; ?>
       </div>
+      <?php endif; ?>
 
+      <?php if ($activeTab === 'quote-settings'): ?>
       <hr class="dashboard-divider" />
       <h2>Quote System Settings (Database)</h2>
       <form class="quote-form service-card dashboard-settings-card" method="post" action="/dashboard/quote/settings">
@@ -141,7 +174,9 @@ $quoteSettings = is_array($quoteAdmin['settings'] ?? null) ? $quoteAdmin['settin
         </div>
         <button type="submit" class="btn">Save Quote Settings</button>
       </form>
+      <?php endif; ?>
 
+      <?php if ($activeTab === 'machines'): ?>
       <h2>Machines</h2>
       <div class="dashboard-table-wrap">
         <table class="dashboard-table">
@@ -186,7 +221,9 @@ $quoteSettings = is_array($quoteAdmin['settings'] ?? null) ? $quoteAdmin['settin
           </tbody>
         </table>
       </div>
+      <?php endif; ?>
 
+      <?php if ($activeTab === 'materials'): ?>
       <h2>Materials</h2>
       <div class="dashboard-table-wrap">
         <table class="dashboard-table">
@@ -229,7 +266,9 @@ $quoteSettings = is_array($quoteAdmin['settings'] ?? null) ? $quoteAdmin['settin
           </tbody>
         </table>
       </div>
+      <?php endif; ?>
 
+      <?php if ($activeTab === 'rates'): ?>
       <h2>Cutting Speeds (Machine × Material)</h2>
       <div class="dashboard-table-wrap">
         <table class="dashboard-table">
@@ -294,7 +333,9 @@ $quoteSettings = is_array($quoteAdmin['settings'] ?? null) ? $quoteAdmin['settin
           </tbody>
         </table>
       </div>
+      <?php endif; ?>
 
+      <?php if ($activeTab === 'orders'): ?>
       <h2>Quote Orders</h2>
       <div class="dashboard-table-wrap">
         <table class="dashboard-table">
@@ -321,6 +362,7 @@ $quoteSettings = is_array($quoteAdmin['settings'] ?? null) ? $quoteAdmin['settin
           </tbody>
         </table>
       </div>
+      <?php endif; ?>
     <?php endif; ?>
   </div>
 </section>
