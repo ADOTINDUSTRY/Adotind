@@ -1244,6 +1244,56 @@ p {
   margin: 0.6rem 0 0;
 }
 
+.quote-file-preview:not([hidden]) {
+  display: grid;
+  grid-template-columns: minmax(0, 180px) minmax(0, 1fr);
+  gap: 1rem;
+  align-items: center;
+  margin-top: 1rem;
+  padding: 1rem;
+  border: 1px solid #dfe5ef;
+  border-radius: 8px;
+  background: #fff;
+}
+
+.quote-preview-image:not([hidden]) {
+  display: grid;
+  place-items: center;
+  min-height: 120px;
+  padding: 0.7rem;
+  border: 1px solid #e1e7f1;
+  border-radius: 6px;
+  background: #fff;
+}
+
+.quote-preview-image img {
+  display: block;
+  max-width: 100%;
+  max-height: 180px;
+  object-fit: contain;
+}
+
+.quote-preview-details {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.quote-preview-image[hidden] + .quote-preview-details {
+  grid-column: 1 / -1;
+}
+
+.quote-preview-details strong {
+  color: var(--ink);
+}
+
+.quote-preview-details p:empty {
+  display: none;
+}
+
+.quote-preview-details p {
+  margin-top: 0.25rem;
+}
+
 .quote-form-footer {
   display: flex;
   align-items: center;
@@ -1576,5 +1626,9 @@ p {
 
   .quote-form-footer .btn {
     width: 100%;
+  }
+
+  .quote-file-preview:not([hidden]) {
+    grid-template-columns: 1fr;
   }
 }

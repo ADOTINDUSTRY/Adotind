@@ -106,5 +106,9 @@ $jsVersion = is_file($jsPath) ? (string)filemtime($jsPath) : '1';
     </main>
     <?php require __DIR__ . '/components/footer.php'; ?>
     <script src="/public/assets/js/main.js?v=<?= e($jsVersion) ?>" defer></script>
+    <?php if (($page['view'] ?? '') === 'online-quote' && !empty($page['quote_unlocked'])): ?>
+    <?php $quoteJsPath = __DIR__ . '/../../public/assets/js/quote-preview.js'; ?>
+    <script src="/public/assets/js/quote-preview.js?v=<?= e(is_file($quoteJsPath) ? (string)filemtime($quoteJsPath) : '1') ?>" defer></script>
+    <?php endif; ?>
   </body>
 </html>
