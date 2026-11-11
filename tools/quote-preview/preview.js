@@ -1,5 +1,6 @@
 import { DxfViewer } from 'dxf-viewer';
 import { getDocument, GlobalWorkerOptions } from 'pdfjs-dist';
+import { measureDxf } from './dxf-measurements.mjs';
 
 const assetBase = new URL('.', import.meta.url);
 GlobalWorkerOptions.workerSrc = new URL('pdf.worker.min.js?v=1', assetBase).href;
@@ -36,17 +37,19 @@ export async function previewDxf(file, container) {
       url,
       workerFactory: () => new Worker(new URL('dxf-worker.js?v=1', assetBase), { type: 'module' }),
     });
-    const bounds = viewer.GetBounds();
-    const unit = viewer.GetDxf()?.header?.$INSUNITS;
-    const factors = { 1: 25.4, 2: 304.8, 4: 1, 5: 10, 6: 1000, 8: 0.0000254, 9: 0.0254, 10: 914.4, 13: 0.001, 14: 100, 15: 10000 };
-    const factor = factors[unit];
-    const w = bounds && bounds.maxX - bounds.minX;
-    const h = bounds && bounds.maxY - bounds.minY;
+    const measurements = measureDxf(viewer.GetDxf(), viewer.GetBounds());
+    const display = (value) => value === null ? 'unavailable' : `${format(value)} ${measurements.unit}`;
+    const warning = measurements.unsupported.length
+      ? `Path length is unavailable for unsupported or invalid geometry: ${measurements.unsupported.join(', ')}.`
+      : 'Path length covers lines, circles, arcs and 2D polylines; other DXF features may not be included.';
     return {
-      dimensions: factor && Number.isFinite(w) && Number.isFinite(h)
-        ? `Approximate displayed drawing bounds: ${format(w * factor)} × ${format(h * factor)} mm`
-        : 'Physical drawing dimensions are unavailable or the DXF units are unspecified.',
-      message: 'Preview may not include every DXF feature. Verify the actual cut-part dimensions before entering them below.',
+      dimensions: '',
+      measurements: {
+        width: `Drawing width: ${display(measurements.width)}`,
+        height: `Drawing height: ${display(measurements.height)}`,
+        pathLength: `Estimated path length: ${display(measurements.pathLength)}`,
+      },
+      message: `${warning} ${measurements.unitsKnown ? '' : 'DXF units are unspecified or unsupported; values are in drawing units. '}Preview bounds are approximate. Verify all measurements before quoting.`,
       dispose: () => viewer.Destroy(),
     };
   } catch (error) {

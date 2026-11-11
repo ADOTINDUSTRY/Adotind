@@ -1286,6 +1286,16 @@ p {
   object-fit: contain;
 }
 
+.quote-preview-measurements {
+  width: 100%;
+  font-size: 0.9rem;
+  overflow-wrap: anywhere;
+}
+
+.quote-preview-measurements p {
+  margin: 0.2rem 0 0;
+}
+
 .quote-preview-expand,
 .quote-preview-close {
   border: 1px solid #9facbf;

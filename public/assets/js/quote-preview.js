@@ -6,6 +6,10 @@
   const imageBox = preview.querySelector('.quote-preview-image');
   const image = imageBox.querySelector('img');
   const renderBox = imageBox.querySelector('.quote-preview-render');
+  const measurements = imageBox.querySelector('.quote-preview-measurements');
+  const previewWidth = measurements.querySelector('.quote-preview-width');
+  const previewHeight = measurements.querySelector('.quote-preview-height');
+  const previewLength = measurements.querySelector('.quote-preview-length');
   const expand = imageBox.querySelector('.quote-preview-expand');
   const dialog = document.querySelector('.quote-preview-dialog');
   const dialogContent = dialog.querySelector('.quote-preview-dialog-content');
@@ -21,7 +25,7 @@
   let svgWorker = null;
   let svgTimeout = null;
   let selection = 0;
-  const vendorUrl = new URL('quote-vendor/preview.js?v=1', document.currentScript.src).href;
+  const vendorUrl = new URL('quote-vendor/preview.js?v=2', document.currentScript.src).href;
   const epsWorkerUrl = new URL('quote-vendor/eps-worker.js?v=1', document.currentScript.src).href;
   const svgWorkerUrl = new URL('quote-vendor/svg-worker.js?v=1', document.currentScript.src).href;
 
@@ -67,6 +71,10 @@
     renderBox.replaceChildren();
     renderBox.hidden = true;
     hideImage();
+    measurements.hidden = true;
+    previewWidth.textContent = '';
+    previewHeight.textContent = '';
+    previewLength.textContent = '';
     dimensions.textContent = '';
     message.textContent = '';
     const file = input.files[0];
@@ -146,6 +154,12 @@
         }
         dispose = result.dispose || null;
         dimensions.textContent = result.dimensions;
+        if (result.measurements) {
+          previewWidth.textContent = result.measurements.width;
+          previewHeight.textContent = result.measurements.height;
+          previewLength.textContent = result.measurements.pathLength;
+          measurements.hidden = false;
+        }
         message.textContent = result.message;
         return;
       }

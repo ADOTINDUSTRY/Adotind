@@ -96,6 +96,11 @@ $viberBase = (string)($siteConfig['viber'] ?? '');
             <img alt="Preview of the selected SVG design" />
             <div class="quote-preview-render" hidden aria-label="Drawing preview"></div>
             <button type="button" class="quote-preview-expand">View fullscreen</button>
+            <div class="quote-preview-measurements" hidden>
+              <p class="quote-preview-width"></p>
+              <p class="quote-preview-height"></p>
+              <p class="quote-preview-length"></p>
+            </div>
           </div>
           <div class="quote-preview-details">
             <strong class="quote-preview-name"></strong>
