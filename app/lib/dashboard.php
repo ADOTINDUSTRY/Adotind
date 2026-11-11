@@ -341,6 +341,61 @@ function dashboard_optimize_logo(array $siteConfig, string $sourceImagePath): st
     return $optimizedUrl;
 }
 
+/**
+ * Reduce uploaded photo size for faster page loads while preserving quality.
+ * Runs right after upload, so public pages don't serve huge camera originals.
+ */
+function dashboard_optimize_uploaded_photo(string $path, string $ext): void
+{
+    if (!is_file($path) || filesize($path) <= 0) {
+        return;
+    }
+    $ext = strtolower($ext);
+    $createFn = match ($ext) {
+        'jpg', 'jpeg' => 'imagecreatefromjpeg',
+        'png' => 'imagecreatefrompng',
+        'webp' => 'imagecreatefromwebp',
+        default => null,
+    };
+    if ($createFn === null || !function_exists($createFn) || !function_exists('imagecreatetruecolor')) {
+        return;
+    }
+    $src = @$createFn($path);
+    if ($src === false) {
+        return;
+    }
+    $w = imagesx($src);
+    $h = imagesy($src);
+    if ($w < 1 || $h < 1) {
+        imagedestroy($src);
+        return;
+    }
+
+    $maxSide = 2200; // enough for crisp web display, much lighter than raw uploads
+    $scale = min(1.0, $maxSide / max($w, $h));
+    $tw = max(1, (int)round($w * $scale));
+    $th = max(1, (int)round($h * $scale));
+    $dst = imagecreatetruecolor($tw, $th);
+
+    if ($ext === 'png' || $ext === 'webp') {
+        imagealphablending($dst, false);
+        imagesavealpha($dst, true);
+        $transparent = imagecolorallocatealpha($dst, 0, 0, 0, 127);
+        imagefilledrectangle($dst, 0, 0, $tw, $th, $transparent);
+    }
+    imagecopyresampled($dst, $src, 0, 0, 0, 0, $tw, $th, $w, $h);
+
+    if ($ext === 'jpg' || $ext === 'jpeg') {
+        @imagejpeg($dst, $path, 82);
+    } elseif ($ext === 'png') {
+        @imagepng($dst, $path, 7);
+    } elseif ($ext === 'webp' && function_exists('imagewebp')) {
+        @imagewebp($dst, $path, 82);
+    }
+    imagedestroy($dst);
+    imagedestroy($src);
+}
+
 function dashboard_handle_login(array $siteConfig): never
 {
     if ($_SERVER['REQUEST_METHOD'] !== 'POST' || !csrf_valid($_POST['csrf_token'] ?? null)) {
@@ -428,6 +483,7 @@ function dashboard_handle_upload(array $siteConfig): never
         if (!move_uploaded_file($tmp, $target)) {
             continue;
         }
+        dashboard_optimize_uploaded_photo($target, $ext);
 
         $baseName = pathinfo($originalName, PATHINFO_FILENAME);
         $title = ucwords(str_replace(['-', '_'], ' ', $baseName));

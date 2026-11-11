@@ -1,18 +1,36 @@
 (() => {
   const preloader = document.getElementById('preloader');
   if (!preloader) return;
+  const startedAt = performance.now();
+  const minVisibleMs = 350;
+  const navigation = performance.getEntriesByType('navigation')[0];
 
-  const hide = () => {
+  const removeNow = () => {
+    if (preloader.dataset.done === '1') return;
+    preloader.dataset.done = '1';
     preloader.classList.add('is-done');
     window.setTimeout(() => preloader.remove(), 600);
   };
+  const hide = () => {
+    const wait = Math.max(0, minVisibleMs - (performance.now() - startedAt));
+    window.setTimeout(removeNow, wait);
+  };
+
+  // When returning through browser back/forward cache, avoid loader flash.
+  if (navigation && navigation.type === 'back_forward') {
+    removeNow();
+    return;
+  }
+  window.addEventListener('pageshow', (e) => {
+    if (e.persisted) removeNow();
+  });
 
   if (document.readyState === 'complete') {
     hide();
   } else {
     window.addEventListener('load', hide, { once: true });
     // Safety net: never trap the user behind the loader.
-    window.setTimeout(hide, 6000);
+    window.setTimeout(removeNow, 8000);
   }
 })();
 

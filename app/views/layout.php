@@ -37,10 +37,21 @@ $jsVersion = is_file($jsPath) ? (string)filemtime($jsPath) : '1';
       name="twitter:description"
       content="<?= e($page['description'] ?? 'Manufacturing-focused services by A Dot Industry in Cyprus.') ?>"
     />
+    <style>
+      /* Critical preloader styles so it appears immediately, before main CSS loads. */
+      #preloader{position:fixed;inset:0;z-index:9999;display:grid;place-items:center;background:#070c1c;transition:opacity .45s ease,visibility .45s ease}
+      #preloader.is-done{opacity:0;visibility:hidden;pointer-events:none}
+      #preloader .preloader-inner{display:grid;justify-items:center;gap:1rem}
+      #preloader .preloader-logo{width:72px;height:72px;object-fit:contain}
+      #preloader .preloader-spinner{width:44px;height:44px;border-radius:50%;border:3px solid rgba(255,255,255,.14);border-top-color:#fde613;border-right-color:#e5162c;animation:preloader-spin .9s linear infinite}
+      #preloader .preloader-text{color:#93a1bd;font-size:.78rem;font-weight:800;letter-spacing:.24em;text-transform:uppercase}
+      @keyframes preloader-spin{to{transform:rotate(360deg)}}
+    </style>
     <link rel="preconnect" href="https://cdn.simpleicons.org" crossorigin />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Montserrat:wght@700;800&family=Orbitron:wght@700;800&display=swap" />
+    <link rel="preload" as="style" href="https://fonts.googleapis.com/css2?family=Montserrat:wght@700;800&family=Orbitron:wght@700;800&display=swap" onload="this.onload=null;this.rel='stylesheet'" />
+    <noscript><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Montserrat:wght@700;800&family=Orbitron:wght@700;800&display=swap" /></noscript>
     <?php if (!empty($siteConfig['logo_url']) && is_string($siteConfig['logo_url'])): ?>
       <link rel="preload" as="image" href="<?= e($siteConfig['logo_url']) ?>" />
     <?php endif; ?>
