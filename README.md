@@ -1,6 +1,6 @@
 # Adotind
 
-Premium custom PHP website for **A Dot Industry Enterprises Ltd**.
+Premium website for **A Dot Industry Enterprises Ltd** with an active legacy PHP frontend and a new scalable Laravel platform core.
 
 ## Architecture
 
@@ -10,6 +10,7 @@ Premium custom PHP website for **A Dot Industry Enterprises Ltd**.
 - `app/data` structured content for services, projects, and machinery
 - `public/assets` CSS and JavaScript
 - `storage/inquiries` upload and inquiry log destination
+- `platform/` Laravel 13 API core for future large-scale modules (quotes, orders, payments, graphics processing, tracking)
 
 ## Current Coverage
 
@@ -27,6 +28,16 @@ Serve the repository with PHP:
 
 ```bash
 php -S 127.0.0.1:8080
+
+Run the new platform core separately:
+
+```bash
+cd platform
+cp .env.example .env
+composer install
+php artisan migrate --seed
+php artisan serve
+```
 ```
 
 ## SEO files
