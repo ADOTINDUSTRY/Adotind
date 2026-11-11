@@ -104,10 +104,9 @@ $viberBase = (string)($siteConfig['viber'] ?? '');
         <label>DXF drawing
           <input type="file" name="vector_file" accept=".dxf" aria-describedby="quote-file-help" required />
         </label>
-        <p id="quote-file-help">For now, upload a DXF file up to 50 MB. Need help creating one? Open the guide above or <a href="/contact">contact us</a>.</p>
+        <p id="quote-file-help">Upload a DXF file up to 50 MB. Need help creating one? Open the guide above or <a href="/contact">contact us</a>.</p>
         <div class="quote-file-preview" hidden aria-live="polite">
           <div class="quote-preview-image" hidden>
-            <img alt="Preview of the selected design" />
             <div class="quote-preview-render" hidden aria-label="Drawing preview"></div>
             <button type="button" class="quote-preview-expand">View fullscreen</button>
             <div class="quote-preview-measurements" hidden>

@@ -1,8 +1,8 @@
 # Quote file preview
 
-The browser renders PDF-compatible files, DXF and supported EPS/PostScript-based AI locally; uploaded artwork is not sent to a third-party service. SVG is previewed by the browser. EPS rendering runs in a time-limited worker and only supports a subset of PostScript; it can omit fonts or features and is illustrative only.
+The quotation page previews DXF files locally in the browser; artwork is not sent to a third-party service. When WebGL is unavailable, the viewer uses a 2D canvas fallback.
 
-DXF previews show approximate displayed width and height and an estimated path length for lines, arcs, circles and 2D polylines. Unsupported or malformed entities make the length unavailable, and unsupported or unspecified DXF units are shown as drawing units rather than millimetres. Some DXF features may not be parsed or previewed, and the preview measurement is not a verified cutting measurement or the server's quote calculation. PDF page dimensions can include empty space; users must enter and verify actual part dimensions. For SVG files over 5 MB, a worker inspects the root element within the first megabyte rather than parsing the entire document on the UI thread.
+DXF previews show approximate displayed width and height and an estimated path length for lines, arcs, circles and 2D polylines. Unsupported or malformed entities make the length unavailable, and unsupported or unspecified DXF units are shown as drawing units rather than millimetres. Some DXF features may not be parsed or previewed, and the preview measurement is not a verified cutting measurement or the server's quote calculation.
 
 The current online quotation form accepts DXF only. Its testing estimator is limited to a single part per drawing; multiple-part drawings and uncertain cases are referred for manual review. Machine selection and sheet counts are not yet automated production decisions.
 
