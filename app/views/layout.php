@@ -37,7 +37,12 @@ $jsVersion = is_file($jsPath) ? (string)filemtime($jsPath) : '1';
       name="twitter:description"
       content="<?= e($page['description'] ?? 'Manufacturing-focused services by A Dot Industry in Cyprus.') ?>"
     />
+    <script>
+      /* Loader only on the first page of a visit; later pages must not flash it. */
+      try { if (sessionStorage.getItem('adot_seen') === '1') document.documentElement.classList.add('no-preloader'); } catch (e) {}
+    </script>
     <style>
+      .no-preloader #preloader{display:none!important}
       /* Critical preloader styles so it appears immediately, before main CSS loads. */
       #preloader{position:fixed;inset:0;z-index:9999;display:grid;place-items:center;background:#070c1c;transition:opacity .45s ease,visibility .45s ease}
       #preloader.is-done{opacity:0;visibility:hidden;pointer-events:none}

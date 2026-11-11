@@ -1,38 +1,31 @@
 (() => {
   const preloader = document.getElementById('preloader');
+  try { sessionStorage.setItem('adot_seen', '1'); } catch (e) {}
   if (!preloader) return;
-  const startedAt = performance.now();
-  const minVisibleMs = 350;
-  const navigation = performance.getEntriesByType('navigation')[0];
 
   const removeNow = () => {
     if (preloader.dataset.done === '1') return;
     preloader.dataset.done = '1';
     preloader.classList.add('is-done');
-    window.setTimeout(() => preloader.remove(), 600);
-  };
-  const hide = () => {
-    const wait = Math.max(0, minVisibleMs - (performance.now() - startedAt));
-    window.setTimeout(removeNow, wait);
+    window.setTimeout(() => preloader.remove(), 500);
   };
 
-  // When returning through browser back/forward cache, avoid loader flash.
-  if (navigation && navigation.type === 'back_forward') {
-    removeNow();
+  if (document.documentElement.classList.contains('no-preloader')) {
+    preloader.remove();
     return;
   }
   window.addEventListener('pageshow', (e) => {
     if (e.persisted) removeNow();
   });
 
-  if (document.readyState === 'complete') {
-    hide();
+  // Hide as soon as the page is interactive; don't wait for every image.
+  if (document.readyState !== 'loading') {
+    removeNow();
   } else {
-    window.addEventListener('load', hide, { once: true });
-    // Safety net: never trap the user behind the loader.
-    window.setTimeout(removeNow, 8000);
+    document.addEventListener('DOMContentLoaded', removeNow, { once: true });
   }
-})();
+  window.setTimeout(removeNow, 3000);
+})();;
 
 (() => {
   const toggle = document.querySelector('.nav-toggle');

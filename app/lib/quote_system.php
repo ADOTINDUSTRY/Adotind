@@ -30,8 +30,12 @@ function quote_db(array $siteConfig): PDO
     $pdo->setAttribute(PDO::ATTR_DEFAULT_FETCH_MODE, PDO::FETCH_ASSOC);
     $pdo->exec('PRAGMA foreign_keys = ON');
     $pdo->exec('PRAGMA journal_mode = WAL');
-    quote_install_schema($pdo);
-    quote_seed_defaults($pdo);
+    // Schema/seed only once per database file; user_version marks completion.
+    if ((int)$pdo->query('PRAGMA user_version')->fetchColumn() < 1) {
+        quote_install_schema($pdo);
+        quote_seed_defaults($pdo);
+        $pdo->exec('PRAGMA user_version = 1');
+    }
     $lastPath = $path;
     return $pdo;
 }

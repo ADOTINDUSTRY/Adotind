@@ -41,6 +41,12 @@ function dashboard_bootstrap_storage(array $siteConfig): void
         return;
     }
 
+    // Heavy one-time migration/mirroring runs once; a marker keeps normal requests fast.
+    $doneMarker = dirname($uploadsDir) . '/.bootstrap-v2';
+    if (is_file($doneMarker)) {
+        return;
+    }
+
     foreach (array_unique([$uploadsDir, dirname($mediaFile), dirname($settingsFile)]) as $dir) {
         if ($dir !== '' && !is_dir($dir)) {
             mkdir($dir, 0755, true);
@@ -133,6 +139,8 @@ function dashboard_bootstrap_storage(array $siteConfig): void
             }
         }
     }
+
+    @file_put_contents($doneMarker, date('c'));
 }
 
 function dashboard_serve_media(array $siteConfig, string $filename): never

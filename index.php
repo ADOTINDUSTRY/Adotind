@@ -17,7 +17,6 @@ if (starts_with($earlyPath, '/media/')) {
 session_start();
 
 dashboard_bootstrap_storage($siteConfig);
-quote_db($siteConfig);
 
 $services = require __DIR__ . '/app/data/services.php';
 $projects = require __DIR__ . '/app/data/projects.php';
