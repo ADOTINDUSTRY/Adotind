@@ -15,20 +15,24 @@ $currency = (string)($settings['currency_symbol'] ?? '€');
 $waBase = (string)($siteConfig['whatsapp'] ?? '');
 $viberBase = (string)($siteConfig['viber'] ?? '');
 ?>
-<section class="page-hero">
-  <div class="container">
-    <p class="eyebrow">Online Quote</p>
-    <h1>CO2 Laser · Fiber Laser · CNC Router</h1>
-    <p class="lead">
-      Upload vector files, choose material, and calculate your quote from measured cutting line length.
-    </p>
+<section class="page-hero quote-hero">
+  <div class="container quote-hero-inner">
+    <div>
+      <p class="eyebrow">Online Quote</p>
+      <h1>Make your next idea a reality.</h1>
+      <p class="lead">From your vector file to a manufacturing estimate. Choose your process, material and dimensions to get started.</p>
+    </div>
+    <div class="quote-processes" aria-label="Available processes">
+      <span>CO2 Laser</span><span>Fiber Laser</span><span>CNC Router</span>
+    </div>
   </div>
 </section>
 
 <?php if (!$unlocked): ?>
-<section class="section section-light">
+<section class="section section-light quote-page">
   <div class="container two-col quote-gate-grid">
-    <div class="service-card quote-lock-card">
+    <div class="quote-card quote-lock-card">
+      <p class="quote-card-kicker">For testers</p>
       <h2>Private Testing Access</h2>
       <p>This page is temporarily PIN-protected while we finalize production settings.</p>
       <?php if (is_string($pinSuccess)): ?><p class="alert alert-success"><?= e($pinSuccess) ?></p><?php endif; ?>
@@ -42,7 +46,8 @@ $viberBase = (string)($siteConfig['viber'] ?? '');
       </form>
     </div>
 
-    <div class="service-card">
+    <div class="quote-card">
+      <p class="quote-card-kicker">Something new is on its way</p>
       <h2>Coming Soon — Under Development</h2>
       <p>Public launch is in progress. Leave your email and we will notify you when this system goes live.</p>
       <?php if (is_string($updatesSuccess)): ?><p class="alert alert-success"><?= e($updatesSuccess) ?></p><?php endif; ?>
@@ -62,15 +67,26 @@ $viberBase = (string)($siteConfig['viber'] ?? '');
   </div>
 </section>
 <?php else: ?>
-<section class="section section-light">
-  <div class="container">
+<section class="section section-light quote-page">
+  <div class="container quote-workspace">
     <?php if (is_string($pinSuccess)): ?><p class="alert alert-success"><?= e($pinSuccess) ?></p><?php endif; ?>
     <?php if (is_string($quoteSuccess)): ?><p class="alert alert-success"><?= e($quoteSuccess) ?></p><?php endif; ?>
     <?php if (is_string($quoteError)): ?><p class="alert alert-error"><?= e($quoteError) ?></p><?php endif; ?>
 
     <form class="quote-form quote-prototype" method="post" action="/online-quote/calculate" enctype="multipart/form-data" novalidate>
       <input type="hidden" name="csrf_token" value="<?= e(csrf_token()) ?>" />
-      <div class="quote-prototype-grid">
+      <div class="quote-form-intro">
+        <div>
+          <p class="quote-card-kicker">Your project</p>
+          <h2>Let's build your quote</h2>
+          <p>Tell us what you need cut and upload your design.</p>
+        </div>
+      </div>
+      <div class="quote-step-heading">
+        <span aria-hidden="true">01</span>
+        <div><h3>Choose your process</h3><p>Select the machine and material for your project.</p></div>
+      </div>
+      <div class="quote-prototype-grid quote-grid-two">
         <label>Machine
           <select name="machine_id" required>
             <?php foreach ($machines as $m): ?>
@@ -85,6 +101,12 @@ $viberBase = (string)($siteConfig['viber'] ?? '');
             <?php endforeach; ?>
           </select>
         </label>
+      </div>
+      <div class="quote-step-heading">
+        <span aria-hidden="true">02</span>
+        <div><h3>Set your dimensions</h3><p>Enter the size of one part and the quantity you need.</p></div>
+      </div>
+      <div class="quote-prototype-grid">
         <label>Part width (mm)
           <input type="number" name="part_width_mm" min="1" step="0.1" value="500" required />
         </label>
@@ -94,22 +116,30 @@ $viberBase = (string)($siteConfig['viber'] ?? '');
         <label>Quantity
           <input type="number" name="quantity" min="1" step="1" value="1" required />
         </label>
+      </div>
+      <div class="quote-step-heading">
+        <span aria-hidden="true">03</span>
+        <div><h3>Upload your design</h3><p>Choose your vector file and add any extra details.</p></div>
+      </div>
+      <div class="quote-upload">
         <label>Vector file
-          <input type="file" name="vector_file" accept=".svg,.dxf,.pdf,.ai,.eps" required />
+          <input type="file" name="vector_file" accept=".svg,.dxf,.pdf,.ai,.eps" aria-describedby="quote-file-help" required />
         </label>
+        <p id="quote-file-help">SVG and DXF support instant line-length calculation. PDF, AI and EPS can be reviewed manually.</p>
       </div>
       <label>Notes (optional)
         <textarea name="note" rows="3" placeholder="Any details about this job"></textarea>
       </label>
-      <div class="cta-group">
-        <button type="submit" class="btn">Calculate Quote</button>
+      <div class="quote-form-footer">
+        <p>Your estimate is based on the details and file provided.</p>
+        <button type="submit" class="btn">Calculate Quote <span aria-hidden="true">→</span></button>
       </div>
-      <p class="small-note">Instant line-length calculation currently supports SVG and DXF. PDF/AI/EPS are accepted and can be reviewed manually.</p>
     </form>
 
     <?php if (is_array($result) && is_array($result['estimate'] ?? null)): ?>
       <?php $est = $result['estimate']; $token = (string)($result['token'] ?? ''); ?>
-      <article class="service-card quote-result-card">
+      <article class="quote-card quote-result-card">
+        <p class="quote-card-kicker">Your estimate</p>
         <h2>Quote Result</h2>
         <?php if (!empty($result['warnings']) && is_array($result['warnings'])): ?>
           <p class="alert alert-error"><?= e((string)implode(' ', $result['warnings'])) ?></p>
@@ -129,7 +159,8 @@ $viberBase = (string)($siteConfig['viber'] ?? '');
         </div>
       </article>
 
-      <article class="service-card">
+      <article class="quote-card quote-booking-card">
+        <p class="quote-card-kicker">Ready to proceed?</p>
         <h2>Book This Order</h2>
         <form class="quote-form" action="/online-quote/book" method="post" novalidate>
           <input type="hidden" name="csrf_token" value="<?= e(csrf_token()) ?>" />
