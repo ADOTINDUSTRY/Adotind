@@ -149,7 +149,7 @@ img {
 
 .nav-shell {
   display: grid;
-  grid-template-columns: auto 1fr auto auto;
+  grid-template-columns: auto 1fr auto;
   align-items: center;
   gap: 1.1rem;
   padding: 0.85rem 0;
@@ -328,10 +328,6 @@ img {
 .btn.btn-small {
   padding: 0.5rem 0.85rem;
   font-size: 0.78rem;
-}
-
-.btn.btn-quote {
-  white-space: nowrap;
 }
 
 /* ---------- Breadcrumbs ---------- */
@@ -1353,10 +1349,6 @@ p {
 @media (max-width: 920px) {
   .nav-shell {
     grid-template-columns: auto 1fr auto;
-  }
-
-  .btn-quote {
-    display: none;
   }
 
   .hero-grid,

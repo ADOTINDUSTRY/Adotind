@@ -38,6 +38,5 @@ $currentPath = current_path();
         <a class="<?= $active ? 'is-active' : '' ?>" href="<?= e($item['href']) ?>"><?= e($item['label']) ?></a>
       <?php endforeach; ?>
     </nav>
-    <a href="/online-quote" class="btn btn-quote">Request a Quote</a>
   </div>
 </header>
