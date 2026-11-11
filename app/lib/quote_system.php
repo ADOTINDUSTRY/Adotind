@@ -618,92 +618,104 @@ function quote_arc_length(array $p0, float $rx, float $ry, float $rotDeg, bool $
 
 function quote_extract_dxf_length_mm(string $path): float
 {
-    $raw = @file($path, FILE_IGNORE_NEW_LINES);
-    if (!is_array($raw) || $raw === []) {
+    $file = fopen($path, 'rb');
+    if ($file === false) {
         throw new RuntimeException('Unable to read DXF file.');
     }
-    $pairs = [];
-    for ($i = 0; $i + 1 < count($raw); $i += 2) {
-        $pairs[] = [trim((string)$raw[$i]), trim((string)$raw[$i + 1])];
-    }
-
     $unitScale = 1.0;
-    for ($i = 0; $i + 2 < count($pairs); $i++) {
-        if ($pairs[$i][0] === '9' && strtoupper($pairs[$i][1]) === '$INSUNITS' && $pairs[$i + 1][0] === '70') {
-            $unitScale = match ((int)$pairs[$i + 1][1]) {
-                1 => 25.4,
-                2 => 304.8,
-                4 => 1.0,
-                5 => 10.0,
-                6 => 1000.0,
-                14 => 0.1,
-                default => 1.0,
-            };
-            break;
+    $unitNext = false;
+    $length = 0.0;
+    $type = '';
+    $data = [];
+    $first = null;
+    $previous = null;
+    $vertex = null;
+    $closed = false;
+    $segment = static function (array $a, array $b): float {
+        $chord = hypot($b['x'] - $a['x'], $b['y'] - $a['y']);
+        $bulge = $a['bulge'];
+        if (abs($bulge) < 1e-9) {
+            return $chord;
         }
-    }
-
-    $len = 0.0;
-    $n = count($pairs);
-    for ($i = 0; $i < $n; $i++) {
-        if ($pairs[$i][0] !== '0') {
-            continue;
+        return $chord * (1 + $bulge * $bulge) * abs(atan($bulge)) / abs($bulge);
+    };
+    $finishVertex = static function () use (&$vertex, &$previous, &$first, &$length, $segment): void {
+        if ($vertex === null) {
+            return;
         }
-        $type = strtoupper($pairs[$i][1]);
-        if (!in_array($type, ['LINE', 'CIRCLE', 'ARC', 'LWPOLYLINE'], true)) {
-            continue;
+        if ($previous !== null) {
+            $length += $segment($previous, $vertex);
+        } else {
+            $first = $vertex;
         }
-        $j = $i + 1;
-        $data = [];
-        while ($j < $n && !($pairs[$j][0] === '0')) {
-            $data[$pairs[$j][0]][] = $pairs[$j][1];
-            $j++;
-        }
-        if ($type === 'LINE') {
-            $x1 = (float)($data['10'][0] ?? 0);
-            $y1 = (float)($data['20'][0] ?? 0);
-            $x2 = (float)($data['11'][0] ?? 0);
-            $y2 = (float)($data['21'][0] ?? 0);
-            $len += hypot($x2 - $x1, $y2 - $y1);
+        $previous = $vertex;
+        $vertex = null;
+    };
+    $finishEntity = static function () use (&$type, &$data, &$length, &$first, &$previous, &$closed, $finishVertex, $segment): void {
+        if ($type === 'LWPOLYLINE') {
+            $finishVertex();
+            if ($closed && $first !== null && $previous !== null && $first !== $previous) {
+                $length += $segment($previous, $first);
+            }
+        } elseif ($type === 'LINE') {
+            $length += hypot(($data[11] ?? 0) - ($data[10] ?? 0), ($data[21] ?? 0) - ($data[20] ?? 0));
         } elseif ($type === 'CIRCLE') {
-            $r = max(0.0, (float)($data['40'][0] ?? 0));
-            $len += 2 * M_PI * $r;
+            $length += 2 * M_PI * max(0.0, $data[40] ?? 0);
         } elseif ($type === 'ARC') {
-            $r = max(0.0, (float)($data['40'][0] ?? 0));
-            $a1 = (float)($data['50'][0] ?? 0);
-            $a2 = (float)($data['51'][0] ?? 0);
-            $span = fmod(($a2 - $a1 + 360.0), 360.0);
-            $len += deg2rad($span) * $r;
-        } elseif ($type === 'LWPOLYLINE') {
-            $closed = (((int)($data['70'][0] ?? 0)) & 1) === 1;
-            $xs = $data['10'] ?? [];
-            $ys = $data['20'] ?? [];
-            $bulges = $data['42'] ?? [];
-            $pts = [];
-            for ($k = 0; $k < min(count($xs), count($ys)); $k++) {
-                $pts[] = [(float)$xs[$k], (float)$ys[$k], (float)($bulges[$k] ?? 0)];
+            $span = fmod(($data[51] ?? 0) - ($data[50] ?? 0) + 360.0, 360.0);
+            $length += deg2rad($span) * max(0.0, $data[40] ?? 0);
+        }
+        $data = [];
+        $first = null;
+        $previous = null;
+        $closed = false;
+    };
+    try {
+        $hasPairs = false;
+        while (($codeLine = fgets($file)) !== false) {
+            $valueLine = fgets($file);
+            if ($valueLine === false) {
+                throw new RuntimeException('The DXF file contains an incomplete group.');
             }
-            $segments = count($pts) - 1;
-            if ($closed && count($pts) > 1) {
-                $segments++;
+            $hasPairs = true;
+            $code = trim($codeLine);
+            $value = trim($valueLine);
+            if ($unitNext && $code === '70') {
+                $unitScale = match ((int)$value) {
+                    1 => 25.4, 2 => 304.8, 4 => 1.0, 5 => 10.0, 6 => 1000.0,
+                    14 => 100.0,
+                    default => 1.0,
+                };
             }
-            for ($k = 0; $k < $segments; $k++) {
-                $a = $pts[$k % count($pts)];
-                $b = $pts[($k + 1) % count($pts)];
-                $c = hypot($b[0] - $a[0], $b[1] - $a[1]);
-                $bulge = (float)($a[2] ?? 0);
-                if (abs($bulge) < 1e-9) {
-                    $len += $c;
-                    continue;
+            $unitNext = $code === '9' && strtoupper($value) === '$INSUNITS';
+            if ($code === '0') {
+                $finishEntity();
+                $type = strtoupper($value);
+            } elseif ($type === 'LWPOLYLINE') {
+                if ($code === '70') {
+                    $closed = (((int)$value) & 1) === 1;
+                } elseif ($code === '10') {
+                    $finishVertex();
+                    $vertex = ['x' => (float)$value, 'y' => 0.0, 'bulge' => 0.0];
+                } elseif ($vertex !== null && $code === '20') {
+                    $vertex['y'] = (float)$value;
+                } elseif ($vertex !== null && $code === '42') {
+                    $vertex['bulge'] = (float)$value;
                 }
-                $theta = 4 * atan($bulge);
-                $radius = $c * (1 + $bulge * $bulge) / (4 * abs($bulge));
-                $len += abs($theta) * $radius;
+            } elseif (in_array($type, ['LINE', 'CIRCLE', 'ARC'], true)
+                && in_array($code, ['10', '20', '11', '21', '40', '50', '51'], true)
+                && !isset($data[(int)$code])) {
+                $data[(int)$code] = (float)$value;
             }
         }
-        $i = $j - 1;
+        if (!$hasPairs || !feof($file)) {
+            throw new RuntimeException('Unable to read DXF file.');
+        }
+        $finishEntity();
+    } finally {
+        fclose($file);
     }
-    return $len * $unitScale;
+    return $length * $unitScale;
 }
 
 function quote_measure_vector_mm(string $path, string $ext, array &$warnings): ?float

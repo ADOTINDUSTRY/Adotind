@@ -51,4 +51,47 @@ try {
 } catch (RuntimeException $e) {
     assert_quote(str_contains($e->getMessage(), 'does not fit'), 'Oversized part must be referred for review');
 }
+$drawing = tempnam(sys_get_temp_dir(), 'quote-dxf-');
+assert_quote($drawing !== false, 'Could not create DXF fixture');
+try {
+    $dxf = implode("\n", [
+        '0', 'SECTION', '2', 'HEADER', '9', '$INSUNITS', '70', '14', '0', 'ENDSEC',
+        '0', 'SECTION', '2', 'ENTITIES',
+        '0', 'LINE', '10', '0', '20', '0', '11', '3', '21', '4',
+        '0', 'LWPOLYLINE', '70', '1',
+        '10', '0', '20', '0', '10', '2', '20', '0', '42', '1', '10', '4', '20', '0',
+        '0', 'ENDSEC', '0', 'EOF', '',
+    ]);
+    file_put_contents($drawing, $dxf);
+    $expected = (5 + 2 + M_PI + 4) * 100;
+    assert_quote(abs(quote_extract_dxf_length_mm($drawing) - $expected) < 0.00001, 'DXF units or polyline bulges were measured incorrectly');
+    file_put_contents($drawing, "0\nLINE\n10\n");
+    try {
+        quote_extract_dxf_length_mm($drawing);
+        throw new RuntimeException('Incomplete DXF was accepted');
+    } catch (RuntimeException $e) {
+        assert_quote(str_contains($e->getMessage(), 'incomplete'), 'Incomplete DXF must be rejected');
+    }
+
+    $handle = fopen($drawing, 'wb');
+    fwrite($handle, "0\nSECTION\n2\nENTITIES\n");
+    for ($i = 0; $i < 150000; $i++) {
+        fwrite($handle, "0\nLINE\n10\n0\n20\n0\n11\n10\n21\n10\n");
+    }
+    fwrite($handle, "0\nENDSEC\n0\nEOF\n");
+    fclose($handle);
+    ini_set('memory_limit', '32M');
+    assert_quote(abs(quote_extract_dxf_length_mm($drawing) - 150000 * hypot(10, 10)) < 0.01, 'Large DXF must be measured without exhausting memory');
+
+    $handle = fopen($drawing, 'wb');
+    fwrite($handle, "0\nLWPOLYLINE\n70\n0\n");
+    for ($i = 0; $i < 150000; $i++) {
+        fwrite($handle, "10\n$i\n20\n0\n");
+    }
+    fwrite($handle, "0\nEOF\n");
+    fclose($handle);
+    assert_quote(quote_extract_dxf_length_mm($drawing) === 149999.0, 'Large polyline must be measured without exhausting memory');
+} finally {
+    unlink($drawing);
+}
 echo "Quote flow checks passed\n";
