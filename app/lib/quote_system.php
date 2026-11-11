@@ -795,8 +795,12 @@ function handle_online_quote_calculate(array $siteConfig): never
 
     $machineId = (int)($_POST['machine_id'] ?? 0);
     $materialId = (int)($_POST['material_id'] ?? 0);
-    $partW = max(1.0, (float)($_POST['part_width_mm'] ?? 0));
-    $partH = max(1.0, (float)($_POST['part_height_mm'] ?? 0));
+    $partW = filter_var($_POST['part_width_mm'] ?? null, FILTER_VALIDATE_FLOAT);
+    $partH = filter_var($_POST['part_height_mm'] ?? null, FILTER_VALIDATE_FLOAT);
+    if ($partW === false || $partH === false || !is_finite($partW) || !is_finite($partH) || $partW < 1 || $partH < 1) {
+        flash_set('online_quote_error', 'Please enter a part width and height of at least 1 mm.');
+        redirect('/online-quote', 303);
+    }
     $qty = max(1, (int)($_POST['quantity'] ?? 1));
     $note = trim((string)($_POST['note'] ?? ''));
 

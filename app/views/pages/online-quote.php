@@ -84,6 +84,25 @@ $viberBase = (string)($siteConfig['viber'] ?? '');
       </div>
       <div class="quote-step-heading">
         <span aria-hidden="true">01</span>
+        <div><h3>Upload your design</h3><p>Start by choosing the vector file for your project.</p></div>
+      </div>
+      <div class="quote-upload">
+        <label>Vector file
+          <input type="file" name="vector_file" accept=".svg,.dxf,.pdf,.ai,.eps" aria-describedby="quote-file-help" required />
+        </label>
+        <p id="quote-file-help">SVG and DXF support instant line-length calculation. PDF, AI and EPS require manual review. Maximum file size: 50 MB.</p>
+        <div class="quote-file-preview" hidden aria-live="polite">
+          <div class="quote-preview-image" hidden><img alt="Preview of the selected SVG design" /></div>
+          <div class="quote-preview-details">
+            <strong class="quote-preview-name"></strong>
+            <p class="quote-preview-size"></p>
+            <p class="quote-preview-dimensions"></p>
+            <p class="quote-preview-message"></p>
+          </div>
+        </div>
+      </div>
+      <div class="quote-step-heading">
+        <span aria-hidden="true">02</span>
         <div><h3>Choose your process</h3><p>Select the machine and material for your project.</p></div>
       </div>
       <div class="quote-prototype-grid quote-grid-two">
@@ -103,29 +122,19 @@ $viberBase = (string)($siteConfig['viber'] ?? '');
         </label>
       </div>
       <div class="quote-step-heading">
-        <span aria-hidden="true">02</span>
-        <div><h3>Set your dimensions</h3><p>Enter the size of one part and the quantity you need.</p></div>
+        <span aria-hidden="true">03</span>
+        <div><h3>Set your dimensions</h3><p>Enter the actual size of one cut part and the quantity you need. The document size may include empty space.</p></div>
       </div>
       <div class="quote-prototype-grid">
         <label>Part width (mm)
-          <input type="number" name="part_width_mm" min="1" step="0.1" value="500" required />
+          <input type="number" name="part_width_mm" min="1" step="0.1" placeholder="Enter width" required />
         </label>
         <label>Part height (mm)
-          <input type="number" name="part_height_mm" min="1" step="0.1" value="300" required />
+          <input type="number" name="part_height_mm" min="1" step="0.1" placeholder="Enter height" required />
         </label>
         <label>Quantity
           <input type="number" name="quantity" min="1" step="1" value="1" required />
         </label>
-      </div>
-      <div class="quote-step-heading">
-        <span aria-hidden="true">03</span>
-        <div><h3>Upload your design</h3><p>Choose your vector file and add any extra details.</p></div>
-      </div>
-      <div class="quote-upload">
-        <label>Vector file
-          <input type="file" name="vector_file" accept=".svg,.dxf,.pdf,.ai,.eps" aria-describedby="quote-file-help" required />
-        </label>
-        <p id="quote-file-help">SVG and DXF support instant line-length calculation. PDF, AI and EPS can be reviewed manually.</p>
       </div>
       <label>Notes (optional)
         <textarea name="note" rows="3" placeholder="Any details about this job"></textarea>
@@ -141,6 +150,7 @@ $viberBase = (string)($siteConfig['viber'] ?? '');
       <article class="quote-card quote-result-card">
         <p class="quote-card-kicker">Your estimate</p>
         <h2>Quote Result</h2>
+        <p>File: <strong><?= e((string)($result['original_file'] ?? '')) ?></strong> · Part size: <?= e((string)($result['input']['part_width_mm'] ?? '')) ?> × <?= e((string)($result['input']['part_height_mm'] ?? '')) ?> mm</p>
         <?php if (!empty($result['warnings']) && is_array($result['warnings'])): ?>
           <p class="alert alert-error"><?= e((string)implode(' ', $result['warnings'])) ?></p>
         <?php endif; ?>
