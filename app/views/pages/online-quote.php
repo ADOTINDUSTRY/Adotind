@@ -90,9 +90,9 @@ $viberBase = (string)($siteConfig['viber'] ?? '');
         <label>Vector file
           <input type="file" name="vector_file" accept=".svg,.dxf,.pdf,.ai,.eps" aria-describedby="quote-file-help" required />
         </label>
-        <p id="quote-file-help">SVG and DXF support instant line-length calculation. PDF, AI and EPS require manual review. Maximum file size: 50 MB.</p>
+        <p id="quote-file-help">Instant quotes require SVG or DXF. For PDF, AI or EPS, contact us for a manual quotation. Maximum file size: 50 MB.</p>
         <div class="quote-file-preview" hidden aria-live="polite">
-          <div class="quote-preview-image" hidden><img alt="Preview of the selected SVG design" /></div>
+          <div class="quote-preview-image" hidden><img alt="Preview of the selected SVG design" /><div class="quote-preview-render" hidden aria-label="Drawing preview"></div></div>
           <div class="quote-preview-details">
             <strong class="quote-preview-name"></strong>
             <p class="quote-preview-size"></p>
