@@ -47,7 +47,6 @@ $jsVersion = is_file($jsPath) ? (string)filemtime($jsPath) : '1';
       #preloader .preloader-text{color:#93a1bd;font-size:.78rem;font-weight:800;letter-spacing:.24em;text-transform:uppercase}
       @keyframes preloader-spin{to{transform:rotate(360deg)}}
     </style>
-    <link rel="preconnect" href="https://cdn.simpleicons.org" crossorigin />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link rel="preload" as="style" href="https://fonts.googleapis.com/css2?family=Montserrat:wght@700;800&family=Orbitron:wght@700;800&display=swap" onload="this.onload=null;this.rel='stylesheet'" />
@@ -55,6 +54,7 @@ $jsVersion = is_file($jsPath) ? (string)filemtime($jsPath) : '1';
     <?php if (!empty($siteConfig['logo_url']) && is_string($siteConfig['logo_url'])): ?>
       <link rel="preload" as="image" href="<?= e($siteConfig['logo_url']) ?>" />
     <?php endif; ?>
+    <link rel="preload" as="style" href="/public/assets/css/main.css?v=<?= e($cssVersion) ?>" fetchpriority="high" />
     <link rel="stylesheet" href="/public/assets/css/main.css?v=<?= e($cssVersion) ?>" />
     <script type="application/ld+json">
       {
