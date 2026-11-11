@@ -36,16 +36,39 @@ The current public site remains active at repository root while these modules ar
    php artisan serve
    ```
 
-## Implemented Phase 1 foundation
+## Implemented foundation (all requested phases)
 
 - API routing enabled (`routes/api.php`)
 - Health endpoint: `GET /api/v1/health`
 - Quote catalog endpoint: `GET /api/v1/quote/catalog`
 - Quote estimate endpoint: `POST /api/v1/quote/estimate`
-- Core schema prepared for:
-  - machines/materials/rates
-  - customers/quotes/orders/payments
-  - graphic assets/processing jobs/worklogs
+- Auth and roles with Sanctum tokens:
+  - `POST /api/v1/auth/register`
+  - `POST /api/v1/auth/login`
+  - `GET /api/v1/auth/me`
+  - `POST /api/v1/auth/logout`
+- Quote and order flow:
+  - `POST /api/v1/quotes`
+  - `GET /api/v1/quotes/{quote}`
+  - `POST /api/v1/quotes/{quote}/confirm`
+  - `GET /api/v1/orders/{order}`
+- Payments (Stripe):
+  - `POST /api/v1/orders/{order}/payments/stripe/checkout`
+  - `POST /api/v1/payments/stripe/webhook`
+- Async graphics pipeline:
+  - `POST /api/v1/graphics/assets`
+  - `POST /api/v1/graphics/assets/{asset}/jobs`
+  - `GET /api/v1/graphics/jobs/{processingJob}`
+- Secure admin APIs:
+  - `GET /api/v1/admin/dashboard`
+  - `PATCH /api/v1/orders/{order}/status`
+
+### Seeded admin account
+
+- Email: `admin@adotind.com`
+- Password: `ChangeMeNow!123`
+
+Change the password immediately after first login in your production setup.
 
 ### Estimate API payload example
 
@@ -60,9 +83,11 @@ The current public site remains active at repository root while these modules ar
 }
 ```
 
-## Next migration targets
+## Production notes
 
-1. Move existing quote calculation engine from root app into Laravel services.
-2. Add auth + role model (admin/staff/customer) and dashboard APIs.
-3. Add async jobs for tracing/conversion/preview pipelines.
-4. Integrate payment provider webhooks (Stripe first).
+1. Set `STRIPE_SECRET` and `STRIPE_WEBHOOK_SECRET` before enabling checkout.
+2. Run queue workers for graphics jobs:
+   ```bash
+   php artisan queue:work --queue=graphics,default
+   ```
+3. Use PostgreSQL + Redis in production (`docker-compose.yml` is included for local infra).
