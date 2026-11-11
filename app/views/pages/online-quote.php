@@ -92,13 +92,24 @@ $viberBase = (string)($siteConfig['viber'] ?? '');
         </label>
         <p id="quote-file-help">Instant quotes require SVG or DXF. For PDF, AI or EPS, contact us for a manual quotation. Maximum file size: 50 MB.</p>
         <div class="quote-file-preview" hidden aria-live="polite">
-          <div class="quote-preview-image" hidden><img alt="Preview of the selected SVG design" /><div class="quote-preview-render" hidden aria-label="Drawing preview"></div></div>
+          <div class="quote-preview-image" hidden>
+            <img alt="Preview of the selected SVG design" />
+            <div class="quote-preview-render" hidden aria-label="Drawing preview"></div>
+            <button type="button" class="quote-preview-expand">View fullscreen</button>
+          </div>
           <div class="quote-preview-details">
             <strong class="quote-preview-name"></strong>
             <p class="quote-preview-size"></p>
             <p class="quote-preview-dimensions"></p>
             <p class="quote-preview-message"></p>
           </div>
+          <dialog class="quote-preview-dialog" aria-label="Fullscreen drawing preview">
+            <div class="quote-preview-dialog-header">
+              <strong>Drawing preview</strong>
+              <button type="button" class="quote-preview-close">Close fullscreen</button>
+            </div>
+            <div class="quote-preview-dialog-content"></div>
+          </dialog>
         </div>
       </div>
       <div class="quote-step-heading">

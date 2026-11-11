@@ -6,6 +6,10 @@
   const imageBox = preview.querySelector('.quote-preview-image');
   const image = imageBox.querySelector('img');
   const renderBox = imageBox.querySelector('.quote-preview-render');
+  const expand = imageBox.querySelector('.quote-preview-expand');
+  const dialog = document.querySelector('.quote-preview-dialog');
+  const dialogContent = dialog.querySelector('.quote-preview-dialog-content');
+  const close = dialog.querySelector('.quote-preview-close');
   const name = preview.querySelector('.quote-preview-name');
   const size = preview.querySelector('.quote-preview-size');
   const dimensions = preview.querySelector('.quote-preview-dimensions');
@@ -29,9 +33,25 @@
     return Number.isFinite(result) && result > 0 ? result : null;
   };
   const formatMm = (value) => new Intl.NumberFormat(undefined, { maximumFractionDigits: 2 }).format(value);
+  const hideImage = () => {
+    imageBox.hidden = true;
+    if (dialog.open) dialog.close();
+  };
+
+  expand.addEventListener('click', () => {
+    dialog.showModal();
+    dialogContent.append(imageBox);
+    close.focus();
+  });
+  close.addEventListener('click', () => dialog.close());
+  dialog.addEventListener('close', () => {
+    preview.insertBefore(imageBox, preview.querySelector('.quote-preview-details'));
+    if (!imageBox.hidden) expand.focus();
+  });
 
   input.addEventListener('change', async () => {
     const current = ++selection;
+    if (dialog.open) dialog.close();
     if (objectUrl) URL.revokeObjectURL(objectUrl);
     if (epsWorker) epsWorker.terminate();
     if (svgWorker) svgWorker.terminate();
@@ -46,7 +66,7 @@
     image.hidden = true;
     renderBox.replaceChildren();
     renderBox.hidden = true;
-    imageBox.hidden = true;
+    hideImage();
     dimensions.textContent = '';
     message.textContent = '';
     const file = input.files[0];
@@ -103,7 +123,7 @@
         image.alt = 'Preview of the selected PostScript design';
         image.onerror = () => {
           if (current !== selection) return;
-          imageBox.hidden = true;
+          hideImage();
           message.textContent = 'The preview image could not be displayed. Verify the artwork and actual cut-part dimensions.';
         };
         image.hidden = false;
@@ -139,7 +159,7 @@
         message.textContent = 'Check and enter the actual part dimensions below.';
         image.onerror = () => {
           if (current !== selection) return;
-          imageBox.hidden = true;
+          hideImage();
           message.textContent = 'The SVG image could not be displayed. Check and enter the actual part dimensions below.';
         };
         const worker = new Worker(svgWorkerUrl, { type: 'module' });
@@ -187,7 +207,7 @@
       objectUrl = URL.createObjectURL(new Blob([file], { type: 'image/svg+xml' }));
       image.onerror = () => {
         if (current !== selection) return;
-        imageBox.hidden = true;
+        hideImage();
         message.textContent = 'The SVG image could not be displayed. Check and enter the actual part dimensions below.';
       };
       image.src = objectUrl;
