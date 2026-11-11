@@ -12,8 +12,14 @@
   const message = preview.querySelector('.quote-preview-message');
   let objectUrl = null;
   let dispose = null;
+  let epsWorker = null;
+  let epsTimeout = null;
+  let svgWorker = null;
+  let svgTimeout = null;
   let selection = 0;
   const vendorUrl = new URL('quote-vendor/preview.js?v=1', document.currentScript.src).href;
+  const epsWorkerUrl = new URL('quote-vendor/eps-worker.js?v=1', document.currentScript.src).href;
+  const svgWorkerUrl = new URL('quote-vendor/svg-worker.js?v=1', document.currentScript.src).href;
 
   const dimensionInMm = (value) => {
     const match = /^\s*((?:\d+(?:\.\d*)?|\.\d+)(?:e[+-]?\d+)?)\s*(mm|cm|in|pt|pc)\s*$/i.exec(value);
@@ -27,6 +33,12 @@
   input.addEventListener('change', async () => {
     const current = ++selection;
     if (objectUrl) URL.revokeObjectURL(objectUrl);
+    if (epsWorker) epsWorker.terminate();
+    if (svgWorker) svgWorker.terminate();
+    clearTimeout(epsTimeout);
+    clearTimeout(svgTimeout);
+    epsWorker = null;
+    svgWorker = null;
     if (dispose) dispose();
     dispose = null;
     objectUrl = null;
@@ -52,35 +64,51 @@
       message.textContent = 'Preview and document dimensions are not available for this file type. Enter the actual part dimensions below.';
       return;
     }
-    if (file.size > 5 * 1024 * 1024) {
-      message.textContent = 'This file is too large to preview here. Enter the actual part dimensions below.';
-      return;
-    }
-
     message.textContent = 'Preparing your preview…';
     try {
-      const signature = await file.slice(0, 16).text();
+      const signatureBytes = new Uint8Array(await file.slice(0, 16).arrayBuffer());
+      const signature = new TextDecoder().decode(signatureBytes);
       if (current !== selection) return;
-      if (extension === 'eps' || (extension === 'ai' && signature.startsWith('%!PS'))) {
-        const text = await file.text();
+      const binaryEps = signatureBytes[0] === 0xc5 && signatureBytes[1] === 0xd0 && signatureBytes[2] === 0xd3 && signatureBytes[3] === 0xc6;
+      if (extension === 'eps' || (extension === 'ai' && (signature.startsWith('%!PS') || binaryEps))) {
+        const bytes = await file.arrayBuffer();
         if (current !== selection) return;
-        if (!signature.startsWith('%!PS')) {
-          message.textContent = 'This EPS format cannot be previewed here. Enter the actual part dimensions below.';
+        const worker = new Worker(epsWorkerUrl, { type: 'module' });
+        epsWorker = worker;
+        let response;
+        try {
+          response = await new Promise((resolve, reject) => {
+            epsTimeout = setTimeout(() => reject(new Error('Preview timed out')), 8000);
+            worker.onmessage = (event) => resolve(event.data);
+            worker.onerror = () => reject(new Error('Preview worker failed'));
+            worker.postMessage(bytes, [bytes]);
+          });
+        } finally {
+          clearTimeout(epsTimeout);
+          worker.terminate();
+          if (epsWorker === worker) epsWorker = null;
+        }
+        if (current !== selection) return;
+        if (response.box && response.box.length === 4 && response.box.every(Number.isFinite)
+            && response.box[2] > response.box[0] && response.box[3] > response.box[1]) {
+          dimensions.textContent = `Declared bounding box: ${formatMm((response.box[2] - response.box[0]) * 25.4 / 72)} × ${formatMm((response.box[3] - response.box[1]) * 25.4 / 72)} mm`;
+        }
+        if (response.error) {
+          console.error('PostScript preview failed:', response.error);
+          message.textContent = 'This PostScript file could not be previewed. Verify the artwork and enter the actual cut-part dimensions below.';
           return;
         }
-        const boxes = [...text.matchAll(/^%%(HiResBoundingBox|BoundingBox):\s*([-+\d.eE]+)\s+([-+\d.eE]+)\s+([-+\d.eE]+)\s+([-+\d.eE]+)/gm)];
-        const hiRes = boxes.filter((box) => box[1] === 'HiResBoundingBox');
-        const box = (hiRes.length ? hiRes : boxes).at(-1);
-        if (box) {
-          const coords = box.slice(2).map(Number);
-          const width = (coords[2] - coords[0]) * 25.4 / 72;
-          const height = (coords[3] - coords[1]) * 25.4 / 72;
-          if (Number.isFinite(width) && Number.isFinite(height) && width > 0 && height > 0) {
-            dimensions.textContent = `Declared bounding box: ${formatMm(width)} × ${formatMm(height)} mm`;
-          }
-        }
-        if (!dimensions.textContent) dimensions.textContent = 'A physical bounding box was not found in this file.';
-        message.textContent = 'Visual preview is not available for PostScript files. The bounding box may include empty space; enter the actual cut-part dimensions below.';
+        objectUrl = URL.createObjectURL(response.blob);
+        image.src = objectUrl;
+        image.alt = 'Preview of the selected PostScript design';
+        image.onerror = () => {
+          if (current !== selection) return;
+          imageBox.hidden = true;
+          message.textContent = 'The preview image could not be displayed. Verify the artwork and actual cut-part dimensions.';
+        };
+        image.hidden = false;
+        imageBox.hidden = false;
+        message.textContent = 'Illustrative preview only: PostScript features or fonts may be missing. Verify the artwork and actual cut-part dimensions.';
         return;
       }
       if (extension !== 'svg') {
@@ -99,6 +127,46 @@
         dispose = result.dispose || null;
         dimensions.textContent = result.dimensions;
         message.textContent = result.message;
+        return;
+      }
+      if (file.size > 5 * 1024 * 1024) {
+        objectUrl = URL.createObjectURL(new Blob([file], { type: 'image/svg+xml' }));
+        image.src = objectUrl;
+        image.alt = 'Preview of the selected SVG design';
+        image.hidden = false;
+        imageBox.hidden = false;
+        dimensions.textContent = 'Reading document dimensions…';
+        message.textContent = 'Check and enter the actual part dimensions below.';
+        image.onerror = () => {
+          if (current !== selection) return;
+          imageBox.hidden = true;
+          message.textContent = 'The SVG image could not be displayed. Check and enter the actual part dimensions below.';
+        };
+        const worker = new Worker(svgWorkerUrl, { type: 'module' });
+        svgWorker = worker;
+        try {
+          const response = await new Promise((resolve, reject) => {
+            svgTimeout = setTimeout(() => reject(new Error('SVG dimensions timed out')), 8000);
+            worker.onmessage = (event) => resolve(event.data);
+            worker.onerror = () => reject(new Error('SVG dimensions worker failed'));
+            worker.postMessage(file);
+          });
+          if (current !== selection) return;
+          if (response.error) throw new Error(response.error);
+          const width = dimensionInMm(response.width);
+          const height = dimensionInMm(response.height);
+          dimensions.textContent = width !== null && height !== null
+            ? `Declared document size: ${formatMm(width)} × ${formatMm(height)} mm`
+            : 'Document dimensions in physical units are not available.';
+        } catch (error) {
+          if (current !== selection) return;
+          console.error('SVG dimensions could not be read:', error);
+          dimensions.textContent = 'Document dimensions could not be read.';
+        } finally {
+          clearTimeout(svgTimeout);
+          worker.terminate();
+          if (svgWorker === worker) svgWorker = null;
+        }
         return;
       }
       const text = await file.text();
@@ -123,6 +191,7 @@
         message.textContent = 'The SVG image could not be displayed. Check and enter the actual part dimensions below.';
       };
       image.src = objectUrl;
+      image.alt = 'Preview of the selected SVG design';
       image.hidden = false;
       imageBox.hidden = false;
     } catch (error) {

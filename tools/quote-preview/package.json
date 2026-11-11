@@ -5,7 +5,9 @@
   },
   "dependencies": {
     "dxf-viewer": "1.0.51",
-    "pdfjs-dist": "4.10.38"
+    "eps2img": "0.1.0",
+    "pdfjs-dist": "4.10.38",
+    "saxes": "6.0.0"
   },
   "devDependencies": {
     "esbuild": "0.25.12"
