@@ -28,9 +28,7 @@ $currentPath = current_path();
       <?php endif; ?>
       <span class="brand-text"><?= e($siteConfig['brand']) ?></span>
     </a>
-    <button class="nav-toggle" type="button" aria-label="Toggle navigation" aria-expanded="false">
-      <span></span><span></span><span></span>
-    </button>
+    <button class="nav-toggle" type="button" aria-label="Menu" aria-expanded="false">Menu</button>
     <nav class="main-nav" aria-label="Primary">
       <?php foreach ($navItems as $item): ?>
         <?php

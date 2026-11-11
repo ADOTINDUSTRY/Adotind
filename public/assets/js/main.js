@@ -21,10 +21,21 @@
   const nav = document.querySelector('.main-nav');
   if (!toggle || !nav) return;
 
+  const close = () => {
+    toggle.setAttribute('aria-expanded', 'false');
+    nav.classList.remove('is-open');
+  };
+
   toggle.addEventListener('click', () => {
     const expanded = toggle.getAttribute('aria-expanded') === 'true';
     toggle.setAttribute('aria-expanded', expanded ? 'false' : 'true');
     nav.classList.toggle('is-open', !expanded);
+  });
+
+  nav.querySelectorAll('a').forEach((a) => a.addEventListener('click', close));
+  document.addEventListener('click', (e) => {
+    if (nav.contains(e.target) || toggle.contains(e.target)) return;
+    close();
   });
 })();
 
