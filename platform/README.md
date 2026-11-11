@@ -41,10 +41,24 @@ The current public site remains active at repository root while these modules ar
 - API routing enabled (`routes/api.php`)
 - Health endpoint: `GET /api/v1/health`
 - Quote catalog endpoint: `GET /api/v1/quote/catalog`
+- Quote estimate endpoint: `POST /api/v1/quote/estimate`
 - Core schema prepared for:
   - machines/materials/rates
   - customers/quotes/orders/payments
   - graphic assets/processing jobs/worklogs
+
+### Estimate API payload example
+
+```json
+{
+  "machine_id": 1,
+  "material_id": 1,
+  "vector_length_mm": 4200,
+  "part_width_mm": 500,
+  "part_height_mm": 300,
+  "quantity": 3
+}
+```
 
 ## Next migration targets
 
