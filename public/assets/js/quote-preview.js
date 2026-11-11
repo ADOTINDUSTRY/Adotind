@@ -18,6 +18,11 @@
   const size = preview.querySelector('.quote-preview-size');
   const dimensions = preview.querySelector('.quote-preview-dimensions');
   const message = preview.querySelector('.quote-preview-message');
+  const software = document.querySelector('#quote-drawing-software');
+  const softwareHelp = document.querySelector('.quote-software-help');
+  const drawingContents = document.querySelector('.quote-drawing-contents');
+  const partsHelp = document.querySelector('.quote-parts-help');
+  const form = input.closest('form');
   let objectUrl = null;
   let dispose = null;
   let epsWorker = null;
@@ -41,6 +46,27 @@
     imageBox.hidden = true;
     if (dialog.open) dialog.close();
   };
+
+  software.addEventListener('change', () => {
+    const help = {
+      cad: 'In your CAD program, look for Export or Save As and choose DXF. Export the 2D cutting outlines at the intended size in millimetres. Check the exported file before uploading.',
+      vector: 'In your design program, convert the cutting artwork to paths, then look for Export or Save As DXF. Export at the intended size in millimetres and check the resulting file.',
+      other: 'Tell us which program or app you used and send us what you have. We can help you prepare a DXF drawing.',
+    };
+    softwareHelp.textContent = help[software.value] || 'Choose an option for a starting point, or contact us and we will help.';
+  });
+  drawingContents.addEventListener('change', () => {
+    partsHelp.textContent = drawingContents.value === 'single'
+      ? 'Include any holes or internal cuts in that one part. Enter its finished size and the number of copies below.'
+      : 'For multiple parts or if you are unsure, please contact us. We will review your file and help work out sheet requirements.';
+  });
+  form.addEventListener('submit', (event) => {
+    if (drawingContents.value !== 'single') {
+      event.preventDefault();
+      partsHelp.textContent = 'Please contact us for help with multiple parts or if you are unsure. We will review the drawing and sheet requirements.';
+      drawingContents.focus();
+    }
+  });
 
   expand.addEventListener('click', () => {
     dialog.showModal();
@@ -88,8 +114,8 @@
       return;
     }
     const extension = file.name.split('.').pop().toLowerCase();
-    if (!['svg', 'dxf', 'pdf', 'ai', 'eps'].includes(extension)) {
-      message.textContent = 'Preview and document dimensions are not available for this file type. Enter the actual part dimensions below.';
+    if (extension !== 'dxf') {
+      message.textContent = 'Please choose a DXF file. Contact us if you need help preparing your drawing.';
       return;
     }
     message.textContent = 'Preparing your preview…';

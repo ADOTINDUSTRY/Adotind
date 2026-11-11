@@ -728,7 +728,7 @@ function quote_build_estimate(array $machine, array $material, array $rate, arra
     $speed = max(1.0, (float)$rate['cut_speed_mm_min']);
     $pierceSec = max(0.0, (float)$rate['pierce_time_sec']);
     $setupMinutes = max(0.0, (float)$machine['setup_minutes']);
-    $cutMinutes = ($vectorLength / $speed) + ($pierceSec * $qty / 60);
+    $cutMinutes = ($vectorLength * $qty / $speed) + ($pierceSec * $qty / 60);
     $totalMinutes = $setupMinutes + $cutMinutes;
 
     $hourlyRate = max(0.0, (float)$machine['hourly_rate']);
@@ -742,7 +742,10 @@ function quote_build_estimate(array $machine, array $material, array $rate, arra
 
     $fitA = (int)floor($sheetW / $partW) * (int)floor($sheetH / $partH);
     $fitB = (int)floor($sheetW / $partH) * (int)floor($sheetH / $partW);
-    $partsPerSheet = max(1, max($fitA, $fitB));
+    $partsPerSheet = max($fitA, $fitB);
+    if ($partsPerSheet < 1) {
+        throw new RuntimeException('This part does not fit on the configured sheet. Please contact us to review your project.');
+    }
     $sheetByNest = (int)ceil($qty / $partsPerSheet);
     $partArea = $partW * $partH * $qty;
     $sheetArea = $sheetW * $sheetH;
@@ -793,6 +796,11 @@ function handle_online_quote_calculate(array $siteConfig): never
         redirect('/online-quote', 303);
     }
 
+    if (($_POST['drawing_contents'] ?? '') !== 'single') {
+        flash_set('online_quote_error', 'For multiple parts or if you are unsure, please contact us so we can review your drawing and sheet requirements.');
+        redirect('/online-quote', 303);
+    }
+
     $machineId = (int)($_POST['machine_id'] ?? 0);
     $materialId = (int)($_POST['material_id'] ?? 0);
     $partW = filter_var($_POST['part_width_mm'] ?? null, FILTER_VALIDATE_FLOAT);
@@ -816,9 +824,8 @@ function handle_online_quote_calculate(array $siteConfig): never
 
     $name = basename((string)$file['name']);
     $ext = strtolower(pathinfo($name, PATHINFO_EXTENSION));
-    $allowed = ['svg', 'dxf', 'pdf', 'ai', 'eps'];
-    if (!in_array($ext, $allowed, true)) {
-        flash_set('online_quote_error', 'Unsupported file type. Allowed: SVG, DXF, PDF, AI, EPS.');
+    if ($ext !== 'dxf') {
+        flash_set('online_quote_error', 'Please upload a DXF drawing. Contact us if you need help creating one.');
         redirect('/online-quote', 303);
     }
     if ((int)$file['size'] > 50 * 1024 * 1024) {
@@ -871,12 +878,17 @@ function handle_online_quote_calculate(array $siteConfig): never
     }
 
     $settings = quote_settings($siteConfig);
-    $estimate = quote_build_estimate($machine, $material, $rate, $settings, [
-        'vector_length_mm' => $vectorLength,
-        'part_width_mm' => $partW,
-        'part_height_mm' => $partH,
-        'quantity' => $qty,
-    ]);
+    try {
+        $estimate = quote_build_estimate($machine, $material, $rate, $settings, [
+            'vector_length_mm' => $vectorLength,
+            'part_width_mm' => $partW,
+            'part_height_mm' => $partH,
+            'quantity' => $qty,
+        ]);
+    } catch (RuntimeException $e) {
+        flash_set('online_quote_error', $e->getMessage());
+        redirect('/online-quote', 303);
+    }
 
     $token = bin2hex(random_bytes(16));
     $_SESSION['online_quote_result'] = [

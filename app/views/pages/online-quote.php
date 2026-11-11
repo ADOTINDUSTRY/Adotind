@@ -20,7 +20,7 @@ $viberBase = (string)($siteConfig['viber'] ?? '');
     <div>
       <p class="eyebrow">Online Quote</p>
       <h1>Make your next idea a reality.</h1>
-      <p class="lead">From your vector file to a manufacturing estimate. Choose your process, material and dimensions to get started.</p>
+      <p class="lead">Upload your DXF drawing and tell us what you need. We will help you prepare your project for cutting.</p>
     </div>
     <div class="quote-processes" aria-label="Available processes">
       <span>CO2 Laser</span><span>Fiber Laser</span><span>CNC Router</span>
@@ -79,21 +79,35 @@ $viberBase = (string)($siteConfig['viber'] ?? '');
         <div>
           <p class="quote-card-kicker">Your project</p>
           <h2>Let's build your quote</h2>
-          <p>Tell us what you need cut and upload your design.</p>
+          <p>Hi! Let's start with your drawing. We'll guide you through the details.</p>
         </div>
       </div>
       <div class="quote-step-heading">
         <span aria-hidden="true">01</span>
-        <div><h3>Upload your design</h3><p>Start by choosing the vector file for your project.</p></div>
+        <div><h3>Upload your design</h3><p>Choose your DXF drawing to see a preview and measurements.</p></div>
       </div>
       <div class="quote-upload">
-        <label>Vector file
-          <input type="file" name="vector_file" accept=".svg,.dxf,.pdf,.ai,.eps" aria-describedby="quote-file-help" required />
+        <details class="quote-file-guide">
+          <summary>What is a DXF file? How do I create one?</summary>
+          <p>DXF is a drawing file that describes lines and curves for cutting machines. It is not the same as a photo or screenshot.</p>
+          <label for="quote-drawing-software">What did you use to draw your design?
+            <select id="quote-drawing-software">
+              <option value="">Choose an option</option>
+              <option value="cad">A CAD program (such as AutoCAD or Fusion)</option>
+              <option value="vector">A vector design program (such as Illustrator, CorelDRAW or Inkscape)</option>
+              <option value="other">Something else / I'm not sure</option>
+            </select>
+          </label>
+          <p class="quote-software-help" aria-live="polite">Choose an option for a starting point, or contact us and we will help.</p>
+          <p>Draw at the intended size, use millimetres, and remove unwanted or duplicate lines. Close outlines where appropriate. Ask us to check your file if you are unsure.</p>
+        </details>
+        <label>DXF drawing
+          <input type="file" name="vector_file" accept=".dxf" aria-describedby="quote-file-help" required />
         </label>
-        <p id="quote-file-help">Instant quotes require SVG or DXF. For PDF, AI or EPS, contact us for a manual quotation. Maximum file size: 50 MB.</p>
+        <p id="quote-file-help">For now, upload a DXF file up to 50 MB. Need help creating one? Open the guide above or <a href="/contact">contact us</a>.</p>
         <div class="quote-file-preview" hidden aria-live="polite">
           <div class="quote-preview-image" hidden>
-            <img alt="Preview of the selected SVG design" />
+            <img alt="Preview of the selected design" />
             <div class="quote-preview-render" hidden aria-label="Drawing preview"></div>
             <button type="button" class="quote-preview-expand">View fullscreen</button>
             <div class="quote-preview-measurements" hidden>
@@ -119,28 +133,41 @@ $viberBase = (string)($siteConfig['viber'] ?? '');
       </div>
       <div class="quote-step-heading">
         <span aria-hidden="true">02</span>
-        <div><h3>Choose your process</h3><p>Select the machine and material for your project.</p></div>
+        <div><h3>Tell us about your material</h3><p>Choose a material. If you are not sure which one to use, <a href="/contact">ask us for advice</a>.</p></div>
       </div>
       <div class="quote-prototype-grid quote-grid-two">
-        <label>Machine
-          <select name="machine_id" required>
-            <?php foreach ($machines as $m): ?>
-              <option value="<?= e((string)$m['id']) ?>"><?= e((string)$m['name']) ?></option>
-            <?php endforeach; ?>
-          </select>
-        </label>
         <label>Material
           <select name="material_id" required>
+            <option value="">Choose a material</option>
             <?php foreach ($materials as $m): ?>
               <option value="<?= e((string)$m['id']) ?>"><?= e((string)$m['name']) ?></option>
             <?php endforeach; ?>
           </select>
         </label>
+        <label>Machine (testing only)
+          <select name="machine_id" required>
+            <option value="">Choose a machine</option>
+            <?php foreach ($machines as $m): ?>
+              <option value="<?= e((string)$m['id']) ?>"><?= e((string)$m['name']) ?></option>
+            <?php endforeach; ?>
+          </select>
+        </label>
       </div>
+      <p>Automatic machine selection is not ready yet. Please <a href="/contact">ask us</a> if you are unsure; we will check the material, drawing and machine capacity.</p>
       <div class="quote-step-heading">
         <span aria-hidden="true">03</span>
-        <div><h3>Set your dimensions</h3><p>Enter the actual size of one cut part and the quantity you need. The document size may include empty space.</p></div>
+        <div><h3>Tell us about your parts</h3><p>Enter the actual size of one cut part and the quantity you need. The preview shows the entire drawing, which may contain several parts.</p></div>
       </div>
+      <label>What does your drawing contain?
+        <select name="drawing_contents" class="quote-drawing-contents" required>
+          <option value="">Choose an option</option>
+          <option value="single">One part, including any holes or internal cuts</option>
+          <option value="multiple">Multiple separate parts</option>
+          <option value="unsure">I'm not sure</option>
+        </select>
+      </label>
+      <p class="quote-parts-help" aria-live="polite">If you have multiple parts or are unsure, we can review the file and help work out sheet requirements.</p>
+      <p><a href="/contact">Contact us for help with your drawing or sheet requirements</a>.</p>
       <div class="quote-prototype-grid">
         <label>Part width (mm)
           <input type="number" name="part_width_mm" min="1" step="0.1" placeholder="Enter width" required />
@@ -156,7 +183,7 @@ $viberBase = (string)($siteConfig['viber'] ?? '');
         <textarea name="note" rows="3" placeholder="Any details about this job"></textarea>
       </label>
       <div class="quote-form-footer">
-        <p>Your estimate is based on the details and file provided.</p>
+        <p>Testing estimates assume one part per drawing. Sheet quantities are approximate and must be checked before cutting.</p>
         <button type="submit" class="btn">Calculate Quote <span aria-hidden="true">→</span></button>
       </div>
     </form>
@@ -171,10 +198,10 @@ $viberBase = (string)($siteConfig['viber'] ?? '');
           <p class="alert alert-error"><?= e((string)implode(' ', $result['warnings'])) ?></p>
         <?php endif; ?>
         <div class="quote-stats">
-          <div><strong><?= e((string)$est['vector_length_mm']) ?> mm</strong><span>Total cutting length</span></div>
+          <div><strong><?= e((string)$est['vector_length_mm']) ?> mm</strong><span>Cutting length per copy</span></div>
           <div><strong><?= e((string)$est['speed_mm_min']) ?> mm/min</strong><span>Cut speed used</span></div>
           <div><strong><?= e((string)$est['total_minutes']) ?> min</strong><span>Total process time</span></div>
-          <div><strong><?= e((string)$est['sheets_needed']) ?></strong><span>Sheets required</span></div>
+          <div><strong><?= e((string)$est['sheets_needed']) ?></strong><span>Estimated sheets (subject to review)</span></div>
         </div>
         <div class="quote-breakdown">
           <p>Setup cost: <strong><?= e($currency) ?><?= e(number_format((float)$est['setup_cost'], 2)) ?></strong></p>
