@@ -1,0 +1,10 @@
+.git
+.github
+platform
+svg-trace
+storage
+**/.env*
+**/*.sql*
+**/*.sqlite*
+**/*.pem
+**/*.key

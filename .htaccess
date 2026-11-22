@@ -45,6 +45,7 @@ RewriteRule ^svg-trace(/.*)?$ svg-trace/public/index.php [QSA,L]
 # Legacy static URLs from earlier custom build.
 RewriteRule ^index\.html$ / [R=301,L,NC]
 RewriteRule ^(about|services|portfolio|machinery|materials|industries|contact)\.html$ /$1 [R=301,L,NC]
+RewriteCond %{THE_REQUEST} \s/+index\.php[\s?] [NC]
 RewriteRule ^index\.php$ / [R=301,L,NC]
 
 # Remove trailing slash for non-directories.

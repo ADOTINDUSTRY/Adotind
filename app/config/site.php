@@ -34,3 +34,8 @@ $siteConfig = [
     'inquiries_dir' => dirname(__DIR__, 3) . '/adotind-media/inquiries',
     'quote_db_file' => dirname(__DIR__, 3) . '/adotind-media/quote-system.sqlite',
 ];
+
+$deploymentUrl = getenv('ADOTIND_PUBLIC_URL');
+if (is_string($deploymentUrl) && $deploymentUrl !== '') {
+    $siteConfig['base_url'] = rtrim($deploymentUrl, '/');
+}
