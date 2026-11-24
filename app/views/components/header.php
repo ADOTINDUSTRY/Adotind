@@ -28,8 +28,9 @@ $currentPath = current_path();
       <?php endif; ?>
       <span class="brand-text"><?= e($siteConfig['brand']) ?></span>
     </a>
-    <button class="nav-toggle" type="button" aria-label="Menu" aria-expanded="false">Menu</button>
-    <nav class="main-nav" aria-label="Primary">
+    <button class="nav-toggle" type="button" aria-label="Menu" aria-controls="primary-menu" aria-expanded="false">Menu</button>
+    <a class="nav-quote" href="/online-quote"<?= rtrim($currentPath, '/') === '/online-quote' ? ' aria-current="page"' : '' ?>>Online Quote</a>
+    <nav id="primary-menu" class="main-nav" aria-label="Primary">
       <?php foreach ($navItems as $item): ?>
         <?php
         $active = rtrim($currentPath, '/') === rtrim($item['href'], '/')
