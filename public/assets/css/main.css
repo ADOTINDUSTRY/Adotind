@@ -562,6 +562,7 @@ p {
 }
 
 .hero .cta-group .btn {
+  border-radius: 5px;
   padding: 0.6rem 0.8rem;
   font-size: 0.7rem;
   letter-spacing: 0.04em;
