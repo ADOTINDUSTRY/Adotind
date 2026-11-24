@@ -19,6 +19,7 @@ RUN sed -i 's|https://adotind.com|https://adotind.cy|g' robots.txt sitemap.xml \
     && printf 'expose_php=Off\nsession.use_strict_mode=1\nsession.cookie_httponly=1\nsession.cookie_secure=1\nsession.cookie_samesite=Lax\n' > "$PHP_INI_DIR/conf.d/zz-website.ini" \
     && php -r 'exit(extension_loaded("pdo_sqlite") && extension_loaded("gd") ? 0 : 1);' \
     && find app -name '*.php' -type f -print0 | xargs -0 -r -n1 php -l >/dev/null
-RUN php -l index.php && apache2ctl configtest
+RUN php -l index.php && apache2ctl configtest \
+    && php -r 'file_put_contents("public/site-build.txt", bin2hex(random_bytes(16)));'
 ENV ADOTIND_PUBLIC_URL=https://adotind.cy
 EXPOSE 80

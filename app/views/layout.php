@@ -127,5 +127,31 @@ $trackingEnabled = is_writable('/var/www/site-tracking') && ($page['view'] ?? ''
     </aside>
     <script src="/public/assets/js/site-tracking.js?v=<?= e((string)filemtime(__DIR__ . '/../../public/assets/js/site-tracking.js')) ?>" defer></script>
     <?php endif; ?>
+    <?php if (($_GET['live'] ?? '') === '1' && ($_SERVER['REQUEST_METHOD'] ?? '') === 'GET'): ?>
+      <?php $buildFile = __DIR__ . '/../../public/site-build.txt'; ?>
+      <?php if (is_readable($buildFile)): ?>
+      <script>
+        (() => {
+          const currentBuild = <?= json_encode(trim(file_get_contents($buildFile)), JSON_HEX_TAG) ?>;
+          async function checkBuild() {
+            try {
+              const response = await fetch('/public/site-build.txt', {cache: 'no-store'});
+              if (response.ok) {
+                const build = (await response.text()).trim();
+                if (/^[a-f0-9]{32}$/.test(build) && build !== currentBuild) {
+                  window.location.reload();
+                  return;
+                }
+              }
+            } catch {
+              // The site may be temporarily unreachable during a deployment.
+            }
+            window.setTimeout(checkBuild, 5000);
+          }
+          window.setTimeout(checkBuild, 5000);
+        })();
+      </script>
+      <?php endif; ?>
+    <?php endif; ?>
   </body>
 </html>
