@@ -127,11 +127,21 @@ $trackingEnabled = is_writable('/var/www/site-tracking') && ($page['view'] ?? ''
     </aside>
     <script src="/public/assets/js/site-tracking.js?v=<?= e((string)filemtime(__DIR__ . '/../../public/assets/js/site-tracking.js')) ?>" defer></script>
     <?php endif; ?>
-    <?php if (($_GET['live'] ?? '') === '1' && ($_SERVER['REQUEST_METHOD'] ?? '') === 'GET'): ?>
+    <?php if (($_SERVER['REQUEST_METHOD'] ?? '') === 'GET'): ?>
       <?php $buildFile = __DIR__ . '/../../public/site-build.txt'; ?>
       <?php if (is_readable($buildFile)): ?>
       <script>
         (() => {
+          const mode = new URLSearchParams(window.location.search).get('live');
+          let enabled = mode === '1';
+          try {
+            if (mode === '1') sessionStorage.setItem('adot_live_preview', '1');
+            if (mode === '0') sessionStorage.removeItem('adot_live_preview');
+            enabled = sessionStorage.getItem('adot_live_preview') === '1';
+          } catch {
+            // The explicit preview URL still works when tab storage is unavailable.
+          }
+          if (!enabled) return;
           const currentBuild = <?= json_encode(trim(file_get_contents($buildFile)), JSON_HEX_TAG) ?>;
           async function checkBuild() {
             try {
