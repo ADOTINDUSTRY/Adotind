@@ -150,7 +150,28 @@ function site_tracking_collect(string $directory, string $origin): never
     }
     if ($records === '') $fail(204);
 
-    $path = $directory . '/' . gmdate('Y-m-d') . '.jsonl';
+    $day = gmdate('Y-m-d');
+    if (website_sql_enabled()) {
+        $db = website_tracking_db($directory);
+        try {
+            $db->beginTransaction();
+            $reserve = $db->prepare('INSERT INTO event_bytes(day,total) VALUES (?,?)
+                ON CONFLICT(day) DO UPDATE SET total=total+excluded.total WHERE total+excluded.total <= 2097152');
+            $reserve->execute([$day,strlen($records)]);
+            if (!$reserve->rowCount()) {
+                $db->rollBack();
+                $fail(429);
+            }
+            $insert = $db->prepare('INSERT INTO events(day,payload) VALUES (?,?)');
+            foreach (explode("\n", rtrim($records, "\n")) as $record) $insert->execute([$day,$record]);
+            $db->commit();
+        } catch (PDOException $error) {
+            if ($db->inTransaction()) $db->rollBack();
+            $fail(503);
+        }
+        $fail(204);
+    }
+    $path = $directory . '/' . $day . '.jsonl';
     $file = fopen($path, 'ab');
     if (!$file) $fail(503);
     $written = false;

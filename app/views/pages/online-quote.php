@@ -259,10 +259,10 @@ $viberBase = (string)($siteConfig['viber'] ?? '');
     </form>
 
     <?php if (is_array($result) && is_array($result['estimate'] ?? null)): ?>
-      <?php $est = $result['estimate']; $token = (string)($result['token'] ?? ''); ?>
+      <?php $est = $result['estimate']; $currency = (string)($est['currency'] ?? $currency); $token = (string)($result['token'] ?? ''); ?>
       <article class="quote-card quote-result-card" data-tracking-section="quote-result">
         <p class="quote-card-kicker">Your estimate</p>
-        <h2>Quote Result</h2>
+        <h2>Your estimate<?= isset($result['estimate_id']) ? ' Q-' . (int)$result['estimate_id'] : '' ?></h2>
         <p>File: <strong><?= e((string)($result['original_file'] ?? '')) ?></strong> · Part size: <?= e((string)($result['input']['part_width_mm'] ?? '')) ?> × <?= e((string)($result['input']['part_height_mm'] ?? '')) ?> mm</p>
         <?php if (!empty($result['warnings']) && is_array($result['warnings'])): ?>
           <p class="alert alert-error"><?= e((string)implode(' ', $result['warnings'])) ?></p>

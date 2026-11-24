@@ -1724,6 +1724,18 @@ html:has(.tracking-consent-banner[open]) { overflow: hidden; }
   letter-spacing: normal;
   text-transform: none;
 }
+.tracking-consent-actions [data-tracking-choice="activity"] {
+  color: #231c08;
+  border-color: #f9ce48;
+  background: #f9ce48;
+}
+.tracking-consent-actions [data-tracking-choice="off"] {
+  color: #17283a;
+  border-color: #d7e1ea;
+  background: #d7e1ea;
+}
+.tracking-consent-actions .btn:hover { filter: brightness(.94); }
+.tracking-consent-actions .btn:focus-visible { outline: 3px solid var(--accent); outline-offset: 3px; }
 
 @media (max-width: 48rem) {
   .tracking-consent-banner {

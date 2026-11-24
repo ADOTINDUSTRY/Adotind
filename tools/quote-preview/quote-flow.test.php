@@ -6,7 +6,7 @@ function site_daily_count(string $metric): void {}
 
 function online_quote_unlocked(): bool { return true; }
 function csrf_valid($token): bool { return true; }
-function flash_set(string $key, $value): void { $GLOBALS['flash'] = [$key, $value]; }
+function flash_set(string $key, $value): void { $GLOBALS['flash'][$key] = $value; }
 function redirect(string $url, int $status): never { throw new RuntimeException('redirect'); }
 
 function assert_quote(bool $condition, string $message): void
@@ -21,13 +21,13 @@ function expect_rejection(array $post, array $files, string $message): void
     $_SERVER['REQUEST_METHOD'] = 'POST';
     $_POST = $post;
     $_FILES = $files;
-    $GLOBALS['flash'] = null;
+    $GLOBALS['flash'] = [];
     try {
         handle_online_quote_calculate([]);
     } catch (RuntimeException $e) {
         assert_quote($e->getMessage() === 'redirect', $e->getMessage());
     }
-    assert_quote(str_contains($GLOBALS['flash'][1] ?? '', $message), "Expected rejection: $message");
+    assert_quote(str_contains($GLOBALS['flash']['online_quote_error'] ?? '', $message), "Expected rejection: $message");
 }
 
 expect_rejection(['drawing_contents' => 'multiple'], [], 'multiple parts');

@@ -50,8 +50,17 @@ function site_tracking_save_consent(string $directory, string $day, string $deci
     try {
         if (!flock($lock, LOCK_EX)) return 503;
         clearstatcache(true, $path);
-        if (is_file($path)) {
-            $raw = file_get_contents($path, false, null, 0, $limit + 1);
+        $db = website_sql_enabled() ? website_tracking_db($directory) : null;
+        if ($db) {
+            $query = $db->prepare("SELECT payload FROM daily_documents WHERE day=? AND kind='consent'");
+            $query->execute([$day]);
+            $raw = $query->fetchColumn();
+            $query->closeCursor();
+        } else {
+            $raw = is_file($path) ? file_get_contents($path, false, null, 0, $limit + 1) : false;
+            if ($raw === false && is_file($path)) return 503;
+        }
+        if ($raw !== false) {
             $record = $raw === false || strlen($raw) > $limit ? null : json_decode($raw, true, 5);
             if (!is_array($record) || ($record['version'] ?? null) !== 1
                 || !is_int($record['accepted'] ?? null) || $record['accepted'] < 0
@@ -85,6 +94,11 @@ function site_tracking_save_consent(string $directory, string $day, string $deci
         $record['choices'][$key] = $entry;
         $updated = json_encode($record, JSON_THROW_ON_ERROR) . "\n";
         if (strlen($updated) > $limit) return 429;
+        if ($db) {
+            $db->prepare("INSERT INTO daily_documents(day,kind,payload) VALUES (?,'consent',?)
+                ON CONFLICT(day,kind) DO UPDATE SET payload=excluded.payload")->execute([$day,$updated]);
+            return 204;
+        }
 
         $temporary = tempnam($directory, '.consent-');
         if ($temporary === false) return 503;

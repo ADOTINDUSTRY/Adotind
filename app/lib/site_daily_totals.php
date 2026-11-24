@@ -16,6 +16,17 @@ function site_daily_count(string $metric): void
     $dir = '/var/www/site-tracking';
     if (!is_writable($dir)) return;
     $day = (new DateTimeImmutable('now', new DateTimeZone('Asia/Nicosia')))->format('Y-m-d');
+    $test = !empty($_SESSION['online_quote_unlocked']) || !empty($_SESSION['report_preview']) || ($_POST['live_preview'] ?? '') === '1';
+    $group = $test ? 'testing' : 'public';
+    if (website_sql_enabled()) {
+        try {
+            website_tracking_db($dir)->prepare('INSERT INTO operations(day,audience,metric,total) VALUES (?,?,?,1)
+                ON CONFLICT(day,audience,metric) DO UPDATE SET total=total+1')->execute([$day,$group,$metric]);
+        } catch (PDOException $error) {
+            error_log('Website operational counter could not be updated.');
+        }
+        return;
+    }
     $file = $dir . '/operations-' . $day . '.json';
     $lock = @fopen($file . '.lock', 'c');
     if (!$lock) return;
@@ -24,8 +35,6 @@ function site_daily_count(string $metric): void
         if (!flock($lock, LOCK_EX)) return;
         $totals = is_file($file) ? json_decode((string) @file_get_contents($file), true) : [];
         if (!is_array($totals)) return;
-        $test = !empty($_SESSION['online_quote_unlocked']) || !empty($_SESSION['report_preview']) || ($_POST['live_preview'] ?? '') === '1';
-        $group = $test ? 'testing' : 'public';
         $totals[$group][$metric] = ($totals[$group][$metric] ?? 0) + 1;
         $tmp = tempnam($dir, '.daily-');
         if ($tmp && file_put_contents($tmp, json_encode($totals)) !== false) {

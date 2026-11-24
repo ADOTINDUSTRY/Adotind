@@ -11,6 +11,8 @@ require_once __DIR__ . '/app/lib/dashboard.php';
 
 // Serve media as early as possible: no session, no bootstrap work for image requests.
 $earlyPath = parse_url($_SERVER['REQUEST_URI'] ?? '/', PHP_URL_PATH) ?: '/';
+require_once __DIR__ . '/app/lib/website_storage.php';
+if (!starts_with($earlyPath, '/media/')) website_storage_start('/var/www/site-tracking');
 if ($earlyPath === '/site-tracking/consent') {
     require_once __DIR__ . '/app/lib/site_tracking_consent.php';
     site_tracking_record_consent('/var/www/site-tracking', rtrim((string) ($siteConfig['base_url'] ?? ''), '/'));

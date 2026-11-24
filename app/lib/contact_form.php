@@ -100,14 +100,26 @@ function handle_contact_submit(array $siteConfig): never
         'Content-Type: text/plain; charset=UTF-8',
     ];
 
-    $mailSent = mail($siteConfig['email'], $subject, $body, implode("\r\n", $headers));
-
-    $logLine = json_encode([
+    $entry = [
         'submitted_at' => date('c'),
         'fields' => $fields,
         'uploaded_file' => $uploadPath ? basename($uploadPath) : null,
-        'mail_sent' => $mailSent,
-    ], JSON_UNESCAPED_SLASHES);
+    ];
+    if (website_sql_enabled()) {
+        try {
+            website_save_message(quote_db($siteConfig), 'inquiry', $entry);
+        } catch (Throwable $error) {
+            flash_set('form_old', $fields);
+            flash_set('form_error', 'Your inquiry could not be saved. Please try again.');
+            redirect('/contact', 303);
+        }
+        site_daily_count('inquiry');
+        @mail($siteConfig['email'], $subject, $body, implode("\r\n", $headers));
+        flash_set('form_success', 'Thank you. We received your inquiry.');
+        redirect('/contact', 303);
+    }
+    $mailSent = mail($siteConfig['email'], $subject, $body, implode("\r\n", $headers));
+    $logLine = json_encode($entry + ['mail_sent'=>$mailSent], JSON_UNESCAPED_SLASHES);
     $logDir = (string)($siteConfig['inquiries_dir'] ?? (__DIR__ . '/../../storage/inquiries'));
     if (!is_dir($logDir)) {
         mkdir($logDir, 0755, true);

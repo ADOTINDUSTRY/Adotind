@@ -28,13 +28,37 @@ function quote_db(array $siteConfig): PDO
     $pdo = new PDO('sqlite:' . $path);
     $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
     $pdo->setAttribute(PDO::ATTR_DEFAULT_FETCH_MODE, PDO::FETCH_ASSOC);
+    $pdo->exec('PRAGMA busy_timeout = 5000');
     $pdo->exec('PRAGMA foreign_keys = ON');
     $pdo->exec('PRAGMA journal_mode = WAL');
     // Schema/seed only once per database file; user_version marks completion.
-    if ((int)$pdo->query('PRAGMA user_version')->fetchColumn() < 1) {
-        quote_install_schema($pdo);
-        quote_seed_defaults($pdo);
-        $pdo->exec('PRAGMA user_version = 1');
+    if ((int)$pdo->query('PRAGMA user_version')->fetchColumn() < 2) {
+        $pdo->exec('BEGIN IMMEDIATE');
+        try {
+            $version = (int)$pdo->query('PRAGMA user_version')->fetchColumn();
+            if ($version < 1) {
+                quote_install_schema($pdo);
+                quote_seed_defaults($pdo);
+            }
+            if ($version < 2) {
+                $pdo->exec("CREATE TABLE quote_estimates (
+                    id INTEGER PRIMARY KEY, created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    snapshot TEXT NOT NULL, order_id INTEGER UNIQUE REFERENCES quote_orders(id)
+                );
+                INSERT INTO quote_estimates(created_at,snapshot,order_id)
+                    SELECT created_at,estimate_payload_json,id FROM quote_orders ORDER BY id;
+                CREATE TABLE website_inbox (
+                    id INTEGER PRIMARY KEY, kind TEXT NOT NULL, submitted_at TEXT NOT NULL,
+                    payload TEXT NOT NULL, legacy_key TEXT UNIQUE
+                );
+                CREATE TABLE website_metadata (name TEXT PRIMARY KEY, payload TEXT NOT NULL);
+                PRAGMA user_version=2");
+            }
+            $pdo->exec('COMMIT');
+        } catch (Throwable $e) {
+            $pdo->exec('ROLLBACK');
+            throw $e;
+        }
     }
     $lastPath = $path;
     return $pdo;
@@ -827,7 +851,8 @@ function handle_online_quote_calculate(array $siteConfig): never
     if ($partW === false || $partH === false || !is_finite($partW) || !is_finite($partH) || $partW < 1 || $partH < 1) {
         online_quote_fail('Please enter a part width and height of at least 1 mm.', 'invalid_dimensions');
     }
-    $qty = max(1, (int)($_POST['quantity'] ?? 1));
+    $qty = filter_var($_POST['quantity'] ?? 1, FILTER_VALIDATE_INT, ['options'=>['min_range'=>1]]);
+    if ($qty === false) online_quote_fail('Enter a whole number of parts, at least one.', 'invalid_dimensions');
     $note = trim((string)($_POST['note'] ?? ''));
 
     if (!isset($_FILES['vector_file']) || !is_array($_FILES['vector_file'])) {
@@ -853,9 +878,6 @@ function handle_online_quote_calculate(array $siteConfig): never
     }
     $stored = date('Ymd-His') . '-' . bin2hex(random_bytes(4)) . '.' . $ext;
     $path = $dir . '/' . $stored;
-    if (!move_uploaded_file((string)$file['tmp_name'], $path)) {
-        online_quote_fail('Could not save the uploaded vector file.', 'file_save_failed');
-    }
 
     $db = quote_db($siteConfig);
     $machine = $db->prepare('SELECT * FROM quote_machines WHERE id = ? AND active = 1');
@@ -877,13 +899,13 @@ function handle_online_quote_calculate(array $siteConfig): never
 
     $warnings = [];
     try {
-        $vectorLength = quote_measure_vector_mm($path, $ext, $warnings);
+        $vectorLength = quote_measure_vector_mm((string)$file['tmp_name'], $ext, $warnings);
     } catch (Throwable $e) {
         online_quote_fail('We could not read vector geometry from this file: ' . $e->getMessage(), 'drawing_unreadable');
     }
 
-    if ($vectorLength === null) {
-        online_quote_fail('This file type is accepted, but instant line-length measurement is available for SVG and DXF only. Please upload SVG or DXF for instant price.', 'unsupported_format');
+    if ($vectorLength === null || !is_finite($vectorLength) || $vectorLength <= 0) {
+        online_quote_fail('No supported cutting geometry was found in this DXF drawing.', 'drawing_unreadable');
     }
 
     $settings = quote_settings($siteConfig);
@@ -898,14 +920,17 @@ function handle_online_quote_calculate(array $siteConfig): never
         online_quote_fail($e->getMessage(), 'quote_unavailable');
     }
 
+    if (!move_uploaded_file((string)$file['tmp_name'], $path)) {
+        online_quote_fail('Could not save the uploaded vector file.', 'file_save_failed');
+    }
     $token = bin2hex(random_bytes(16));
-    $_SESSION['online_quote_result'] = [
-        'token' => $token,
+    $result = [
         'stored_file' => $stored,
         'original_file' => $name,
         'machine' => $machine,
         'material' => $material,
         'rate' => $rate,
+        'pricing_settings' => $settings,
         'input' => [
             'machine_id' => $machineId,
             'material_id' => $materialId,
@@ -918,6 +943,16 @@ function handle_online_quote_calculate(array $siteConfig): never
         'warnings' => $warnings,
         'estimate' => $estimate,
     ];
+    try {
+        $db->prepare('INSERT INTO quote_estimates(snapshot) VALUES (?)')
+            ->execute([json_encode($result, JSON_THROW_ON_ERROR | JSON_INVALID_UTF8_SUBSTITUTE)]);
+    } catch (Throwable $error) {
+        unlink($path);
+        online_quote_fail('We could not save this estimate. Please try again.', 'quote_unavailable');
+    }
+    $result['estimate_id'] = (int)$db->lastInsertId();
+    $result['token'] = $token;
+    $_SESSION['online_quote_result'] = $result;
     site_daily_count('estimate');
     flash_set('online_quote_success', 'Quote calculated successfully.');
     redirect('/online-quote', 303);
@@ -957,24 +992,49 @@ function handle_online_quote_book(array $siteConfig): never
     $db = quote_db($siteConfig);
     $est = (array)$result['estimate'];
     $input = (array)$result['input'];
-    $db->prepare("
-        INSERT INTO quote_orders (
-            customer_name, email, phone, message, machine_id, material_id, part_width_mm, part_height_mm, quantity,
-            vector_filename, vector_ext, vector_length_mm,
-            estimate_setup_cost, estimate_cut_cost, estimate_material_cost, estimate_vat, estimate_total, estimate_minutes, estimate_payload_json
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    ")->execute([
-        $customer['name'], $customer['email'], $customer['phone'], $customer['message'],
-        (int)$input['machine_id'], (int)$input['material_id'],
-        (float)$input['part_width_mm'], (float)$input['part_height_mm'], (int)$input['quantity'],
-        (string)($result['original_file'] ?? ''), (string)($input['ext'] ?? ''),
-        (float)($est['vector_length_mm'] ?? 0),
-        (float)($est['setup_cost'] ?? 0), (float)($est['cut_cost'] ?? 0), (float)($est['material_cost'] ?? 0),
-        (float)($est['vat_cost'] ?? 0), (float)($est['total_cost'] ?? 0), (float)($est['total_minutes'] ?? 0),
-        json_encode($result, JSON_UNESCAPED_SLASHES),
-    ]);
+    $db->exec('BEGIN IMMEDIATE');
+    try {
+        $estimateId = (int)($result['estimate_id'] ?? 0);
+        if (!$estimateId) {
+            // A customer may still have an estimate from the previous release.
+            $snapshot = $result;
+            unset($snapshot['token']);
+            $db->prepare('INSERT INTO quote_estimates(snapshot) VALUES (?)')->execute([json_encode($snapshot, JSON_THROW_ON_ERROR | JSON_INVALID_UTF8_SUBSTITUTE)]);
+            $estimateId = (int)$db->lastInsertId();
+        }
+        $linked = $db->prepare('SELECT order_id FROM quote_estimates WHERE id=?');
+        $linked->execute([$estimateId]);
+        $savedEstimate = $linked->fetch();
+        if (!$savedEstimate) throw new RuntimeException('Estimate missing');
+        if ($savedEstimate['order_id'] !== null) {
+            $db->exec('ROLLBACK');
+            flash_set('online_quote_success', 'This order request was already received.');
+            redirect('/online-quote', 303);
+        }
+        $db->prepare("
+            INSERT INTO quote_orders (
+                customer_name, email, phone, message, machine_id, material_id, part_width_mm, part_height_mm, quantity,
+                vector_filename, vector_ext, vector_length_mm,
+                estimate_setup_cost, estimate_cut_cost, estimate_material_cost, estimate_vat, estimate_total, estimate_minutes, estimate_payload_json
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ")->execute([
+            $customer['name'], $customer['email'], $customer['phone'], $customer['message'],
+            (int)$input['machine_id'], (int)$input['material_id'],
+            (float)$input['part_width_mm'], (float)$input['part_height_mm'], (int)$input['quantity'],
+            (string)($result['original_file'] ?? ''), (string)($input['ext'] ?? ''),
+            (float)($est['vector_length_mm'] ?? 0),
+            (float)($est['setup_cost'] ?? 0), (float)($est['cut_cost'] ?? 0), (float)($est['material_cost'] ?? 0),
+            (float)($est['vat_cost'] ?? 0), (float)($est['total_cost'] ?? 0), (float)($est['total_minutes'] ?? 0),
+            json_encode($result, JSON_UNESCAPED_SLASHES),
+        ]);
+        $db->prepare('UPDATE quote_estimates SET order_id=? WHERE id=?')->execute([(int)$db->lastInsertId(), $estimateId]);
+        $db->exec('COMMIT');
+    } catch (Throwable $error) {
+        $db->exec('ROLLBACK');
+        online_quote_fail('We could not save the order request. Please try again.', 'quote_unavailable');
+    }
 
-    $subject = 'New Online Quote Booking';
+    $subject = 'Order request for quote Q-' . $estimateId;
     $body = "Customer: {$customer['name']}\nEmail: {$customer['email']}\nPhone: {$customer['phone']}\n\n"
         . "Machine: " . (($result['machine']['name'] ?? '')) . "\n"
         . "Material: " . (($result['material']['name'] ?? '')) . "\n"
@@ -988,7 +1048,7 @@ function handle_online_quote_book(array $siteConfig): never
 
     $_SESSION['online_quote_result'] = null;
     site_daily_count('order');
-    flash_set('online_quote_success', 'Order request booked successfully. Our team will contact you.');
+    flash_set('online_quote_success', 'Order request received for quote Q-' . $estimateId . '. Our team will contact you.');
     redirect('/online-quote', 303);
 }
 

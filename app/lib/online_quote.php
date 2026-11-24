@@ -48,13 +48,21 @@ function handle_online_quote_updates_submit(array $siteConfig): never
         mkdir($dir, 0755, true);
     }
 
-    $entry = json_encode([
+    $entry = [
         'type' => 'online_quote_update_request',
         'email' => $email,
         'submitted_at' => date('c'),
-        'ip' => $_SERVER['REMOTE_ADDR'] ?? 'unknown',
-    ], JSON_UNESCAPED_SLASHES);
-    file_put_contents($dir . '/quote-updates.log', $entry . PHP_EOL, FILE_APPEND);
+    ];
+    if (website_sql_enabled()) {
+        try {
+            website_save_message(quote_db($siteConfig), 'quote_update', $entry);
+        } catch (Throwable $error) {
+            flash_set('online_quote_updates_error', 'Your signup could not be saved. Please try again.');
+            redirect('/online-quote', 303);
+        }
+    } else {
+        file_put_contents($dir . '/quote-updates.log', json_encode($entry) . PHP_EOL, FILE_APPEND);
+    }
 
     $subject = 'Online Quote updates signup';
     $body = "New updates signup for Online Quote page:\n\nEmail: {$email}\nSubmitted at: " . date('c')

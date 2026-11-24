@@ -170,6 +170,7 @@ function dashboard_serve_media(array $siteConfig, string $filename): never
 
 function dashboard_media_load(array $siteConfig): array
 {
+    if (website_sql_enabled()) return website_metadata($siteConfig, 'media');
     $file = $siteConfig['media_index_file'];
     if (!is_file($file)) {
         return [];
@@ -187,6 +188,10 @@ function dashboard_media_load(array $siteConfig): array
 
 function dashboard_media_save(array $siteConfig, array $media): void
 {
+    if (website_sql_enabled()) {
+        website_save_metadata($siteConfig, 'media', $media);
+        return;
+    }
     $file = $siteConfig['media_index_file'];
     $dir = dirname($file);
     if (!is_dir($dir)) {
@@ -197,6 +202,7 @@ function dashboard_media_save(array $siteConfig, array $media): void
 
 function dashboard_settings_load(array $siteConfig): array
 {
+    if (website_sql_enabled()) return website_metadata($siteConfig, 'settings');
     $file = $siteConfig['media_settings_file'] ?? '';
     if (!is_string($file) || $file === '' || !is_file($file)) {
         return [];
@@ -211,6 +217,10 @@ function dashboard_settings_load(array $siteConfig): array
 
 function dashboard_settings_save(array $siteConfig, array $settings): void
 {
+    if (website_sql_enabled()) {
+        website_save_metadata($siteConfig, 'settings', $settings);
+        return;
+    }
     $file = $siteConfig['media_settings_file'] ?? '';
     if (!is_string($file) || $file === '') {
         return;
