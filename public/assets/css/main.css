@@ -1668,25 +1668,32 @@ p {
 
 .tracking-consent-banner {
   position: fixed;
-  z-index: 500;
-  inset-inline: max(1rem, calc((100% - 70rem) / 2));
-  bottom: max(1rem, calc(env(safe-area-inset-bottom) + 0.5rem));
+  inset: 0;
+  margin: auto;
+  width: min(40rem, calc(100% - 2rem));
+  min-height: min(46dvh, 25rem);
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  align-items: center;
-  gap: 1.25rem 2rem;
-  max-height: 75vh;
+  align-content: center;
+  gap: 1.5rem;
+  max-height: calc(100dvh - 2rem);
   overflow-y: auto;
-  padding: clamp(1rem, 3vw, 1.75rem);
+  padding: clamp(1.25rem, 4vw, 2.5rem);
+  color: var(--text);
+  border-radius: 0.75rem;
   border: 1px solid var(--line-strong);
   border-top: 3px solid var(--accent);
   background: var(--panel);
   box-shadow: var(--shadow-lg);
 }
 
-.tracking-consent-banner[hidden] {
+.tracking-consent-banner:not([open]) {
   display: none;
 }
+.tracking-consent-banner::backdrop { background: rgb(8 14 23 / 74%); }
+html:has(.tracking-consent-banner[open]) { overflow: hidden; }
+.tracking-consent-banner details { margin-top: 0.8rem; }
+.tracking-consent-banner summary { cursor: pointer; text-decoration: underline; }
+.tracking-consent-banner details p { margin-top: 0.5rem; }
 
 .tracking-consent-banner h2 {
   margin: 0 0 0.45rem;

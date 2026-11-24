@@ -116,17 +116,20 @@ $trackingEnabled = is_writable('/var/www/site-tracking') && ($page['view'] ?? ''
     <?php endif; ?>
     <?php if ($trackingEnabled): ?>
     <?php $trackingPageSlug = $page['service']['slug'] ?? $page['project']['slug'] ?? ''; ?>
-    <aside id="tracking-consent-banner" class="tracking-consent-banner" data-site-tracking="<?= e($page['view'] ?? '') ?>" data-testing="<?= !empty($_SESSION['online_quote_unlocked']) || !empty($_SESSION['report_preview']) ? '1' : '0' ?>" data-tracking-page-slug="<?= e($trackingPageSlug) ?>" aria-labelledby="tracking-consent-title" aria-describedby="tracking-consent-description" hidden>
+    <dialog id="tracking-consent-banner" class="tracking-consent-banner" data-site-tracking="<?= e($page['view'] ?? '') ?>" data-testing="<?= !empty($_SESSION['online_quote_unlocked']) || !empty($_SESSION['report_preview']) ? '1' : '0' ?>" data-tracking-page-slug="<?= e($trackingPageSlug) ?>" aria-labelledby="tracking-consent-title" aria-describedby="tracking-consent-description">
       <div>
-        <h2 id="tracking-consent-title" tabindex="-1">Your privacy choices</h2>
-        <p id="tracking-consent-description">Optional analytics helps us understand how people find and use this site. We count browsers using an identifier that changes daily and record actions, where you click or tap on a page, errors, and approximate country. We store only a shortened IP address and exclude what you type and the names and contents of uploaded files. A Dot Industry collects these analytics directly on this site to improve it.</p>
+        <h2 id="tracking-consent-title" tabindex="-1" autofocus>Allow website analytics?</h2>
+        <p id="tracking-consent-description">Help us see where people get stuck when designing a sign or asking for a quote. You can use the whole site with either choice.</p>
+        <details><summary>What gets recorded?</summary>
+          <p>A Dot Industry records pages, clicks and taps, errors, approximate country and a shortened IP address. A daily browser identifier helps us count visits. What you type and the names and contents of your files stay out of analytics. We also count privacy choices separately. You can change your choice in Privacy preferences.</p>
+        </details>
         <p class="tracking-consent-status" role="status"></p>
       </div>
       <div class="tracking-consent-actions">
         <button class="btn btn-outline" type="button" data-tracking-choice="off">Decline</button>
         <button class="btn btn-outline" type="button" data-tracking-choice="activity">Accept analytics</button>
       </div>
-    </aside>
+    </dialog>
     <script src="/public/assets/js/site-tracking.js?v=<?= e((string)filemtime(__DIR__ . '/../../public/assets/js/site-tracking.js')) ?>" defer></script>
     <?php endif; ?>
     <?php if (($_SERVER['REQUEST_METHOD'] ?? '') === 'GET'): ?>

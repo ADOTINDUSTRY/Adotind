@@ -70,11 +70,19 @@ function site_tracking_save_consent(string $directory, string $day, string $deci
             if (!is_array($previous) || !is_int($previous['revision'] ?? null)
                 || !in_array($previous['decision'] ?? null, ['accepted', 'declined'], true)
                 || $record[$previous['decision']] < 1) return 503;
-            if ($previous['revision'] >= $revision) return 204;
-            $record[$previous['decision']]--;
         }
-        $record[$decision]++;
-        $record['choices'][$key] = ['decision' => $decision, 'revision' => $revision];
+        // Older snapshots only have the last decision. Never reconstruct earlier button presses.
+        $entry = $previous ?? ['revision' => 0];
+        $entry['prior_revision'] ??= $entry['revision'];
+        if ($revision <= $entry['prior_revision'] || isset($entry['buttons'][$revision])) return 204;
+        $entry['buttons'][$revision] = $decision;
+        if ($revision > $entry['revision']) {
+            if ($previous !== null) $record[$previous['decision']]--;
+            $record[$decision]++;
+            $entry['decision'] = $decision;
+            $entry['revision'] = $revision;
+        }
+        $record['choices'][$key] = $entry;
         $updated = json_encode($record, JSON_THROW_ON_ERROR) . "\n";
         if (strlen($updated) > $limit) return 429;
 

@@ -11,6 +11,7 @@
         timeZone:'Asia/Nicosia', year:'numeric', month:'2-digit', day:'2-digit'
     });
     const sessionKey = 'adotind-tracking-session-v1';
+    const declinedInTabKey = 'adotind-privacy-choice-in-tab';
     const bannerTitle = panel.querySelector('h2');
     const status = panel.querySelector('[role=status]');
     const page = panel.dataset.siteTracking;
@@ -49,7 +50,7 @@
     try {
         ({mode, visitors} = readPreference());
         if (!visitors) localStorage.removeItem(legacyVisitorKey);
-    } catch { return; }
+    } catch { /* A visitor with storage disabled can still decline and continue. */ }
 
     let openedFromFooter = false;
     let pageRecorded = false;
@@ -208,11 +209,18 @@
 
     function setBannerOpen(open, focus = false) {
         const returnFocus = !open && openedFromFooter && panel.contains(document.activeElement);
-        panel.hidden = !open;
+        if (open && !panel.open) panel.showModal();
+        if (!open && panel.open) panel.close();
         preferencesButton.setAttribute('aria-expanded', String(open));
         openedFromFooter = open && focus;
         if (focus) bannerTitle.focus({preventScroll:true});
         if (returnFocus) preferencesButton.focus({preventScroll:true});
+    }
+
+    function needsPrivacyChoice() {
+        if (mode !== 'off') return !mode;
+        try { return sessionStorage.getItem(declinedInTabKey) !== '1'; }
+        catch { return false; }
     }
 
     async function reportConsentChoice(choice, browser) {
@@ -275,15 +283,18 @@
     }
 
     preferencesButton.addEventListener('click', () => {
-        const open = panel.hidden;
-        setBannerOpen(open, open);
+        setBannerOpen(true, true);
     });
-    panel.addEventListener('keydown', (e) => {
-        if (e.key === 'Escape') setBannerOpen(false);
+    panel.addEventListener('cancel', (e) => {
+        e.preventDefault();
+        if (openedFromFooter) setBannerOpen(false);
     });
+    let savingChoice = false;
     panel.addEventListener('click', async (e) => {
         const choice = e.target.closest('[data-tracking-choice]')?.dataset.trackingChoice;
         if (choice !== 'off' && choice !== 'activity') return;
+        if (savingChoice) return;
+        savingChoice = true;
         let saved;
         try {
             saved = await withConsentBrowser(browser => {
@@ -295,9 +306,19 @@
             });
         } catch {
             refreshPreference();
+            if (choice === 'off') {
+                mode = 'off';
+                visitors = false;
+                preferenceGeneration++;
+                setBannerOpen(false);
+                return;
+            }
             status.textContent = 'Your choice could not be saved. Check your browser storage settings and try again.';
             return;
+        } finally {
+            savingChoice = false;
         }
+        try { sessionStorage.setItem(declinedInTabKey, choice === 'off' ? '1' : '0'); } catch {}
         refreshPreference();
         setBannerOpen(false);
         reportConsentChoice(choice, saved).catch(() => {});
@@ -307,7 +328,12 @@
         const previous = mode;
         const previousVisitors = visitors;
         refreshPreference();
-        if (mode !== previous || visitors !== previousVisitors) setBannerOpen(!mode);
+        if (mode !== previous || visitors !== previousVisitors) {
+            if (mode === 'off') {
+                try { sessionStorage.setItem(declinedInTabKey, '1'); } catch {}
+            }
+            setBannerOpen(!mode);
+        }
     });
 
     function clickTarget(el) {
@@ -492,7 +518,7 @@
         resetBackground();
         pageRecorded = false;
         showPreference();
-        setBannerOpen(!mode);
+        setBannerOpen(needsPrivacyChoice());
         if (visibility === 'visible') start({restored:true});
     });
 
@@ -558,6 +584,6 @@
     });
     showPreference();
     preferencesButton.hidden = false;
-    setBannerOpen(!mode);
+    setBannerOpen(needsPrivacyChoice());
     start();
 })();
