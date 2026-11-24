@@ -2,6 +2,7 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/app/config/site.php';
+require_once __DIR__ . '/app/lib/site_daily_totals.php';
 require_once __DIR__ . '/app/lib/functions.php';
 require_once __DIR__ . '/app/lib/contact_form.php';
 require_once __DIR__ . '/app/lib/online_quote.php';
@@ -23,6 +24,8 @@ if (starts_with($earlyPath, '/media/')) {
 }
 
 session_start();
+if (($_GET['live'] ?? '') === '1') $_SESSION['report_preview'] = true;
+if (($_GET['live'] ?? '') === '0') unset($_SESSION['report_preview']);
 
 dashboard_bootstrap_storage($siteConfig);
 
@@ -373,3 +376,6 @@ if ($page === null) {
 }
 
 render_layout($siteConfig, $page);
+if ($_SERVER['REQUEST_METHOD'] === 'GET' && !in_array($page['view'], ['404', 'dashboard'], true)) {
+    site_daily_count('pages');
+}

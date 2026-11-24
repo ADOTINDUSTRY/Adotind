@@ -2,6 +2,7 @@
 declare(strict_types=1);
 
 require __DIR__ . '/../../app/lib/quote_system.php';
+function site_daily_count(string $metric): void {}
 
 function online_quote_unlocked(): bool { return true; }
 function csrf_valid($token): bool { return true; }

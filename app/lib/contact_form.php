@@ -73,6 +73,7 @@ function handle_contact_submit(array $siteConfig): never
     }
 
     if ($uploadError !== '') {
+        site_daily_count('file_error');
         $errors['project_file'] = $uploadError;
     }
 
@@ -111,7 +112,8 @@ function handle_contact_submit(array $siteConfig): never
     if (!is_dir($logDir)) {
         mkdir($logDir, 0755, true);
     }
-    file_put_contents($logDir . '/inquiries.log', $logLine . PHP_EOL, FILE_APPEND);
+    $saved = file_put_contents($logDir . '/inquiries.log', $logLine . PHP_EOL, FILE_APPEND);
+    if ($saved !== false || $mailSent) site_daily_count('inquiry');
 
     if ($mailSent) {
         flash_set('form_success', 'Thank you. Your inquiry was sent successfully.');

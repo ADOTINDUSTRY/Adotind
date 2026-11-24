@@ -796,6 +796,9 @@ function quote_build_estimate(array $machine, array $material, array $rate, arra
 
 function online_quote_fail(string $message, string $reason): never
 {
+    if (in_array($reason, ['upload_failed','file_save_failed','file_too_large','drawing_unreadable','unsupported_format'], true)) {
+        site_daily_count('file_error');
+    }
     flash_set('online_quote_error', $message);
     flash_set('online_quote_error_reason', $reason);
     redirect('/online-quote', 303);
@@ -915,6 +918,7 @@ function handle_online_quote_calculate(array $siteConfig): never
         'warnings' => $warnings,
         'estimate' => $estimate,
     ];
+    site_daily_count('estimate');
     flash_set('online_quote_success', 'Quote calculated successfully.');
     redirect('/online-quote', 303);
 }
@@ -983,6 +987,7 @@ function handle_online_quote_book(array $siteConfig): never
     @mail((string)$siteConfig['email'], $subject, $body, "From: noreply@adotind.com\r\nReply-To: {$customer['email']}\r\n");
 
     $_SESSION['online_quote_result'] = null;
+    site_daily_count('order');
     flash_set('online_quote_success', 'Order request booked successfully. Our team will contact you.');
     redirect('/online-quote', 303);
 }

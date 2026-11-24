@@ -170,16 +170,21 @@
             const visitor = visitors ? await getDailyVisitor(now) : null;
             if (generation !== preferenceGeneration || readPreference().mode !== mode) return;
             state = JSON.parse(sessionStorage.getItem(sessionKey) || 'null');
+            const landing = visitor && isLanding ? landingSource() : {};
+            const tag = landing.medium === 'paid' ? new URLSearchParams(location.search).get('utm_id') : '';
+            if (/^ad-[1-9][0-9]{0,7}$/.test(tag || '')) landing.campaign = tag;
+            const campaignKey = landing.campaign ? landing.source + ':' + landing.campaign : '';
             if (!state || !/^[a-f0-9]{32}$/.test(state.id) || !Number.isFinite(state.time)
                 || now - state.time >= 1800000 || now < state.time
+                || (campaignKey && state.campaignKey !== campaignKey)
                 || (state.visitorDay || '') !== (visitor?.day || '')) {
-                state = {id:randomId(), seq:0, visitorDay:visitor?.day || ''};
+                state = {id:randomId(), seq:0, visitorDay:visitor?.day || '', campaignKey};
                 newSession = true;
             }
             state.seq = Number.isSafeInteger(state.seq) && state.seq >= 0 ? state.seq : 0;
             const events = [];
             if (newSession && event.type !== 'page') events.push({type:'page', at:now, seq:++state.seq});
-            const acquisition = visitor && newSession && isLanding ? landingSource() : {};
+            const acquisition = newSession ? landing : {};
             if (acquisition.source && panel.dataset.trackingPageSlug) acquisition.landing_slug = panel.dataset.trackingPageSlug;
             events.push({...event, ...acquisition, at:occurredAt, seq:++state.seq});
             state.time = now;
@@ -191,6 +196,7 @@
                 referrerPolicy:'no-referrer',
                 body:JSON.stringify({
                     session:state.id, page, device, mode, sent_at:now, events,
+                    audience:document.documentElement.dataset.livePreview === '1' || panel.dataset.testing === '1' ? 'testing' : 'public',
                     ...(visitor ? {visitor:visitor.id, visitor_day:visitor.day} : {})
                 }),
                 keepalive:true

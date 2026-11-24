@@ -116,7 +116,7 @@ $trackingEnabled = is_writable('/var/www/site-tracking') && ($page['view'] ?? ''
     <?php endif; ?>
     <?php if ($trackingEnabled): ?>
     <?php $trackingPageSlug = $page['service']['slug'] ?? $page['project']['slug'] ?? ''; ?>
-    <aside id="tracking-consent-banner" class="tracking-consent-banner" data-site-tracking="<?= e($page['view'] ?? '') ?>" data-tracking-page-slug="<?= e($trackingPageSlug) ?>" aria-labelledby="tracking-consent-title" aria-describedby="tracking-consent-description" hidden>
+    <aside id="tracking-consent-banner" class="tracking-consent-banner" data-site-tracking="<?= e($page['view'] ?? '') ?>" data-testing="<?= !empty($_SESSION['online_quote_unlocked']) || !empty($_SESSION['report_preview']) ? '1' : '0' ?>" data-tracking-page-slug="<?= e($trackingPageSlug) ?>" aria-labelledby="tracking-consent-title" aria-describedby="tracking-consent-description" hidden>
       <div>
         <h2 id="tracking-consent-title" tabindex="-1">Your privacy choices</h2>
         <p id="tracking-consent-description">Optional analytics helps us understand how people find and use this site. We count browsers using an identifier that changes daily and record actions, where you click or tap on a page, errors, and approximate country. We store only a shortened IP address and exclude what you type and the names and contents of uploaded files. A Dot Industry collects these analytics directly on this site to improve it.</p>
@@ -144,6 +144,15 @@ $trackingEnabled = is_writable('/var/www/site-tracking') && ($page['view'] ?? ''
             // The explicit preview URL still works when tab storage is unavailable.
           }
           if (!enabled) return;
+          document.documentElement.dataset.livePreview = '1';
+          document.querySelectorAll('form[method="post" i]').forEach(form => {
+            if (new URL(form.action).origin !== location.origin) return;
+            const flag = document.createElement('input');
+            flag.type = 'hidden';
+            flag.name = 'live_preview';
+            flag.value = '1';
+            form.append(flag);
+          });
           const currentBuild = <?= json_encode(trim(file_get_contents($buildFile)), JSON_HEX_TAG) ?>;
           async function checkBuild() {
             try {

@@ -74,6 +74,7 @@ function site_tracking_collect(string $directory, string $origin): never
             'session' => $data['session'], 'page' => $data['page'], 'type' => $type, 'device' => $device,
         ];
         $seq = $event['seq'] ?? null;
+        if (in_array($data['audience'] ?? null, ['public','testing'], true)) $row['audience'] = $data['audience'];
         if (is_int($seq) && $seq > 0 && $seq <= 1000000) $row['seq'] = $seq;
         if ($visitorDay !== null && $cyprusNow->setTimestamp(intdiv($at, 1000))->format('Y-m-d') === $visitorDay) {
             $row['visitor'] = $visitor;
@@ -93,6 +94,8 @@ function site_tracking_collect(string $directory, string $origin): never
                 if (in_array($source, $sources, true)) {
                     $row['source'] = $source;
                     if (in_array($event['medium'] ?? null, $media, true)) $row['medium'] = $event['medium'];
+                    if (($row['medium'] ?? '') === 'paid' && is_string($event['campaign'] ?? null)
+                        && preg_match('/^ad-[1-9][0-9]{0,7}$/D', $event['campaign'])) $row['campaign'] = $event['campaign'];
                     $landingDetail = site_tracking_destination_detail($data['page'], $event['landing_slug'] ?? null);
                     if ($landingDetail !== null) $row['landing_detail'] = $landingDetail;
                 }
