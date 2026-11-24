@@ -110,5 +110,18 @@ $jsVersion = is_file($jsPath) ? (string)filemtime($jsPath) : '1';
     <?php $quoteJsPath = __DIR__ . '/../../public/assets/js/quote-preview.js'; ?>
     <script src="/public/assets/js/quote-preview.js?v=<?= e(is_file($quoteJsPath) ? (string)filemtime($quoteJsPath) : '1') ?>" defer></script>
     <?php endif; ?>
+    <?php if (is_writable('/var/www/site-tracking') && ($page['view'] ?? '') !== 'dashboard'): ?>
+    <aside class="container" data-site-tracking="<?= e($page['view'] ?? '') ?>">
+      <details>
+        <summary>Website analytics preferences</summary>
+        <p>Help improve this site by sharing usage and error statistics. Optional replay records page layout and interactions and excludes text you type and files you upload.</p>
+        <button type="button" data-tracking-choice="off">Decline</button>
+        <button type="button" data-tracking-choice="analytics">Allow analytics</button>
+        <button type="button" data-tracking-choice="replay">Allow analytics and replay</button>
+        <span role="status"></span>
+      </details>
+    </aside>
+    <script src="/public/assets/js/site-tracking.js?v=<?= e((string)filemtime(__DIR__ . '/../../public/assets/js/site-tracking.js')) ?>" defer></script>
+    <?php endif; ?>
   </body>
 </html>

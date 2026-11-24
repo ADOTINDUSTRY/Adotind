@@ -10,6 +10,10 @@ require_once __DIR__ . '/app/lib/dashboard.php';
 
 // Serve media as early as possible: no session, no bootstrap work for image requests.
 $earlyPath = parse_url($_SERVER['REQUEST_URI'] ?? '/', PHP_URL_PATH) ?: '/';
+if ($earlyPath === '/site-tracking/events') {
+    require_once __DIR__ . '/app/lib/site_tracking.php';
+    site_tracking_collect('/var/www/site-tracking', rtrim((string)($siteConfig['base_url'] ?? ''), '/'));
+}
 if (starts_with($earlyPath, '/media/')) {
     dashboard_serve_media($siteConfig, basename($earlyPath));
 }

@@ -15,6 +15,9 @@ $currency = (string)($settings['currency_symbol'] ?? '€');
 $waBase = (string)($siteConfig['whatsapp'] ?? '');
 $viberBase = (string)($siteConfig['viber'] ?? '');
 ?>
+<?php if ($quoteError || $quoteSuccess): ?>
+<div hidden data-tracking-outcome="<?= $quoteError ? 'quote_error' : (str_starts_with($quoteSuccess, 'Order request') ? 'order_requested' : 'price_shown') ?>"></div>
+<?php endif; ?>
 <section class="page-hero quote-hero">
   <div class="container quote-hero-inner">
     <div>
