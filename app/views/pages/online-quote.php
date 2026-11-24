@@ -81,14 +81,50 @@ $viberBase = (string)($siteConfig['viber'] ?? '');
     <?php if (is_string($quoteError)): ?><p class="alert alert-error"><?= e($quoteError) ?></p><?php endif; ?>
 
     <section class="quote-card quote-start" hidden>
-      <h2 tabindex="-1">What would you like to do?</h2>
-      <div class="quote-choices">
-        <button type="button" class="btn" data-quote-path="drawing">Get a price for a DXF drawing</button>
-        <button type="button" class="btn" data-quote-path="picture">Preview a cut line from a picture</button>
-        <a href="/contact">I need help planning my project</a>
+      <h2 tabindex="-1">What would you like to make?</h2>
+      <div class="quote-form project-picker">
+        <label for="project-search">Find a project</label>
+        <input id="project-search" type="search" placeholder="Search projects, e.g. neon sign" autocomplete="off" />
+        <div class="project-options">
+          <?php foreach (require __DIR__ . '/../../data/quote-projects.php' as $id => $project): ?>
+          <button type="button" data-quote-path="<?= e($id) ?>" data-keywords="<?= e($project['keywords']) ?>">
+            <strong><?= e($project['name']) ?></strong><span><?= e($project['description']) ?></span>
+          </button>
+          <?php endforeach; ?>
+        </div>
+        <p id="project-empty" role="status" hidden>No matching projects. Try another word or use the project guide below.</p>
+        <button type="button" class="project-help" data-quote-path="guide">Help me choose a project</button>
       </div>
     </section>
     <button type="button" class="quote-back" hidden>&larr; Back</button>
+    <section class="quote-card quote-form" data-project-panel="guide" hidden>
+      <h2>What do you have in mind?</h2>
+      <label>Choose the closest description
+        <select id="guide-answer">
+          <option value="">Choose an option</option>
+          <option value="neon">I want a name or message that lights up</option>
+          <option value="drawing">I have a technical drawing and need pieces cut</option>
+          <option value="picture">I have a picture and want to cut its shape</option>
+          <option value="unsure">Something else, or I’m not sure</option>
+        </select>
+      </label>
+      <div id="guide-response" aria-live="polite"></div>
+      <button type="button" id="guide-open" class="btn" hidden>Open project</button>
+    </section>
+    <section class="quote-card quote-form" data-project-panel="neon" hidden>
+      <h2>Design your neon sign</h2>
+      <label>What should your sign say?
+        <input id="neon-text" maxlength="60" placeholder="Your sign text" data-private />
+      </label>
+      <label>Lettering
+        <select id="neon-font"><option value="sans-serif">Modern</option><option value="cursive">Script</option><option value="serif">Classic</option></select>
+      </label>
+      <label>Light colour
+        <select id="neon-colour"><option value="#ff90cc">Pink</option><option value="#ffe7ab">Warm white</option><option value="#8adfff">Ice blue</option><option value="#aeffa1">Green</option></select>
+      </label>
+      <div class="neon-preview" aria-label="Neon lettering preview"><span id="neon-preview-text">Your sign text</span></div>
+      <p>Design preview only. Pricing and ordering for neon signs are in development.</p>
+    </section>
     <details class="quote-card quote-artwork" data-tracking-section="artwork-preview">
       <summary>Starting with a photo or logo?</summary>
       <div class="quote-form">

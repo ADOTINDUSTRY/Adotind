@@ -7,7 +7,9 @@
   const back = workspace.querySelector('.quote-back');
   const stages = [...form.querySelectorAll('.quote-stage')];
   const results = [...workspace.querySelectorAll('.quote-result-card, .quote-booking-card')];
-  const previous = {drawing: 'start', picture: 'start', material: 'drawing', parts: 'material', result: 'start'};
+  const projects = [...start.querySelectorAll('[data-keywords]')];
+  const panels = [...workspace.querySelectorAll('[data-project-panel]')];
+  const history = [];
   let active;
 
   function show(name, focus = true) {
@@ -19,9 +21,10 @@
     back.hidden = name === 'start';
     back.textContent = name === 'result' ? 'Start another project' : '← Back';
     stages.forEach(stage => { stage.hidden = stage.dataset.stage !== name; });
+    panels.forEach(panel => { panel.hidden = panel.dataset.projectPanel !== name; });
     results.forEach(card => { card.hidden = name !== 'result'; });
     if (focus) {
-      const panel = [start, picture, ...stages, ...results].find(el => !el.hidden);
+      const panel = [start, picture, ...panels, ...stages, ...results].find(el => !el.hidden);
       const heading = panel?.querySelector('h2, h3');
       if (heading) {
         heading.tabIndex = -1;
@@ -30,10 +33,53 @@
     }
   }
 
+  function go(name) {
+    history.push(active);
+    show(name);
+  }
   start.querySelectorAll('[data-quote-path]').forEach(button => {
-    button.addEventListener('click', () => show(button.dataset.quotePath));
+    button.addEventListener('click', () => go(button.dataset.quotePath));
   });
-  back.addEventListener('click', () => show(previous[active]));
+  back.addEventListener('click', () => show(history.pop() || 'start'));
+  const search = start.querySelector('#project-search');
+  search.addEventListener('input', () => {
+    const terms = search.value.trim().toLowerCase().split(/\s+/);
+    projects.forEach(button => {
+      const text = (button.textContent + ' ' + button.dataset.keywords).toLowerCase();
+      button.hidden = !terms.every(term => text.includes(term));
+    });
+    start.querySelector('#project-empty').hidden = projects.some(button => !button.hidden);
+  });
+  const answer = workspace.querySelector('#guide-answer');
+  const open = workspace.querySelector('#guide-open');
+  answer.addEventListener('change', () => {
+    const project = projects.find(button => button.dataset.quotePath === answer.value);
+    const response = workspace.querySelector('#guide-response');
+    response.textContent = project ? project.querySelector('span').textContent : '';
+    if (answer.value === 'unsure') {
+      response.textContent = 'This tester supports illuminated text, cutting from a DXF, and tracing a picture. You can ';
+      const link = document.createElement('a');
+      link.href = '/contact';
+      link.textContent = 'describe a different project to our team';
+      response.append(link, '.');
+    }
+    open.hidden = !project;
+    if (project) open.textContent = 'Open ' + project.querySelector('strong').textContent;
+  });
+  open.addEventListener('click', () => go(answer.value));
+  const neonText = workspace.querySelector('#neon-text');
+  const neonFont = workspace.querySelector('#neon-font');
+  const neonColour = workspace.querySelector('#neon-colour');
+  const neonPreview = workspace.querySelector('#neon-preview-text');
+  function drawNeon() {
+    neonPreview.textContent = neonText.value.trim() || neonText.placeholder;
+    neonPreview.style.fontFamily = neonFont.value;
+    neonPreview.style.color = neonColour.value;
+  }
+  neonText.addEventListener('input', drawNeon);
+  neonFont.addEventListener('change', drawNeon);
+  neonColour.addEventListener('change', drawNeon);
+  drawNeon();
   const drawing = form.elements.vector_file;
   const contents = form.elements.drawing_contents;
   function validateDrawing() {
@@ -52,7 +98,7 @@
       if (!field.reportValidity()) return false;
     }
     const next = stage.querySelector('[data-next]');
-    if (next) show(next.dataset.next);
+    if (next) go(next.dataset.next);
     return !next;
   }
   form.querySelectorAll('[data-next]').forEach(button => {

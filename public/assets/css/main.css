@@ -1884,6 +1884,18 @@ p {
   padding: 0.5rem 0;
 }
 .quote-next { justify-self: start; }
+.project-picker { margin-top: 1.3rem; }
+.project-options { display: grid; gap: .5rem; max-height: 22rem; overflow-y: auto; }
+.project-options button {
+  border: 1px solid #becbdd; border-radius: 8px; background: #fff; color: #152746;
+  padding: .85rem 1rem; text-align: left; font: inherit; cursor: pointer;
+}
+.project-options button:hover, .project-options button:focus-visible { background: #eef4ff; border-color: #5575a8; }
+.project-options strong, .project-options span { display: block; }
+.project-options span { color: #455671; font-size: .9rem; }
+.project-help { justify-self: start; padding: .6rem 0; background: none; border: 0; text-decoration: underline; color: #273e83; font: inherit; cursor: pointer; }
+.neon-preview { display: grid; place-items: center; min-height: 12rem; padding: 2rem; background: #10131d; border-radius: 10px; }
+#neon-preview-text { max-width: 100%; overflow-wrap: anywhere; text-align: center; font-size: clamp(2rem, 5vw, 4rem); text-shadow: 0 0 4px currentColor, 0 0 16px currentColor; }
 .quote-workspace [hidden] { display: none !important; }
 .quote-artwork[open] summary { margin-bottom: 1rem; }
 #artwork-controls:not([hidden]) { display: grid; gap: 1rem; }
