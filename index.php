@@ -376,6 +376,6 @@ if ($page === null) {
 }
 
 render_layout($siteConfig, $page);
-if ($_SERVER['REQUEST_METHOD'] === 'GET' && !in_array($page['view'], ['404', 'dashboard'], true)) {
+if ($_SERVER['REQUEST_METHOD'] === 'GET' && !in_array($page['view'], ['404', 'dashboard'], true) && !site_daily_is_local_probe($_SERVER)) {
     site_daily_count('pages');
 }

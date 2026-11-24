@@ -1,6 +1,15 @@
 <?php
 declare(strict_types=1);
 
+// Coolify checks the homepage through the container's loopback interface.
+function site_daily_is_local_probe(array $server): bool
+{
+    return in_array($server['REMOTE_ADDR'] ?? '', ['127.0.0.1', '::1', '::ffff:127.0.0.1'], true)
+        && in_array(strtolower($server['HTTP_HOST'] ?? ''), ['localhost', 'localhost:80'], true)
+        && ($server['REQUEST_URI'] ?? '') === '/'
+        && preg_match('~^(curl|wget)/~i', $server['HTTP_USER_AGENT'] ?? '') === 1;
+}
+
 // Operational counters contain only the Cyprus date, outcome and number of occurrences.
 function site_daily_count(string $metric): void
 {
