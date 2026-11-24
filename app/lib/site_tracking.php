@@ -20,11 +20,11 @@ function site_tracking_collect(string $directory, string $origin): never
         'order_requested', 'client_error', 'slow_page', 'contact_sent', 'contact_error',
         'quote_updates_requested', 'quote_updates_error', 'quote_preview_ready', 'quote_preview_error', 'quote_blocked',
     ];
-    $activity = ['click', 'form_submitted', 'scroll_depth', 'page_backgrounded', 'page_resumed', 'upload_removed'];
+    $activity = ['click', 'form_submitted', 'scroll_depth', 'scroll_movement', 'page_backgrounded', 'page_resumed', 'upload_removed'];
     $clickTargets = [
         'navigation', 'service', 'project', 'contact', 'quote', 'phone', 'email', 'whatsapp',
         'viber', 'directions', 'quote_file_guide', 'drawing_preview', 'menu', 'portfolio_filter',
-        'drawing_picker', 'attachment_picker', 'link', 'button',
+        'drawing_picker', 'attachment_picker', 'link', 'button', 'menu_open', 'menu_close',
     ];
     $formTargets = ['contact_form', 'quote_updates', 'quote_order'];
     $pages = ['home', 'about', 'services', 'service-detail', 'portfolio', 'project-detail', 'machinery', 'materials', 'industries', 'contact', 'online-quote', '404'];
@@ -79,6 +79,21 @@ function site_tracking_collect(string $directory, string $origin): never
             if (!in_array($target, $type === 'click' ? $clickTargets : $formTargets, true)) continue;
             $row['target'] = $target;
         }
+        if ($type === 'click') {
+            $destination = $event['destination'] ?? '';
+            if (in_array($destination, $pages, true) && $destination !== '404') {
+                $row['destination'] = $destination;
+                $detail = site_tracking_destination_detail($destination, $event['destination_slug'] ?? null);
+                if ($detail !== null) $row['destination_detail'] = $detail;
+            }
+        }
+        if ($type === 'scroll_movement') {
+            $direction = $event['direction'] ?? '';
+            $depth = $event['depth'] ?? null;
+            if (!in_array($direction, ['up', 'down'], true) || !is_int($depth) || $depth < 0 || $depth > 100) continue;
+            $row['direction'] = $direction;
+            $row['depth'] = $depth;
+        }
         if ($type === 'scroll_depth') {
             if (!in_array($event['depth'] ?? 0, [25, 50, 75, 100], true)) continue;
             $row['depth'] = $event['depth'];
@@ -103,4 +118,18 @@ function site_tracking_collect(string $directory, string $origin): never
     }
     fclose($file);
     $fail($written ? 204 : 429);
+}
+
+function site_tracking_destination_detail(string $destination, mixed $slug): ?string
+{
+    if (!in_array($destination, ['service-detail', 'project-detail'], true)
+        || !is_string($slug) || !preg_match('/^[a-z0-9-]{1,80}$/D', $slug)) return null;
+
+    static $namesByDestination = [];
+    if (!isset($namesByDestination[$destination])) {
+        $isService = $destination === 'service-detail';
+        $items = require __DIR__ . ($isService ? '/../data/services.php' : '/../data/projects.php');
+        $namesByDestination[$destination] = array_column($items, $isService ? 'name' : 'title', 'slug');
+    }
+    return $namesByDestination[$destination][$slug] ?? null;
 }
