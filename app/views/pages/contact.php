@@ -6,6 +6,9 @@ $old = flash_get('form_old', []);
 $services = require __DIR__ . '/../../data/services.php';
 $heroMedia = $page['hero_media'] ?? [];
 ?>
+<?php if ($successMessage || $errorMessage): ?>
+<div hidden data-tracking-outcome="<?= $successMessage ? 'contact_sent' : 'contact_error' ?>"></div>
+<?php endif; ?>
 <section class="page-hero">
   <div class="container">
     <p class="eyebrow">Contact & Request a Quote</p>

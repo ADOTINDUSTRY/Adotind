@@ -4,6 +4,7 @@ $pinSuccess = flash_get('online_quote_pin_success');
 $updatesError = flash_get('online_quote_updates_error');
 $updatesSuccess = flash_get('online_quote_updates_success');
 $quoteError = flash_get('online_quote_error');
+$quoteErrorReason = flash_get('online_quote_error_reason', '');
 $quoteSuccess = flash_get('online_quote_success');
 $unlocked = !empty($page['quote_unlocked']);
 $quoteData = $page['quote_data'] ?? ['machines' => [], 'materials' => [], 'rates' => [], 'settings' => []];
@@ -16,7 +17,10 @@ $waBase = (string)($siteConfig['whatsapp'] ?? '');
 $viberBase = (string)($siteConfig['viber'] ?? '');
 ?>
 <?php if ($quoteError || $quoteSuccess): ?>
-<div hidden data-tracking-outcome="<?= $quoteError ? 'quote_error' : (str_starts_with($quoteSuccess, 'Order request') ? 'order_requested' : 'price_shown') ?>"></div>
+<div hidden data-tracking-outcome="<?= $quoteError ? 'quote_error' : (str_starts_with($quoteSuccess, 'Order request') ? 'order_requested' : 'price_shown') ?>" data-tracking-reason="<?= e((string)$quoteErrorReason) ?>"></div>
+<?php endif; ?>
+<?php if ($updatesError || $updatesSuccess): ?>
+<div hidden data-tracking-outcome="<?= $updatesError ? 'quote_updates_error' : 'quote_updates_requested' ?>"></div>
 <?php endif; ?>
 <section class="page-hero quote-hero">
   <div class="container quote-hero-inner">

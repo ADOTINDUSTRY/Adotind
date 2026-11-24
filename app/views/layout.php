@@ -114,10 +114,9 @@ $jsVersion = is_file($jsPath) ? (string)filemtime($jsPath) : '1';
     <aside class="container" data-site-tracking="<?= e($page['view'] ?? '') ?>">
       <details>
         <summary>Website analytics preferences</summary>
-        <p>Help improve this site by sharing usage and error statistics. Optional replay records page layout and interactions and excludes text you type and files you upload.</p>
+        <p>Help improve this site by sharing the pages you visit, buttons you use, and any errors you encounter. We exclude what you type and the names and contents of uploaded files.</p>
         <button type="button" data-tracking-choice="off">Decline</button>
-        <button type="button" data-tracking-choice="analytics">Allow analytics</button>
-        <button type="button" data-tracking-choice="replay">Allow analytics and replay</button>
+        <button type="button" data-tracking-choice="activity">Allow activity tracking</button>
         <span role="status"></span>
       </details>
     </aside>

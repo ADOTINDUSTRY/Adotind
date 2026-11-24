@@ -25,6 +25,9 @@
   const vendorUrl = new URL('quote-vendor/preview.js?v=3', document.currentScript.src).href;
   let dispose = null;
   let selection = 0;
+  function report(type, reason = '') {
+    document.dispatchEvent(new CustomEvent('site-tracking:quote-preview', {detail:{type,reason}}));
+  }
 
   software.addEventListener('change', () => {
     const help = {
@@ -42,6 +45,7 @@
   form.addEventListener('submit', (event) => {
     if (drawingContents.value !== 'single') {
       event.preventDefault();
+      report('quote_blocked', 'manual_quote_required');
       partsHelp.textContent = 'Please contact us for help with multiple parts or if you are unsure. We will review the drawing and sheet requirements.';
       drawingContents.focus();
     }
@@ -80,6 +84,7 @@
     size.textContent = `File size: ${(file.size / (1024 * 1024)).toFixed(2)} MB`;
     if (file.size > 50 * 1024 * 1024) {
       message.textContent = 'This file exceeds the 50 MB upload limit. Please choose a smaller file.';
+      report('quote_preview_error', 'file_too_large');
       return;
     }
     if (file.name.split('.').pop().toLowerCase() !== 'dxf') {
@@ -107,9 +112,11 @@
       previewLength.textContent = result.measurements.pathLength;
       measurements.hidden = false;
       message.textContent = result.message;
+      report('quote_preview_ready');
     } catch (error) {
       if (current !== selection) return;
       console.error('DXF preview failed:', error);
+      report('quote_preview_error', 'drawing_unreadable');
       imageBox.hidden = true;
       if (dialog.open) dialog.close();
       message.textContent = 'We could not open this drawing for preview. Please contact us and share the DXF file so we can help.';

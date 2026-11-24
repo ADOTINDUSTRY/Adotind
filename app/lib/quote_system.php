@@ -794,23 +794,27 @@ function quote_build_estimate(array $machine, array $material, array $rate, arra
     ];
 }
 
+function online_quote_fail(string $message, string $reason): never
+{
+    flash_set('online_quote_error', $message);
+    flash_set('online_quote_error_reason', $reason);
+    redirect('/online-quote', 303);
+}
+
 function handle_online_quote_calculate(array $siteConfig): never
 {
     if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
         redirect('/online-quote', 303);
     }
     if (!online_quote_unlocked()) {
-        flash_set('online_quote_error', 'Please unlock the quote page with the PIN first.');
-        redirect('/online-quote', 303);
+        online_quote_fail('Please unlock the quote page with the PIN first.', 'access_required');
     }
     if (!csrf_valid($_POST['csrf_token'] ?? null)) {
-        flash_set('online_quote_error', 'Security validation failed. Please try again.');
-        redirect('/online-quote', 303);
+        online_quote_fail('Security validation failed. Please try again.', 'validation_failed');
     }
 
     if (($_POST['drawing_contents'] ?? '') !== 'single') {
-        flash_set('online_quote_error', 'For multiple parts or if you are unsure, please contact us so we can review your drawing and sheet requirements.');
-        redirect('/online-quote', 303);
+        online_quote_fail('For multiple parts or if you are unsure, please contact us so we can review your drawing and sheet requirements.', 'manual_quote_required');
     }
 
     $machineId = (int)($_POST['machine_id'] ?? 0);
@@ -818,31 +822,26 @@ function handle_online_quote_calculate(array $siteConfig): never
     $partW = filter_var($_POST['part_width_mm'] ?? null, FILTER_VALIDATE_FLOAT);
     $partH = filter_var($_POST['part_height_mm'] ?? null, FILTER_VALIDATE_FLOAT);
     if ($partW === false || $partH === false || !is_finite($partW) || !is_finite($partH) || $partW < 1 || $partH < 1) {
-        flash_set('online_quote_error', 'Please enter a part width and height of at least 1 mm.');
-        redirect('/online-quote', 303);
+        online_quote_fail('Please enter a part width and height of at least 1 mm.', 'invalid_dimensions');
     }
     $qty = max(1, (int)($_POST['quantity'] ?? 1));
     $note = trim((string)($_POST['note'] ?? ''));
 
     if (!isset($_FILES['vector_file']) || !is_array($_FILES['vector_file'])) {
-        flash_set('online_quote_error', 'Please upload a vector file first.');
-        redirect('/online-quote', 303);
+        online_quote_fail('Please upload a vector file first.', 'file_missing');
     }
     $file = $_FILES['vector_file'];
     if ((int)$file['error'] !== UPLOAD_ERR_OK) {
-        flash_set('online_quote_error', 'Vector file upload failed. Please try again.');
-        redirect('/online-quote', 303);
+        online_quote_fail('Vector file upload failed. Please try again.', 'upload_failed');
     }
 
     $name = basename((string)$file['name']);
     $ext = strtolower(pathinfo($name, PATHINFO_EXTENSION));
     if ($ext !== 'dxf') {
-        flash_set('online_quote_error', 'Please upload a DXF drawing. Contact us if you need help creating one.');
-        redirect('/online-quote', 303);
+        online_quote_fail('Please upload a DXF drawing. Contact us if you need help creating one.', 'unsupported_format');
     }
     if ((int)$file['size'] > 50 * 1024 * 1024) {
-        flash_set('online_quote_error', 'File too large. Maximum size is 50MB.');
-        redirect('/online-quote', 303);
+        online_quote_fail('File too large. Maximum size is 50MB.', 'file_too_large');
     }
 
     $dir = rtrim((string)($siteConfig['inquiries_dir'] ?? (__DIR__ . '/../../storage/inquiries')), '/') . '/quote-files';
@@ -852,8 +851,7 @@ function handle_online_quote_calculate(array $siteConfig): never
     $stored = date('Ymd-His') . '-' . bin2hex(random_bytes(4)) . '.' . $ext;
     $path = $dir . '/' . $stored;
     if (!move_uploaded_file((string)$file['tmp_name'], $path)) {
-        flash_set('online_quote_error', 'Could not save the uploaded vector file.');
-        redirect('/online-quote', 303);
+        online_quote_fail('Could not save the uploaded vector file.', 'file_save_failed');
     }
 
     $db = quote_db($siteConfig);
@@ -864,29 +862,25 @@ function handle_online_quote_calculate(array $siteConfig): never
     $material->execute([$materialId]);
     $material = $material->fetch();
     if (!is_array($machine) || !is_array($material)) {
-        flash_set('online_quote_error', 'Invalid machine or material selection.');
-        redirect('/online-quote', 303);
+        online_quote_fail('Invalid machine or material selection.', 'invalid_options');
     }
 
     $rate = $db->prepare('SELECT * FROM quote_machine_materials WHERE machine_id = ? AND material_id = ? AND active = 1');
     $rate->execute([(int)$machine['id'], (int)$material['id']]);
     $rate = $rate->fetch();
     if (!is_array($rate)) {
-        flash_set('online_quote_error', 'Cutting speed is not configured for this machine/material pair yet.');
-        redirect('/online-quote', 303);
+        online_quote_fail('Cutting speed is not configured for this machine/material pair yet.', 'pricing_not_configured');
     }
 
     $warnings = [];
     try {
         $vectorLength = quote_measure_vector_mm($path, $ext, $warnings);
     } catch (Throwable $e) {
-        flash_set('online_quote_error', 'We could not read vector geometry from this file: ' . $e->getMessage());
-        redirect('/online-quote', 303);
+        online_quote_fail('We could not read vector geometry from this file: ' . $e->getMessage(), 'drawing_unreadable');
     }
 
     if ($vectorLength === null) {
-        flash_set('online_quote_error', 'This file type is accepted, but instant line-length measurement is available for SVG and DXF only. Please upload SVG or DXF for instant price.');
-        redirect('/online-quote', 303);
+        online_quote_fail('This file type is accepted, but instant line-length measurement is available for SVG and DXF only. Please upload SVG or DXF for instant price.', 'unsupported_format');
     }
 
     $settings = quote_settings($siteConfig);
@@ -898,8 +892,7 @@ function handle_online_quote_calculate(array $siteConfig): never
             'quantity' => $qty,
         ]);
     } catch (RuntimeException $e) {
-        flash_set('online_quote_error', $e->getMessage());
-        redirect('/online-quote', 303);
+        online_quote_fail($e->getMessage(), 'quote_unavailable');
     }
 
     $token = bin2hex(random_bytes(16));
@@ -932,19 +925,16 @@ function handle_online_quote_book(array $siteConfig): never
         redirect('/online-quote', 303);
     }
     if (!online_quote_unlocked()) {
-        flash_set('online_quote_error', 'Please unlock the quote page first.');
-        redirect('/online-quote', 303);
+        online_quote_fail('Please unlock the quote page first.', 'access_required');
     }
     if (!csrf_valid($_POST['csrf_token'] ?? null)) {
-        flash_set('online_quote_error', 'Security validation failed. Please try again.');
-        redirect('/online-quote', 303);
+        online_quote_fail('Security validation failed. Please try again.', 'validation_failed');
     }
 
     $result = $_SESSION['online_quote_result'] ?? null;
     $token = trim((string)($_POST['quote_token'] ?? ''));
     if (!is_array($result) || $token === '' || !hash_equals((string)($result['token'] ?? ''), $token)) {
-        flash_set('online_quote_error', 'Quote session expired. Please calculate again.');
-        redirect('/online-quote', 303);
+        online_quote_fail('Quote session expired. Please calculate again.', 'quote_expired');
     }
 
     $customer = [
@@ -954,12 +944,10 @@ function handle_online_quote_book(array $siteConfig): never
         'message' => trim((string)($_POST['message'] ?? '')),
     ];
     if ($customer['name'] === '' || $customer['phone'] === '' || $customer['email'] === '') {
-        flash_set('online_quote_error', 'Please fill your name, email and phone.');
-        redirect('/online-quote', 303);
+        online_quote_fail('Please fill your name, email and phone.', 'contact_details_incomplete');
     }
     if (filter_var($customer['email'], FILTER_VALIDATE_EMAIL) === false) {
-        flash_set('online_quote_error', 'Please enter a valid email address.');
-        redirect('/online-quote', 303);
+        online_quote_fail('Please enter a valid email address.', 'invalid_email');
     }
 
     $db = quote_db($siteConfig);

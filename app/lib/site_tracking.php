@@ -15,11 +15,32 @@ function site_tracking_collect(string $directory, string $origin): never
         || !preg_match('/^[a-f0-9]{32}$/D', $data['session'])
         || !is_array($data['events'] ?? null) || count($data['events']) > 20) $fail(400);
 
-    $types = ['page', 'click', 'scroll', 'layout', 'upload', 'unsupported_upload', 'quote_started', 'price_shown', 'quote_error', 'order_requested', 'client_error', 'slow_page'];
+    $analytics = [
+        'page', 'upload', 'unsupported_upload', 'quote_started', 'price_shown', 'quote_error',
+        'order_requested', 'client_error', 'slow_page', 'contact_sent', 'contact_error',
+        'quote_updates_requested', 'quote_updates_error', 'quote_preview_ready', 'quote_preview_error', 'quote_blocked',
+    ];
+    $activity = ['click', 'form_submitted', 'scroll_depth', 'page_backgrounded', 'page_resumed', 'upload_removed'];
+    $clickTargets = [
+        'navigation', 'service', 'project', 'contact', 'quote', 'phone', 'email', 'whatsapp',
+        'viber', 'directions', 'quote_file_guide', 'drawing_preview', 'menu', 'portfolio_filter',
+        'drawing_picker', 'attachment_picker', 'link', 'button',
+    ];
+    $formTargets = ['contact_form', 'quote_updates', 'quote_order'];
     $pages = ['home', 'about', 'services', 'service-detail', 'portfolio', 'project-detail', 'machinery', 'materials', 'industries', 'contact', 'online-quote', '404'];
-    $tags = ['header', 'nav', 'main', 'section', 'article', 'footer', 'button', 'link', 'form', 'image', 'heading'];
+    $reasons = [
+        'quote_error' => [
+            'access_required', 'validation_failed', 'manual_quote_required', 'invalid_dimensions', 'file_missing',
+            'upload_failed', 'unsupported_format', 'file_too_large', 'file_save_failed', 'invalid_options',
+            'pricing_not_configured', 'drawing_unreadable', 'quote_unavailable', 'quote_expired',
+            'contact_details_incomplete', 'invalid_email',
+        ],
+        'quote_preview_error' => ['file_too_large', 'drawing_unreadable'],
+        'quote_blocked' => ['manual_quote_required'],
+    ];
     $mode = $data['mode'] ?? '';
-    if (!in_array($mode, ['analytics', 'replay'], true) || !in_array($data['page'] ?? '', $pages, true)) $fail(400);
+    if (!in_array($mode, ['analytics', 'activity', 'replay'], true) || !in_array($data['page'] ?? '', $pages, true)) $fail(400);
+    $types = $mode === 'analytics' ? $analytics : array_merge($analytics, $activity);
     $device = in_array($data['device'] ?? '', ['mobile', 'desktop'], true) ? $data['device'] : 'unknown';
     $address = $_SERVER['REMOTE_ADDR'] ?? '';
     if (preg_match('/^172\.18\./', $address)) {
@@ -30,31 +51,40 @@ function site_tracking_collect(string $directory, string $origin): never
     $maskedIp = $packed === false ? '' : (strlen($packed) === 4
         ? inet_ntop(substr($packed, 0, 3) . "\0") . '/24'
         : inet_ntop(substr($packed, 0, 6) . str_repeat("\0", 10)) . '/48');
+    $receivedAt = (int)floor(microtime(true) * 1000);
     $records = '';
     foreach ($data['events'] as $event) {
         if (!is_array($event) || !in_array($event['type'] ?? '', $types, true)) continue;
         $type = $event['type'];
-        if ($mode !== 'replay' && in_array($type, ['layout', 'scroll', 'click'], true)) continue;
-        $row = ['time' => gmdate('c'), 'session' => $data['session'], 'page' => $data['page'], 'type' => $type, 'device' => $device];
+        $at = $event['at'] ?? null;
+        if (!is_int($at) || $at < $receivedAt - 300000 || $at > $receivedAt + 30000) $at = $receivedAt;
+        $occurredAt = gmdate('Y-m-d\TH:i:s', intdiv($at, 1000)) . sprintf('.%03dZ', $at % 1000);
+        $row = [
+            'time' => gmdate('c', intdiv($receivedAt, 1000)), 'occurred_at' => $occurredAt,
+            'session' => $data['session'], 'page' => $data['page'], 'type' => $type, 'device' => $device,
+        ];
+        $seq = $event['seq'] ?? null;
+        if (is_int($seq) && $seq > 0 && $seq <= 1000000) $row['seq'] = $seq;
         if ($type === 'page' && $maskedIp !== '') $row['network'] = $maskedIp;
         if (in_array($type, ['upload', 'unsupported_upload'], true)) {
             $ext = $event['format'] ?? '';
-            $row['format'] = in_array($ext, ['dxf','svg','pdf','png','jpeg','zip'], true) ? $ext : 'other';
+            $row['format'] = in_array($ext, ['dxf','svg','pdf','png','jpeg','zip','webp','dwg'], true) ? $ext : 'other';
         }
-        if ($type === 'click' && in_array($event['tag'] ?? '', $tags, true)) $row['tag'] = $event['tag'];
-        if (in_array($type, ['click', 'scroll'], true)) {
-            foreach (['x','y'] as $axis) $row[$axis] = max(0, min(10000, (int) ($event[$axis] ?? 0)));
+        if (in_array($type, ['upload', 'unsupported_upload', 'upload_removed'], true)
+            && in_array($event['field'] ?? '', ['drawing','contact_attachment'], true)) {
+            $row['field'] = $event['field'];
         }
-        if ($type === 'layout') {
-            $color = static fn($value): string => is_string($value) && preg_match('/^#[0-9a-f]{6}$/Di', $value) ? $value : '';
-            $row['background'] = $color($event['background'] ?? null);
-            $row['boxes'] = [];
-            foreach (array_slice(is_array($event['boxes'] ?? null) ? $event['boxes'] : [], 0, 40) as $box) {
-                if (!is_array($box) || !in_array(count($box), [5, 7], true) || !in_array($box[0] ?? '', $tags, true)) continue;
-                $coords = array_slice(array_values($box), 1, 4);
-                if (count(array_filter($coords, 'is_int')) !== 4) continue;
-                $row['boxes'][] = [$box[0], ...array_map(static fn(int $n): int => max(0, min(10000, $n)), $coords), $color($box[5] ?? null), $color($box[6] ?? null)];
-            }
+        if ($type === 'click' || $type === 'form_submitted') {
+            $target = $event['target'] ?? '';
+            if (!in_array($target, $type === 'click' ? $clickTargets : $formTargets, true)) continue;
+            $row['target'] = $target;
+        }
+        if ($type === 'scroll_depth') {
+            if (!in_array($event['depth'] ?? 0, [25, 50, 75, 100], true)) continue;
+            $row['depth'] = $event['depth'];
+        }
+        if (isset($reasons[$type]) && in_array($event['reason'] ?? '', $reasons[$type], true)) {
+            $row['reason'] = $event['reason'];
         }
         $records .= json_encode($row, JSON_THROW_ON_ERROR) . "\n";
     }
@@ -74,4 +104,3 @@ function site_tracking_collect(string $directory, string $origin): never
     fclose($file);
     $fail($written ? 204 : 429);
 }
-
