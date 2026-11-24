@@ -5,6 +5,7 @@ $cssPath = __DIR__ . '/../../public/assets/css/main.css';
 $jsPath = __DIR__ . '/../../public/assets/js/main.js';
 $cssVersion = is_file($cssPath) ? (string)filemtime($cssPath) : '1';
 $jsVersion = is_file($jsPath) ? (string)filemtime($jsPath) : '1';
+$trackingEnabled = is_writable('/var/www/site-tracking') && ($page['view'] ?? '') !== 'dashboard';
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -110,16 +111,18 @@ $jsVersion = is_file($jsPath) ? (string)filemtime($jsPath) : '1';
     <?php $quoteJsPath = __DIR__ . '/../../public/assets/js/quote-preview.js'; ?>
     <script src="/public/assets/js/quote-preview.js?v=<?= e(is_file($quoteJsPath) ? (string)filemtime($quoteJsPath) : '1') ?>" defer></script>
     <?php endif; ?>
-    <?php if (is_writable('/var/www/site-tracking') && ($page['view'] ?? '') !== 'dashboard'): ?>
+    <?php if ($trackingEnabled): ?>
     <?php $trackingPageSlug = $page['service']['slug'] ?? $page['project']['slug'] ?? ''; ?>
-    <aside class="container" data-site-tracking="<?= e($page['view'] ?? '') ?>" data-tracking-page-slug="<?= e($trackingPageSlug) ?>">
-      <details>
-        <summary>Website analytics preferences</summary>
-        <p>If you allow it, we record page visits, actions, errors, and how you found the site. We use a browser identifier that changes daily to count visitors. We estimate your country from your IP address and save only a shortened IP address. We exclude what you type and the names and contents of uploaded files.</p>
-        <button type="button" data-tracking-choice="off">Decline</button>
-        <button type="button" data-tracking-choice="activity">Allow activity tracking and visitor analytics</button>
-        <span role="status"></span>
-      </details>
+    <aside id="tracking-consent-banner" class="tracking-consent-banner" data-site-tracking="<?= e($page['view'] ?? '') ?>" data-tracking-page-slug="<?= e($trackingPageSlug) ?>" aria-labelledby="tracking-consent-title" aria-describedby="tracking-consent-description" hidden>
+      <div>
+        <h2 id="tracking-consent-title" tabindex="-1">Your privacy choices</h2>
+        <p id="tracking-consent-description">Optional analytics helps us understand how people find and use this site. We count browsers using an identifier that changes daily and record actions, where you click or tap on a page, errors, and approximate country. We store only a shortened IP address and exclude what you type and the names and contents of uploaded files. A Dot Industry collects these analytics directly on this site to improve it.</p>
+        <p class="tracking-consent-status" role="status"></p>
+      </div>
+      <div class="tracking-consent-actions">
+        <button class="btn btn-outline" type="button" data-tracking-choice="off">Decline</button>
+        <button class="btn btn-outline" type="button" data-tracking-choice="activity">Accept analytics</button>
+      </div>
     </aside>
     <script src="/public/assets/js/site-tracking.js?v=<?= e((string)filemtime(__DIR__ . '/../../public/assets/js/site-tracking.js')) ?>" defer></script>
     <?php endif; ?>

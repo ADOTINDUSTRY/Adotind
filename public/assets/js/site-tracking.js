@@ -1,6 +1,7 @@
 (() => {
     const panel = document.querySelector('[data-site-tracking]');
-    if (!panel) return;
+    const preferencesButton = document.querySelector('[data-tracking-preferences]');
+    if (!panel || !preferencesButton) return;
 
     const legacyPreferenceKey = 'adotind-tracking-preference-v1';
     const preferenceKey = 'adotind-tracking-preference-v2';
@@ -9,7 +10,7 @@
         timeZone:'Asia/Nicosia', year:'numeric', month:'2-digit', day:'2-digit'
     });
     const sessionKey = 'adotind-tracking-session-v1';
-    const settings = panel.querySelector('details');
+    const bannerTitle = panel.querySelector('h2');
     const status = panel.querySelector('[role=status]');
     const page = panel.dataset.siteTracking;
     const device = matchMedia('(pointer: coarse)').matches ? 'mobile' : 'desktop';
@@ -45,7 +46,7 @@
         if (!visitors) localStorage.removeItem(visitorKey);
     } catch { return; }
 
-    settings.open = !visitors && mode !== 'off';
+    let openedFromFooter = false;
     let pageRecorded = false;
     let scrollAnchor = mode === 'activity' ? Math.max(0, scrollY) : 0;
     let pendingScroll;
@@ -133,6 +134,7 @@
                 method:'POST',
                 headers:{'Content-Type':'application/json'},
                 credentials:'omit',
+                referrerPolicy:'no-referrer',
                 body:JSON.stringify({
                     session:state.id, page, device, mode, sent_at:now, events,
                     ...(visitor ? {visitor:visitor.id, visitor_day:visitor.day} : {})
@@ -142,6 +144,26 @@
         } catch {
             // Tracking must not block navigation or form submission.
         }
+    }
+
+    function setBannerOpen(open, focus = false) {
+        const returnFocus = !open && openedFromFooter && panel.contains(document.activeElement);
+        panel.hidden = !open;
+        preferencesButton.setAttribute('aria-expanded', String(open));
+        openedFromFooter = open && focus;
+        if (focus) bannerTitle.focus({preventScroll:true});
+        if (returnFocus) preferencesButton.focus({preventScroll:true});
+    }
+
+    function countConsentChoice(choice) {
+        fetch('/site-tracking/consent', {
+            method:'POST',
+            headers:{'Content-Type':'application/json'},
+            credentials:'omit',
+            referrerPolicy:'no-referrer',
+            body:JSON.stringify({decision:choice === 'activity' ? 'accepted' : 'declined'}),
+            keepalive:true
+        }).catch(() => {});
     }
 
     function showPreference() {
@@ -189,17 +211,39 @@
         }
     }
 
+    preferencesButton.addEventListener('click', () => {
+        const open = panel.hidden;
+        setBannerOpen(open, open);
+    });
+    panel.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') setBannerOpen(false);
+    });
     panel.addEventListener('click', (e) => {
         const choice = e.target.closest('[data-tracking-choice]')?.dataset.trackingChoice;
         if (choice !== 'off' && choice !== 'activity') return;
+        let changed;
         try {
-            localStorage.setItem(legacyPreferenceKey, choice);
-            localStorage.setItem(preferenceKey, choice);
-        } catch { return; }
+            const previous = readPreference();
+            changed = choice === 'off' ? previous.mode !== 'off' : !previous.visitors;
+            if (changed) {
+                localStorage.setItem(legacyPreferenceKey, choice);
+                localStorage.setItem(preferenceKey, choice);
+            }
+        } catch {
+            refreshPreference();
+            status.textContent = 'Your choice could not be saved. Check your browser storage settings and try again.';
+            return;
+        }
+        if (changed) countConsentChoice(choice);
         refreshPreference();
+        setBannerOpen(false);
     });
     addEventListener('storage', (e) => {
-        if (e.key === preferenceKey || e.key === legacyPreferenceKey || e.key === null) refreshPreference();
+        if (e.key !== preferenceKey && e.key !== legacyPreferenceKey && e.key !== null) return;
+        const previous = mode;
+        const previousVisitors = visitors;
+        refreshPreference();
+        if (mode !== previous || visitors !== previousVisitors) setBannerOpen(!mode);
     });
 
     function clickTarget(el) {
@@ -226,7 +270,7 @@
             }
             return el.closest('nav') ? 'navigation' : 'link';
         }
-        return el instanceof HTMLButtonElement && !el.form ? 'button' : '';
+        return el instanceof HTMLButtonElement ? 'button' : '';
     }
 
     function clickDestination(el) {
@@ -238,14 +282,22 @@
         return {destination:detail[1] === 'services' ? 'service-detail' : 'project-detail', destination_slug:detail[2]};
     }
 
+    function clickPoint(e) {
+        const {innerWidth, innerHeight} = window;
+        if (!(e.detail > 0 || e.pointerType) || !Number.isFinite(e.clientX)
+            || !Number.isFinite(e.clientY) || innerWidth <= 0 || innerHeight <= 0) return {};
+        const percent = (position, size) => Math.round(Math.max(0, Math.min(100, position / size * 100)));
+        return {point_x:percent(e.clientX, innerWidth), point_y:percent(e.clientY, innerHeight)};
+    }
+
     document.addEventListener('click', (e) => {
         if (mode !== 'activity') return;
+        const origin = e.target instanceof Element ? e.target : e.target?.parentElement;
+        if (!origin || origin.closest(privateArea)) return;
         flushScroll();
-        if (!(e.target instanceof Element) || e.target.closest(privateArea)) return;
-        const el = e.target.closest('a[href],button,summary,input[type=file]');
-        if (!el) return;
-        const target = clickTarget(el);
-        if (target) send({type:'click',target,...clickDestination(el)});
+        const el = origin.closest('a[href],button,summary,input[type=file]');
+        const target = (el && clickTarget(el)) || 'page_area';
+        send({type:'click',target,...clickDestination(el),...clickPoint(e)});
     }, true);
 
     function resetScroll() {
@@ -310,6 +362,7 @@
         resetBackground();
         pageRecorded = false;
         showPreference();
+        setBannerOpen(!mode);
         if (visibility === 'visible') start({restored:true});
     });
 
@@ -374,5 +427,7 @@
         send({type:'client_error'});
     });
     showPreference();
+    preferencesButton.hidden = false;
+    setBannerOpen(!mode);
     start();
 })();

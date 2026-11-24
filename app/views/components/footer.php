@@ -43,5 +43,8 @@
   </div>
   <div class="container footer-bottom">
     <p>&copy; <?= date('Y') ?> <?= e($siteConfig['legal_name']) ?>. All rights reserved.</p>
+    <?php if (!empty($trackingEnabled)): ?>
+    <button class="footer-privacy-button" type="button" data-tracking-preferences data-private aria-controls="tracking-consent-banner" aria-expanded="false" hidden>Privacy preferences</button>
+    <?php endif; ?>
   </div>
 </footer>

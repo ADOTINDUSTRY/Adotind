@@ -1618,6 +1618,81 @@ p {
   font-size: 0.88rem;
 }
 
+/* ---------- Privacy preferences ---------- */
+
+.footer-privacy-button {
+  border: 0;
+  padding: 0.35rem 0;
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  text-decoration: underline;
+  text-underline-offset: 0.15em;
+  cursor: pointer;
+}
+
+.footer-privacy-button:hover {
+  color: var(--accent);
+}
+
+.tracking-consent-banner {
+  position: fixed;
+  z-index: 500;
+  inset-inline: max(1rem, calc((100% - 70rem) / 2));
+  bottom: max(1rem, calc(env(safe-area-inset-bottom) + 0.5rem));
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 1.25rem 2rem;
+  max-height: 75vh;
+  overflow-y: auto;
+  padding: clamp(1rem, 3vw, 1.75rem);
+  border: 1px solid var(--line-strong);
+  border-top: 3px solid var(--accent);
+  background: var(--panel);
+  box-shadow: var(--shadow-lg);
+}
+
+.tracking-consent-banner[hidden] {
+  display: none;
+}
+
+.tracking-consent-banner h2 {
+  margin: 0 0 0.45rem;
+  font-size: clamp(1.25rem, 3vw, 1.55rem);
+}
+
+.tracking-consent-banner p {
+  margin: 0;
+  color: var(--text);
+  font-size: 0.9rem;
+  line-height: 1.55;
+}
+
+.tracking-consent-banner .tracking-consent-status:not(:empty) {
+  margin-top: 0.5rem;
+  color: var(--muted);
+}
+
+.tracking-consent-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.65rem;
+}
+
+.tracking-consent-actions .btn {
+  min-height: 44px;
+  padding: 0.65rem 0.9rem;
+  letter-spacing: normal;
+  text-transform: none;
+}
+
+@media (max-width: 48rem) {
+  .tracking-consent-banner {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
 /* ---------- Reveal animations ---------- */
 
 .reveal {
