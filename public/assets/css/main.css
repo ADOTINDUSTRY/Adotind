@@ -281,9 +281,25 @@ img {
 }
 
 .nav-toggle {
-  background: transparent;
-  border-color: var(--line);
-  color: var(--text);
+  gap: 0.38rem;
+  background: #263950;
+  border-color: #9bb3cf;
+  color: #fff;
+  font-size: 0.875rem;
+}
+
+.nav-toggle::before {
+  content: "";
+  width: 14px;
+  height: 2px;
+  background: currentColor;
+  box-shadow: 0 -5px currentColor, 0 5px currentColor;
+}
+
+.nav-toggle:hover,
+.nav-toggle:focus-visible {
+  background: #354d6b;
+  border-color: #fff;
 }
 
 .nav-quote:hover {
