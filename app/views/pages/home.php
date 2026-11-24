@@ -13,8 +13,8 @@ $featuredMedia = $page['featured_media'] ?? [];
         technical capability and reliable delivery for business clients.
       </p>
       <div class="cta-group">
-        <a href="/contact" class="btn">Request a Custom Quote</a>
-        <a href="/services" class="btn btn-outline">Explore Capabilities</a>
+        <a href="/contact" class="btn" data-tracking-control="request-custom-quote">Request a Custom Quote</a>
+        <a href="/services" class="btn btn-outline" data-tracking-control="explore-capabilities">Explore Capabilities</a>
       </div>
     </div>
     <?php if (!empty($heroMedia[0]['url'])): ?>
@@ -27,7 +27,7 @@ $featuredMedia = $page['featured_media'] ?? [];
   </div>
 </section>
 
-<section class="section section-light">
+<section class="section section-light" data-tracking-section="manufacturing">
   <div class="container">
     <h2>What We Manufacture</h2>
     <p class="lead">
@@ -36,19 +36,19 @@ $featuredMedia = $page['featured_media'] ?? [];
       printing and finishing.
     </p>
     <div class="cap-grid">
-      <article>
+      <article data-tracking-section="sign-manufacturing">
         <h3>Sign Manufacturing</h3>
         <p>3D letters, illuminated signs, architectural signage and custom visual systems.</p>
       </article>
-      <article>
+      <article data-tracking-section="cnc-routers">
         <h3>CNC Router Services</h3>
         <p>Precision cutting and machining for acrylic, wood, PVC and suitable composites.</p>
       </article>
-      <article>
+      <article data-tracking-section="laser-cutting">
         <h3>Laser Cutting</h3>
         <p>Fiber laser and CO2 workflows for metal and non-metal applications.</p>
       </article>
-      <article>
+      <article data-tracking-section="fabrication">
         <h3>Industrial Fabrication</h3>
         <p>Custom components, welded structures and manufacturing support parts.</p>
       </article>
@@ -56,23 +56,23 @@ $featuredMedia = $page['featured_media'] ?? [];
   </div>
 </section>
 
-<section class="section section-dark">
+<section class="section section-dark" data-tracking-section="featured-services">
   <div class="container">
     <h2>Featured Services</h2>
     <div class="service-grid">
-      <article class="service-card">
+      <article class="service-card" data-tracking-section="signage-systems">
         <h3>Signage Systems</h3>
         <p>Indoor and outdoor branding systems for retail, hospitality and corporate spaces.</p>
       </article>
-      <article class="service-card">
+      <article class="service-card" data-tracking-section="cnc-laser">
         <h3>CNC & Laser Production</h3>
         <p>Cutting, engraving and machining for custom projects and production batches.</p>
       </article>
-      <article class="service-card">
+      <article class="service-card" data-tracking-section="printing">
         <h3>Large Format Printing</h3>
         <p>Professional printed graphics for vinyl, panels and promotional installations.</p>
       </article>
-      <article class="service-card">
+      <article class="service-card" data-tracking-section="custom-fabrication">
         <h3>Custom Fabrication</h3>
         <p>Bespoke manufacturing support for designers, contractors and businesses.</p>
       </article>
@@ -80,7 +80,7 @@ $featuredMedia = $page['featured_media'] ?? [];
   </div>
 </section>
 
-<section class="section">
+<section class="section" data-tracking-section="featured-projects">
   <div class="container">
     <h2>Featured Projects</h2>
     <div class="gallery-grid">
@@ -109,9 +109,9 @@ $featuredMedia = $page['featured_media'] ?? [];
   </div>
 </section>
 
-<section class="section section-dark">
+<section class="section section-dark" data-tracking-section="equipment-and-materials">
   <div class="container two-col">
-    <div>
+    <div data-tracking-section="equipment">
       <h2>Machinery & Technology</h2>
       <p class="lead">Our facility combines CNC, laser, printing and fabrication equipment for integrated production workflows.</p>
       <ul class="feature-list">
@@ -121,7 +121,7 @@ $featuredMedia = $page['featured_media'] ?? [];
         <li>Wide-format eco-solvent printing and vinyl processing</li>
       </ul>
     </div>
-    <div>
+    <div data-tracking-section="materials">
       <h2>Materials</h2>
       <ul class="feature-list">
         <li>Aluminium and stainless steel</li>
@@ -134,9 +134,9 @@ $featuredMedia = $page['featured_media'] ?? [];
   </div>
 </section>
 
-<section class="section">
+<section class="section" data-tracking-section="advantages-and-workflow">
   <div class="container two-col">
-    <div>
+    <div data-tracking-section="advantages">
       <h2>Why Businesses Choose A Dot Industry</h2>
       <ul class="feature-list">
         <li>Manufacturing-focused, not resale-focused</li>
@@ -145,7 +145,7 @@ $featuredMedia = $page['featured_media'] ?? [];
         <li>Single production partner for multi-discipline projects</li>
       </ul>
     </div>
-    <div>
+    <div data-tracking-section="workflow">
       <h2>Manufacturing Process</h2>
       <ol class="process-list">
         <li>Project brief and technical review</li>
@@ -158,7 +158,7 @@ $featuredMedia = $page['featured_media'] ?? [];
   </div>
 </section>
 
-<section class="section section-dark">
+<section class="section section-dark" data-tracking-section="industries">
   <div class="container">
     <h2>Industries Served</h2>
     <div class="tags">
@@ -174,10 +174,10 @@ $featuredMedia = $page['featured_media'] ?? [];
   </div>
 </section>
 
-<section class="section cta-band">
+<section class="section cta-band" data-tracking-section="request-quote">
   <div class="container center">
     <h2>Start Your Custom Manufacturing Project</h2>
     <p class="lead">Send your requirements and our team will prepare a tailored production proposal.</p>
-    <a href="/contact" class="btn">Request a Quote</a>
+    <a href="/contact" class="btn" data-tracking-control="request-quote">Request a Quote</a>
   </div>
 </section>

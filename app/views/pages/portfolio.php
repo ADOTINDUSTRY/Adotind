@@ -13,9 +13,9 @@ $categories = ['all', 'signage', 'illuminated-signs', 'cnc', 'laser-cutting', 'p
   </div>
 </section>
 
-<section class="section">
+<section class="section" data-tracking-section="project-gallery">
   <div class="container">
-    <div class="filter-row" role="group" aria-label="Portfolio category filters">
+    <div class="filter-row" role="group" aria-label="Portfolio category filters" data-tracking-section="portfolio-filters">
       <?php foreach ($categories as $category): ?>
         <button type="button" class="filter-btn<?= $category === 'all' ? ' is-active' : '' ?>" data-filter="<?= e($category) ?>">
           <?= e(ucwords(str_replace('-', ' ', $category))) ?>
@@ -26,7 +26,7 @@ $categories = ['all', 'signage', 'illuminated-signs', 'cnc', 'laser-cutting', 'p
     <div class="gallery-grid portfolio-grid">
       <?php if ($media !== []): ?>
         <?php foreach ($media as $item): ?>
-          <article class="gallery-item portfolio-item" data-category="<?= e((string)($item['category'] ?? 'signage')) ?>">
+          <article class="gallery-item portfolio-item" data-category="<?= e((string)($item['category'] ?? 'signage')) ?>" data-tracking-section="project-card">
             <img class="gallery-photo" src="<?= e((string)$item['url']) ?>" alt="<?= e((string)($item['title'] ?? 'Project image')) ?>" loading="lazy" />
             <h3><?= e((string)($item['title'] ?? 'Project image')) ?></h3>
             <p class="muted"><?= e((string)($item['description'] ?? 'Project image from dashboard upload.')) ?></p>
@@ -34,7 +34,7 @@ $categories = ['all', 'signage', 'illuminated-signs', 'cnc', 'laser-cutting', 'p
         <?php endforeach; ?>
       <?php else: ?>
         <?php foreach ($projects as $project): ?>
-          <article class="gallery-item portfolio-item" data-category="<?= e($project['category']) ?>">
+          <article class="gallery-item portfolio-item" data-category="<?= e($project['category']) ?>" data-tracking-section="project-card">
             <?= placeholder_html(placeholder_icon_for_category((string)$project['category']), (string)$project['title'], 'Upload images from dashboard') ?>
             <h3><?= e($project['title']) ?></h3>
             <p class="muted"><?= e($project['description']) ?></p>

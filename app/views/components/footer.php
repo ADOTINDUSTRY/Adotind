@@ -35,7 +35,7 @@
         <a href="<?= e($siteConfig['viber']) ?>" aria-label="Viber">
           <img src="https://cdn.simpleicons.org/viber/7360F2" alt="Viber" loading="lazy" />
         </a>
-        <a href="<?= e($siteConfig['facebook']) ?>" target="_blank" rel="noopener noreferrer" aria-label="Facebook">
+        <a href="<?= e($siteConfig['facebook']) ?>" target="_blank" rel="noopener noreferrer" aria-label="Facebook" data-tracking-control="facebook">
           <img src="https://cdn.simpleicons.org/facebook/1877F2" alt="Facebook" loading="lazy" />
         </a>
       </div>

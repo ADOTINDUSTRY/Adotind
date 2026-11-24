@@ -5,7 +5,8 @@
 
     const legacyPreferenceKey = 'adotind-tracking-preference-v1';
     const preferenceKey = 'adotind-tracking-preference-v2';
-    const visitorKey = 'adotind-tracking-visitor-v2';
+    const legacyVisitorKey = 'adotind-tracking-visitor-v2';
+    const consentBrowserKey = 'adotind-consent-browser-v1';
     const visitorDate = new Intl.DateTimeFormat('en-CA', {
         timeZone:'Asia/Nicosia', year:'numeric', month:'2-digit', day:'2-digit'
     });
@@ -27,6 +28,9 @@
         '/machinery':'machinery', '/materials':'materials', '/industries':'industries',
         '/contact':'contact', '/online-quote':'online-quote'
     };
+    const clickControls = 'a[href],button,summary,input:not([type=hidden]),select,textarea,[role=button]';
+    const clickRegions = '[data-tracking-section],.site-header,.main-nav,.breadcrumbs,.site-footer,.hero,.page-hero';
+    const clickTypes = ['mouse','touch','pen'];
     const minimumScrollDistance = 8;
     const scrollPause = 180;
     const backgroundDelay = 300;
@@ -41,9 +45,10 @@
 
     let mode = '';
     let visitors = false;
+    let preferenceGeneration = 0;
     try {
         ({mode, visitors} = readPreference());
-        if (!visitors) localStorage.removeItem(visitorKey);
+        if (!visitors) localStorage.removeItem(legacyVisitorKey);
     } catch { return; }
 
     let openedFromFooter = false;
@@ -56,22 +61,69 @@
     let backgroundTimer;
     let backgroundRecorded = false;
     let leavingPage = false;
+    let dailyVisitor;
     const selectedFiles = new WeakSet();
 
+    const toHex = bytes => [...bytes].map(byte => byte.toString(16).padStart(2, '0')).join('');
+    const isId = value => typeof value === 'string' && /^[a-f0-9]{32}$/.test(value);
+
     function randomId() {
-        return [...crypto.getRandomValues(new Uint8Array(16))]
-            .map(n => n.toString(16).padStart(2, '0')).join('');
+        return toHex(crypto.getRandomValues(new Uint8Array(16)));
     }
 
-    function getDailyVisitor(now) {
+    function cyprusDay(now) {
         const parts = Object.fromEntries(visitorDate.formatToParts(now).map(part => [part.type, part.value]));
-        const day = parts.year + '-' + parts.month + '-' + parts.day;
-        let stored;
-        try { stored = JSON.parse(localStorage.getItem(visitorKey) || 'null'); } catch {}
-        if (stored?.day === day && /^[a-f0-9]{32}$/.test(stored.id)) return stored;
-        const next = {day,id:randomId()};
-        localStorage.setItem(visitorKey, JSON.stringify(next));
-        return next;
+        return parts.year + '-' + parts.month + '-' + parts.day;
+    }
+
+    function readRecord(key) {
+        try { return JSON.parse(localStorage.getItem(key) || 'null'); } catch { return null; }
+    }
+
+    function readConsentBrowser() {
+        const record = readRecord(consentBrowserKey);
+        return isId(record?.id) && Number.isSafeInteger(record.revision) && record.revision >= 0 ? record : null;
+    }
+
+    function withConsentBrowser(update) {
+        const apply = () => {
+            const stored = readConsentBrowser();
+            const day = cyprusDay(Date.now());
+            if (stored) {
+                if (stored.legacyVisitor && stored.legacyVisitor.day !== day) {
+                    delete stored.legacyVisitor;
+                    localStorage.setItem(consentBrowserKey, JSON.stringify(stored));
+                }
+                return update(stored);
+            }
+            const previous = readRecord(legacyVisitorKey);
+            // Preserve the previously counted browser for the rest of its current analytics day.
+            const browser = {id:randomId(), revision:0};
+            if (previous?.day === day && isId(previous.id)) browser.legacyVisitor = {day, id:previous.id};
+            localStorage.setItem(consentBrowserKey, JSON.stringify(browser));
+            localStorage.removeItem(legacyVisitorKey);
+            return update(browser);
+        };
+        return navigator.locks ? navigator.locks.request(consentBrowserKey, apply) : Promise.resolve().then(apply);
+    }
+
+    async function scopedId(browser, purpose) {
+        const input = new TextEncoder().encode(purpose + ':' + browser.id);
+        const digest = await crypto.subtle.digest('SHA-256', input);
+        return toHex(new Uint8Array(digest, 0, 16));
+    }
+
+    async function getDailyVisitor(now) {
+        const day = cyprusDay(now);
+        let stored = readConsentBrowser();
+        if (!stored || (stored.legacyVisitor && stored.legacyVisitor.day !== day)) {
+            stored = await withConsentBrowser(browser => browser);
+        }
+        if (stored.legacyVisitor?.day === day && isId(stored.legacyVisitor.id)) return stored.legacyVisitor;
+        if (dailyVisitor?.day !== day || dailyVisitor?.browser !== stored.id) {
+            dailyVisitor = {day, browser:stored.id, id:scopedId(stored, 'activity:' + day)};
+        }
+        return {day, id:await dailyVisitor.id};
     }
 
     function landingSource() {
@@ -108,13 +160,15 @@
         return {source, medium:source === 'direct' ? 'direct' : 'referral'};
     }
 
-    function send(event, occurredAt = Date.now(), isLanding = false) {
+    async function send(event, occurredAt = Date.now(), isLanding = false) {
         if (mode !== 'analytics' && mode !== 'activity') return;
         const now = Date.now();
+        const generation = preferenceGeneration;
         let state;
         let newSession = false;
         try {
-            const visitor = visitors ? getDailyVisitor(now) : null;
+            const visitor = visitors ? await getDailyVisitor(now) : null;
+            if (generation !== preferenceGeneration || readPreference().mode !== mode) return;
             state = JSON.parse(sessionStorage.getItem(sessionKey) || 'null');
             if (!state || !/^[a-f0-9]{32}$/.test(state.id) || !Number.isFinite(state.time)
                 || now - state.time >= 1800000 || now < state.time
@@ -155,15 +209,16 @@
         if (returnFocus) preferencesButton.focus({preventScroll:true});
     }
 
-    function countConsentChoice(choice) {
-        fetch('/site-tracking/consent', {
+    async function reportConsentChoice(choice, browser) {
+        const preference = await scopedId(browser, 'consent');
+        await fetch('/site-tracking/consent', {
             method:'POST',
             headers:{'Content-Type':'application/json'},
             credentials:'omit',
             referrerPolicy:'no-referrer',
-            body:JSON.stringify({decision:choice === 'activity' ? 'accepted' : 'declined'}),
+            body:JSON.stringify({decision:choice === 'activity' ? 'accepted' : 'declined', preference, revision:browser.revision}),
             keepalive:true
-        }).catch(() => {});
+        });
     }
 
     function showPreference() {
@@ -195,13 +250,15 @@
         const previousVisitors = visitors;
         try {
             ({mode, visitors} = readPreference());
-            if (!visitors) localStorage.removeItem(visitorKey);
+            if (!visitors) localStorage.removeItem(legacyVisitorKey);
             if (mode === 'off' || !mode || previousVisitors !== visitors) sessionStorage.removeItem(sessionKey);
         } catch {
             mode = '';
             visitors = false;
         }
         if (mode !== previousMode || visitors !== previousVisitors) {
+            preferenceGeneration++;
+            dailyVisitor = undefined;
             resetScroll();
             resetBackground();
             const wasRecorded = pageRecorded;
@@ -218,25 +275,26 @@
     panel.addEventListener('keydown', (e) => {
         if (e.key === 'Escape') setBannerOpen(false);
     });
-    panel.addEventListener('click', (e) => {
+    panel.addEventListener('click', async (e) => {
         const choice = e.target.closest('[data-tracking-choice]')?.dataset.trackingChoice;
         if (choice !== 'off' && choice !== 'activity') return;
-        let changed;
+        let saved;
         try {
-            const previous = readPreference();
-            changed = choice === 'off' ? previous.mode !== 'off' : !previous.visitors;
-            if (changed) {
+            saved = await withConsentBrowser(browser => {
+                const next = {...browser, revision:Math.max(Date.now(), browser.revision + 1)};
+                localStorage.setItem(consentBrowserKey, JSON.stringify(next));
                 localStorage.setItem(legacyPreferenceKey, choice);
                 localStorage.setItem(preferenceKey, choice);
-            }
+                return next;
+            });
         } catch {
             refreshPreference();
             status.textContent = 'Your choice could not be saved. Check your browser storage settings and try again.';
             return;
         }
-        if (changed) countConsentChoice(choice);
         refreshPreference();
         setBannerOpen(false);
+        reportConsentChoice(choice, saved).catch(() => {});
     });
     addEventListener('storage', (e) => {
         if (e.key !== preferenceKey && e.key !== legacyPreferenceKey && e.key !== null) return;
@@ -247,7 +305,7 @@
     });
 
     function clickTarget(el) {
-        if (el instanceof HTMLInputElement) {
+        if (el instanceof HTMLInputElement && el.type === 'file') {
             if (el.name === 'vector_file') return 'drawing_picker';
             if (el.name === 'project_file') return 'attachment_picker';
             return '';
@@ -282,22 +340,85 @@
         return {destination:detail[1] === 'services' ? 'service-detail' : 'project-detail', destination_slug:detail[2]};
     }
 
-    function clickPoint(e) {
+    function clickInput(e) {
+        if (clickTypes.includes(e.pointerType)) return e.pointerType;
+        return e.detail > 0 ? 'mouse' : 'keyboard';
+    }
+
+    function clickPoint(e, input) {
         const {innerWidth, innerHeight} = window;
-        if (!(e.detail > 0 || e.pointerType) || !Number.isFinite(e.clientX)
+        if (input === 'keyboard' || !Number.isFinite(e.clientX)
             || !Number.isFinite(e.clientY) || innerWidth <= 0 || innerHeight <= 0) return {};
         const percent = (position, size) => Math.round(Math.max(0, Math.min(100, position / size * 100)));
         return {point_x:percent(e.clientX, innerWidth), point_y:percent(e.clientY, innerHeight)};
     }
 
+    function clickRegion(origin) {
+        const region = origin.closest(clickRegions);
+        if (!region) return 'page-content';
+        if (region.dataset.trackingSection) return region.dataset.trackingSection;
+        if (region.matches('.main-nav')) return 'main-navigation';
+        if (region.matches('.breadcrumbs')) return 'breadcrumbs';
+        if (region.matches('.site-header')) return 'header';
+        return region.matches('.site-footer') ? 'footer' : 'page-intro';
+    }
+
+    function clickSurface(origin) {
+        if (origin.closest('canvas, .quote-preview-render, .quote-preview-dialog-content')) return 'canvas';
+        if (origin.closest('img, picture, svg, video, [role=img]')) return 'image';
+        if (origin.closest('h1,h2,h3,h4,h5,h6')) return 'heading';
+        return origin.closest('p,li,figcaption,label,dt,dd') ? 'copy' : 'blank';
+    }
+
+    let lastClick;
+    const labelForwarding = new WeakMap();
+
+    function quickRepeat(e, el, input) {
+        if (input === 'keyboard') {
+            lastClick = undefined;
+            return {};
+        }
+        const now = performance.now();
+        const {clientX:x, clientY:y} = e;
+        if (!lastClick || lastClick.el !== el || now - lastClick.startedAt > 2000
+            || Math.hypot(x - lastClick.x, y - lastClick.y) > 24) {
+            lastClick = {el, startedAt:now, x, y, count:1};
+            return {};
+        }
+        return ++lastClick.count === 3 ? {repeat_count:3} : {};
+    }
+
     document.addEventListener('click', (e) => {
-        if (mode !== 'activity') return;
+        if (mode !== 'activity' || !e.isTrusted) return;
         const origin = e.target instanceof Element ? e.target : e.target?.parentElement;
         if (!origin || origin.closest(privateArea)) return;
+        let control = origin.closest(clickControls);
+        if (control) {
+            const forwarded = labelForwarding.get(control);
+            labelForwarding.delete(control);
+            if (forwarded !== undefined && performance.now() - forwarded < 60) return;
+        } else {
+            control = origin.closest('label')?.control;
+            if (control?.closest(privateArea)) return;
+            if (control) labelForwarding.set(control, performance.now());
+        }
+
         flushScroll();
-        const el = origin.closest('a[href],button,summary,input[type=file]');
-        const target = (el && clickTarget(el)) || 'page_area';
-        send({type:'click',target,...clickDestination(el),...clickPoint(e)});
+        const input = clickInput(e);
+        const target = (control && clickTarget(control)) || (control ? 'control' : 'page_area');
+        const namedControl = control?.matches('.filter-btn') ? 'filter-' + control.dataset.filter
+            : control?.dataset.trackingControl;
+        send({
+            type:'click',
+            target,
+            section:clickRegion(control || origin),
+            ...(namedControl ? {control:namedControl} : {}),
+            ...(control ? {} : {surface:clickSurface(origin)}),
+            click_input:input,
+            ...clickDestination(control),
+            ...clickPoint(e, input),
+            ...quickRepeat(e, control || origin, input)
+        });
     }, true);
 
     function resetScroll() {
@@ -344,6 +465,7 @@
 
     addEventListener('pagehide', () => {
         leavingPage = true;
+        lastClick = undefined;
         flushScroll();
         resetBackground();
     });
@@ -351,11 +473,13 @@
         if (!e.persisted) return;
         leavingPage = false;
         visibility = document.visibilityState;
+        preferenceGeneration++;
+        dailyVisitor = undefined;
         mode = '';
         visitors = false;
         try {
             ({mode, visitors} = readPreference());
-            if (!visitors) localStorage.removeItem(visitorKey);
+            if (!visitors) localStorage.removeItem(legacyVisitorKey);
             if (mode === 'off' || !mode) sessionStorage.removeItem(sessionKey);
         } catch {}
         resetScroll();

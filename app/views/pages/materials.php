@@ -9,7 +9,7 @@
   </div>
 </section>
 
-<section class="section">
+<section class="section" data-tracking-section="material-list">
   <div class="container service-grid">
     <article class="service-card">
       <h2>Aluminium</h2>

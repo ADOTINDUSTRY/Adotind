@@ -9,7 +9,7 @@
   </div>
 </section>
 
-<section class="section">
+<section class="section" data-tracking-section="industry-list">
   <div class="container service-grid">
     <article class="service-card"><h2>Retail and Commercial Businesses</h2><p>Storefront systems, interior branding and promotional production.</p></article>
     <article class="service-card"><h2>Restaurants and Hospitality</h2><p>Visual identity production for customer-facing spaces.</p></article>

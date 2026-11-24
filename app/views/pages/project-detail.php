@@ -11,7 +11,7 @@ $project = $page['project'];
 
 <section class="section">
   <div class="container two-col">
-    <div>
+    <div data-tracking-section="materials">
       <h2>Materials Used</h2>
       <ul class="feature-list">
         <?php foreach ($project['materials'] as $material): ?>
@@ -19,7 +19,7 @@ $project = $page['project'];
         <?php endforeach; ?>
       </ul>
     </div>
-    <div>
+    <div data-tracking-section="techniques">
       <h2>Manufacturing Techniques</h2>
       <ul class="feature-list">
         <?php foreach ($project['techniques'] as $technique): ?>
@@ -30,7 +30,7 @@ $project = $page['project'];
   </div>
 </section>
 
-<section class="section section-dark">
+<section class="section section-dark" data-tracking-section="assets">
   <div class="container">
     <h2>Project Assets Status</h2>
     <p class="lead">
@@ -38,6 +38,6 @@ $project = $page['project'];
       process notes and final project documentation will be published once
       approved.
     </p>
-    <a href="/portfolio" class="btn btn-outline">Back to Portfolio</a>
+    <a href="/portfolio" class="btn btn-outline" data-tracking-control="back-to-portfolio">Back to Portfolio</a>
   </div>
 </section>

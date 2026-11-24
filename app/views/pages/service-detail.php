@@ -11,7 +11,7 @@ $service = $page['service'];
 
 <section class="section">
   <div class="container two-col">
-    <div>
+    <div data-tracking-section="applications">
       <h2>Applications</h2>
       <ul class="feature-list">
         <?php foreach ($service['applications'] as $application): ?>
@@ -19,7 +19,7 @@ $service = $page['service'];
         <?php endforeach; ?>
       </ul>
     </div>
-    <div>
+    <div data-tracking-section="materials">
       <h2>Common Materials</h2>
       <ul class="feature-list">
         <?php foreach ($service['materials'] as $material): ?>
@@ -32,7 +32,7 @@ $service = $page['service'];
 
 <section class="section section-dark">
   <div class="container two-col">
-    <div>
+    <div data-tracking-section="process">
       <h2>Manufacturing Process</h2>
       <ol class="process-list">
         <li>Requirement review and technical scope confirmation</li>
@@ -42,14 +42,14 @@ $service = $page['service'];
         <li>Delivery coordination</li>
       </ol>
     </div>
-    <div>
+    <div data-tracking-section="related-services">
       <h2>Related Services</h2>
       <p class="lead">
         Many projects combine this service with CNC, laser, printing or
         fabrication support for complete delivery.
       </p>
-      <a href="/services" class="btn btn-outline">Back to All Services</a>
-      <a href="/contact" class="btn">Request a Quote</a>
+      <a href="/services" class="btn btn-outline" data-tracking-control="all-services">Back to All Services</a>
+      <a href="/contact" class="btn" data-tracking-control="request-quote">Request a Quote</a>
     </div>
   </div>
 </section>

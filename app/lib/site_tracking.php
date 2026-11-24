@@ -24,7 +24,7 @@ function site_tracking_collect(string $directory, string $origin): never
     $clickTargets = [
         'navigation', 'service', 'project', 'contact', 'quote', 'phone', 'email', 'whatsapp',
         'viber', 'directions', 'quote_file_guide', 'drawing_preview', 'menu', 'portfolio_filter',
-        'drawing_picker', 'attachment_picker', 'link', 'button', 'menu_open', 'menu_close', 'page_area',
+        'drawing_picker', 'attachment_picker', 'link', 'button', 'menu_open', 'menu_close', 'page_area', 'control',
     ];
     $formTargets = ['contact_form', 'quote_updates', 'quote_order'];
     $pages = ['home', 'about', 'services', 'service-detail', 'portfolio', 'project-detail', 'machinery', 'materials', 'industries', 'contact', 'online-quote', '404'];
@@ -113,9 +113,11 @@ function site_tracking_collect(string $directory, string $origin): never
             $row['target'] = $target;
         }
         if ($type === 'click') {
+            $row += site_tracking_click_context($data['page'], $target, $event);
             $horizontal = $event['point_x'] ?? null;
             $vertical = $event['point_y'] ?? null;
-            if (is_int($horizontal) && $horizontal >= 0 && $horizontal <= 100
+            if (($row['click_input'] ?? '') !== 'keyboard'
+                && is_int($horizontal) && $horizontal >= 0 && $horizontal <= 100
                 && is_int($vertical) && $vertical >= 0 && $vertical <= 100) {
                 $row['point_x'] = $horizontal;
                 $row['point_y'] = $vertical;
@@ -158,6 +160,164 @@ function site_tracking_collect(string $directory, string $origin): never
     }
     fclose($file);
     $fail($written ? 204 : 429);
+}
+
+function site_tracking_click_context(string $page, string $target, array $event): array
+{
+    static $siteSections = [
+        'header' => 'Site header',
+        'main-navigation' => 'Main navigation',
+        'breadcrumbs' => 'Breadcrumb navigation',
+        'footer' => 'Site footer',
+        'page-intro' => 'Page introduction',
+        'page-content' => 'Page content',
+    ];
+    static $pageSections = [
+        'home' => [
+            'manufacturing' => 'What we manufacture',
+            'sign-manufacturing' => 'Sign manufacturing card',
+            'cnc-routers' => 'CNC router services card',
+            'laser-cutting' => 'Laser cutting card',
+            'fabrication' => 'Industrial fabrication card',
+            'featured-services' => 'Featured services',
+            'signage-systems' => 'Signage systems card',
+            'cnc-laser' => 'CNC and laser production card',
+            'printing' => 'Large format printing card',
+            'custom-fabrication' => 'Custom fabrication card',
+            'featured-projects' => 'Featured projects',
+            'equipment-and-materials' => 'Machinery and materials',
+            'equipment' => 'Machinery and technology',
+            'materials' => 'Materials',
+            'advantages-and-workflow' => 'Manufacturing and workflow',
+            'advantages' => 'Why businesses choose us',
+            'workflow' => 'Manufacturing process',
+            'industries' => 'Industries served',
+            'request-quote' => 'Request a quote section',
+        ],
+        'about' => [
+            'approach' => 'Our approach',
+            'quality' => 'Quality and precision',
+            'commitment' => 'Our commitment',
+        ],
+        'services' => ['service-list' => 'Services list'],
+        'service-detail' => [
+            'applications' => 'Applications',
+            'materials' => 'Common materials',
+            'process' => 'Manufacturing process',
+            'related-services' => 'Related services',
+        ],
+        'portfolio' => [
+            'portfolio-filters' => 'Portfolio filters',
+            'project-gallery' => 'Project gallery',
+            'project-card' => 'Project card',
+        ],
+        'project-detail' => [
+            'materials' => 'Materials used',
+            'techniques' => 'Manufacturing techniques',
+            'assets' => 'Project assets',
+        ],
+        'machinery' => [
+            'machine-list' => 'Machinery list',
+            'machine-specifications' => 'Machine specifications',
+        ],
+        'materials' => ['material-list' => 'Materials list'],
+        'industries' => ['industry-list' => 'Industries list'],
+        'contact' => [
+            'direct-contact' => 'Direct contact',
+            'inquiry-form' => 'Inquiry form',
+        ],
+        'online-quote' => [
+            'quote-access' => 'Quote testing access',
+            'quote-updates' => 'Quote launch updates',
+            'quote-workspace' => 'Quote workspace',
+            'drawing-upload' => 'Drawing upload',
+            'drawing-preview' => 'Drawing preview',
+            'material-and-machine' => 'Material and machine',
+            'part-details' => 'Part details',
+            'calculate-quote' => 'Calculate quote',
+            'quote-result' => 'Quote result',
+            'order-booking' => 'Order booking',
+        ],
+    ];
+    static $siteControls = [
+        'home-logo' => 'Company logo',
+        'request-quote' => 'Request a Quote',
+        'facebook' => 'Facebook',
+    ];
+    static $pageControls = [
+        'home' => [
+            'request-custom-quote' => 'Request a Custom Quote',
+            'explore-capabilities' => 'Explore Capabilities',
+        ],
+        'service-detail' => ['all-services' => 'Back to All Services'],
+        'project-detail' => ['back-to-portfolio' => 'Back to Portfolio'],
+        'portfolio' => [
+            'filter-all' => 'All projects',
+            'filter-signage' => 'Signage filter',
+            'filter-illuminated-signs' => 'Illuminated Signs filter',
+            'filter-cnc' => 'CNC filter',
+            'filter-laser-cutting' => 'Laser Cutting filter',
+            'filter-printing' => 'Printing filter',
+            'filter-fabrication' => 'Fabrication filter',
+        ],
+        'contact' => [
+            'customer-name' => 'Customer Name field',
+            'company-name' => 'Company Name field',
+            'contact-email' => 'Email field',
+            'contact-phone' => 'Phone field',
+            'required-service' => 'Service Required field',
+            'project-description' => 'Project Description field',
+            'contact-dimensions' => 'Dimensions field',
+            'contact-material' => 'Material field',
+            'contact-quantity' => 'Quantity field',
+            'reference-upload' => 'Upload Drawings / Reference',
+            'send-inquiry' => 'Send Inquiry',
+        ],
+        'online-quote' => [
+            'open-quote' => 'Open Quote System',
+            'email-updates' => 'Email for updates field',
+            'notify-me' => 'Notify Me',
+            'dxf-guide' => 'DXF file guide',
+            'drawing-software' => 'Drawing software selector',
+            'dxf-upload' => 'DXF file picker',
+            'expand-preview' => 'View drawing fullscreen',
+            'close-preview' => 'Close fullscreen drawing',
+            'quote-material' => 'Material selector',
+            'quote-machine' => 'Machine selector',
+            'drawing-contents' => 'Drawing contents selector',
+            'part-width' => 'Part Width field',
+            'part-height' => 'Part Height field',
+            'part-quantity' => 'Quantity field',
+            'part-notes' => 'Notes field',
+            'calculate-quote' => 'Calculate Quote',
+            'order-name' => 'Full Name field',
+            'order-email' => 'Email field',
+            'order-phone' => 'Phone field',
+            'order-message' => 'Message field',
+            'book-order' => 'Book Order',
+        ],
+    ];
+    $row = [];
+    $section = $event['section'] ?? null;
+    if (is_string($section)) {
+        $label = $pageSections[$page][$section] ?? $siteSections[$section] ?? null;
+        if ($label !== null) $row['section'] = $label;
+    }
+    $control = $event['control'] ?? null;
+    if ($target !== 'page_area' && is_string($control)) {
+        $label = $pageControls[$page][$control] ?? $siteControls[$control] ?? null;
+        if ($label !== null) $row['control'] = $label;
+    }
+    $surface = $event['surface'] ?? null;
+    if ($target === 'page_area' && in_array($surface, ['heading', 'image', 'copy', 'blank', 'canvas'], true)) {
+        $row['surface'] = $surface;
+    }
+    $input = $event['click_input'] ?? null;
+    if (in_array($input, ['mouse', 'touch', 'pen', 'keyboard'], true)) {
+        $row['click_input'] = $input;
+        if ($input !== 'keyboard' && ($event['repeat_count'] ?? null) === 3) $row['repeat_count'] = 3;
+    }
+    return $row;
 }
 
 function site_tracking_destination_detail(string $destination, mixed $slug): ?string

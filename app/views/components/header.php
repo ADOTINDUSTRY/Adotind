@@ -14,7 +14,7 @@ $currentPath = current_path();
 ?>
 <header class="site-header">
   <div class="container nav-shell">
-    <a href="/" class="brand">
+    <a href="/" class="brand" data-tracking-control="home-logo">
       <?php if (!empty($siteConfig['logo_url'])): ?>
         <img
           class="brand-logo"

@@ -26,7 +26,7 @@ $heroMedia = $page['hero_media'] ?? [];
 
 <section class="section">
   <div class="container two-col">
-    <div>
+    <div data-tracking-section="direct-contact">
       <h2>Direct Contact</h2>
       <p><strong>Phone:</strong> <a href="tel:<?= e($siteConfig['phone_href']) ?>"><?= e($siteConfig['phone']) ?></a></p>
       <p><strong>Email:</strong> <a href="mailto:<?= e($siteConfig['email']) ?>"><?= e($siteConfig['email']) ?></a></p>
@@ -38,7 +38,7 @@ $heroMedia = $page['hero_media'] ?? [];
         </a>
       </p>
     </div>
-    <div class="service-card">
+    <div class="service-card" data-tracking-section="inquiry-form">
       <?php if (is_string($successMessage)): ?>
         <p class="alert alert-success"><?= e($successMessage) ?></p>
       <?php endif; ?>
@@ -50,26 +50,26 @@ $heroMedia = $page['hero_media'] ?? [];
         <input type="hidden" name="csrf_token" value="<?= e(csrf_token()) ?>" />
 
         <label>Customer Name *
-          <input type="text" name="customer_name" value="<?= e((string)($old['customer_name'] ?? '')) ?>" />
+          <input type="text" name="customer_name" value="<?= e((string)($old['customer_name'] ?? '')) ?>" data-tracking-control="customer-name" />
           <?php if (!empty($errors['customer_name'])): ?><small class="error-text"><?= e($errors['customer_name']) ?></small><?php endif; ?>
         </label>
 
         <label>Company Name
-          <input type="text" name="company_name" value="<?= e((string)($old['company_name'] ?? '')) ?>" />
+          <input type="text" name="company_name" value="<?= e((string)($old['company_name'] ?? '')) ?>" data-tracking-control="company-name" />
         </label>
 
         <label>Email *
-          <input type="email" name="email" value="<?= e((string)($old['email'] ?? '')) ?>" />
+          <input type="email" name="email" value="<?= e((string)($old['email'] ?? '')) ?>" data-tracking-control="contact-email" />
           <?php if (!empty($errors['email'])): ?><small class="error-text"><?= e($errors['email']) ?></small><?php endif; ?>
         </label>
 
         <label>Phone *
-          <input type="text" name="phone" value="<?= e((string)($old['phone'] ?? '')) ?>" />
+          <input type="text" name="phone" value="<?= e((string)($old['phone'] ?? '')) ?>" data-tracking-control="contact-phone" />
           <?php if (!empty($errors['phone'])): ?><small class="error-text"><?= e($errors['phone']) ?></small><?php endif; ?>
         </label>
 
         <label>Service Required *
-          <select name="service_required">
+          <select name="service_required" data-tracking-control="required-service">
             <option value="">Select a service</option>
             <?php foreach ($services as $service): ?>
               <?php $selected = (($old['service_required'] ?? '') === $service['name']) ? 'selected' : ''; ?>
@@ -80,28 +80,28 @@ $heroMedia = $page['hero_media'] ?? [];
         </label>
 
         <label>Project Description *
-          <textarea name="project_description" rows="5"><?= e((string)($old['project_description'] ?? '')) ?></textarea>
+          <textarea name="project_description" rows="5" data-tracking-control="project-description"><?= e((string)($old['project_description'] ?? '')) ?></textarea>
           <?php if (!empty($errors['project_description'])): ?><small class="error-text"><?= e($errors['project_description']) ?></small><?php endif; ?>
         </label>
 
         <label>Dimensions
-          <input type="text" name="dimensions" value="<?= e((string)($old['dimensions'] ?? '')) ?>" />
+          <input type="text" name="dimensions" value="<?= e((string)($old['dimensions'] ?? '')) ?>" data-tracking-control="contact-dimensions" />
         </label>
 
         <label>Material
-          <input type="text" name="material" value="<?= e((string)($old['material'] ?? '')) ?>" />
+          <input type="text" name="material" value="<?= e((string)($old['material'] ?? '')) ?>" data-tracking-control="contact-material" />
         </label>
 
         <label>Quantity
-          <input type="text" name="quantity" value="<?= e((string)($old['quantity'] ?? '')) ?>" />
+          <input type="text" name="quantity" value="<?= e((string)($old['quantity'] ?? '')) ?>" data-tracking-control="contact-quantity" />
         </label>
 
         <label>Upload Drawings / Reference
-          <input type="file" name="project_file" accept=".pdf,.jpg,.jpeg,.png,.webp,.svg,.dxf,.dwg,.zip" />
+          <input type="file" name="project_file" accept=".pdf,.jpg,.jpeg,.png,.webp,.svg,.dxf,.dwg,.zip" data-tracking-control="reference-upload" />
           <?php if (!empty($errors['project_file'])): ?><small class="error-text"><?= e($errors['project_file']) ?></small><?php endif; ?>
         </label>
 
-        <button type="submit" class="btn">Send Inquiry</button>
+        <button type="submit" class="btn" data-tracking-control="send-inquiry">Send Inquiry</button>
       </form>
     </div>
   </div>

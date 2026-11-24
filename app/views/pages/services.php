@@ -16,7 +16,7 @@
   </div>
 </section>
 
-<section class="section">
+<section class="section" data-tracking-section="service-list">
   <div class="container">
     <div class="service-grid">
       <?php foreach ($page['services'] as $service): ?>

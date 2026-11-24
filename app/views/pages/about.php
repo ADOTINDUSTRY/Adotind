@@ -18,7 +18,7 @@
 
 <section class="section section-light">
   <div class="container two-col">
-    <div>
+    <div data-tracking-section="approach">
       <h2>Our Approach</h2>
       <p>
         We align design intent with real manufacturing workflows. Every project
@@ -31,7 +31,7 @@
         structural project scopes.
       </p>
     </div>
-    <div>
+    <div data-tracking-section="quality">
       <h2>Quality & Precision</h2>
       <ul class="feature-list">
         <li>Material-aware production planning</li>
@@ -43,7 +43,7 @@
   </div>
 </section>
 
-<section class="section section-dark">
+<section class="section section-dark" data-tracking-section="commitment">
   <div class="container">
     <h2>Our Commitment</h2>
     <p class="lead">

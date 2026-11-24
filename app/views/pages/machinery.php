@@ -11,7 +11,7 @@
   </div>
 </section>
 
-<section class="section">
+<section class="section" data-tracking-section="machine-list">
   <div class="container">
     <div class="service-grid">
       <?php foreach ($items as $item): ?>
@@ -25,7 +25,7 @@
   </div>
 </section>
 
-<section class="section section-dark">
+<section class="section section-dark" data-tracking-section="machine-specifications">
   <div class="container">
     <h2>Specifications Pending Confirmation</h2>
     <ul class="feature-list">

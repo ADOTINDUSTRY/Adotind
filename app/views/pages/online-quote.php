@@ -38,7 +38,7 @@ $viberBase = (string)($siteConfig['viber'] ?? '');
 <?php if (!$unlocked): ?>
 <section class="section section-light quote-page">
   <div class="container two-col quote-gate-grid">
-    <div class="quote-card quote-lock-card">
+    <div class="quote-card quote-lock-card" data-tracking-section="quote-access">
       <p class="quote-card-kicker">For testers</p>
       <h2>Private Testing Access</h2>
       <p>This page is temporarily PIN-protected while we finalize production settings.</p>
@@ -47,13 +47,13 @@ $viberBase = (string)($siteConfig['viber'] ?? '');
       <form action="/online-quote/pin" method="post" class="quote-form quote-pin-form" novalidate>
         <input type="hidden" name="csrf_token" value="<?= e(csrf_token()) ?>" />
         <label>Enter PIN
-          <input type="password" name="pin" inputmode="numeric" maxlength="12" placeholder="PIN" required />
+          <input type="password" name="pin" inputmode="numeric" maxlength="12" placeholder="PIN" required data-private />
         </label>
-        <button type="submit" class="btn">Open Quote System</button>
+        <button type="submit" class="btn" data-tracking-control="open-quote">Open Quote System</button>
       </form>
     </div>
 
-    <div class="quote-card">
+    <div class="quote-card" data-tracking-section="quote-updates">
       <p class="quote-card-kicker">Something new is on its way</p>
       <h2>Coming Soon — Under Development</h2>
       <p>Public launch is in progress. Leave your email and we will notify you when this system goes live.</p>
@@ -62,9 +62,9 @@ $viberBase = (string)($siteConfig['viber'] ?? '');
       <form action="/online-quote/updates" method="post" class="quote-form quote-updates-form" novalidate>
         <input type="hidden" name="csrf_token" value="<?= e(csrf_token()) ?>" />
         <label>Email for updates
-          <input type="email" name="email" placeholder="you@example.com" required />
+          <input type="email" name="email" placeholder="you@example.com" required data-tracking-control="email-updates" />
         </label>
-        <button type="submit" class="btn btn-outline">Notify Me</button>
+        <button type="submit" class="btn btn-outline" data-tracking-control="notify-me">Notify Me</button>
       </form>
       <div class="cta-group quote-help-cta">
         <a class="btn" href="<?= e($waBase) ?>" target="_blank" rel="noopener noreferrer">Need quotation now? WhatsApp</a>
@@ -75,7 +75,7 @@ $viberBase = (string)($siteConfig['viber'] ?? '');
 </section>
 <?php else: ?>
 <section class="section section-light quote-page">
-  <div class="container quote-workspace">
+  <div class="container quote-workspace" data-tracking-section="quote-workspace">
     <?php if (is_string($pinSuccess)): ?><p class="alert alert-success"><?= e($pinSuccess) ?></p><?php endif; ?>
     <?php if (is_string($quoteSuccess)): ?><p class="alert alert-success"><?= e($quoteSuccess) ?></p><?php endif; ?>
     <?php if (is_string($quoteError)): ?><p class="alert alert-error"><?= e($quoteError) ?></p><?php endif; ?>
@@ -89,16 +89,16 @@ $viberBase = (string)($siteConfig['viber'] ?? '');
           <p>Hi! Let's start with your drawing. We'll guide you through the details.</p>
         </div>
       </div>
-      <div class="quote-step-heading">
+      <div class="quote-step-heading" data-tracking-section="drawing-upload">
         <span aria-hidden="true">01</span>
         <div><h3>Upload your design</h3><p>Choose your DXF drawing to see a preview and measurements.</p></div>
       </div>
-      <div class="quote-upload">
+      <div class="quote-upload" data-tracking-section="drawing-upload">
         <details class="quote-file-guide">
-          <summary>What is a DXF file? How do I create one?</summary>
+          <summary data-tracking-control="dxf-guide">What is a DXF file? How do I create one?</summary>
           <p>DXF is a drawing file that describes lines and curves for cutting machines. It is not the same as a photo or screenshot.</p>
           <label for="quote-drawing-software">What did you use to draw your design?
-            <select id="quote-drawing-software">
+            <select id="quote-drawing-software" data-tracking-control="drawing-software">
               <option value="">Choose an option</option>
               <option value="cad">A CAD program (such as AutoCAD or Fusion)</option>
               <option value="vector">A vector design program (such as Illustrator, CorelDRAW or Inkscape)</option>
@@ -109,13 +109,13 @@ $viberBase = (string)($siteConfig['viber'] ?? '');
           <p>Draw at the intended size, use millimetres, and remove unwanted or duplicate lines. Close outlines where appropriate. Ask us to check your file if you are unsure.</p>
         </details>
         <label>DXF drawing
-          <input type="file" name="vector_file" accept=".dxf" aria-describedby="quote-file-help" required />
+          <input type="file" name="vector_file" accept=".dxf" aria-describedby="quote-file-help" required data-tracking-control="dxf-upload" />
         </label>
         <p id="quote-file-help">Upload a DXF file up to 50 MB. Need help creating one? Open the guide above or <a href="/contact">contact us</a>.</p>
-        <div class="quote-file-preview" hidden aria-live="polite">
+        <div class="quote-file-preview" hidden aria-live="polite" data-tracking-section="drawing-preview">
           <div class="quote-preview-image" hidden>
             <div class="quote-preview-render" hidden aria-label="Drawing preview"></div>
-            <button type="button" class="quote-preview-expand">View fullscreen</button>
+            <button type="button" class="quote-preview-expand" data-tracking-control="expand-preview">View fullscreen</button>
             <div class="quote-preview-measurements" hidden>
               <p class="quote-preview-width"></p>
               <p class="quote-preview-height"></p>
@@ -131,19 +131,19 @@ $viberBase = (string)($siteConfig['viber'] ?? '');
           <dialog class="quote-preview-dialog" aria-label="Fullscreen drawing preview">
             <div class="quote-preview-dialog-header">
               <strong>Drawing preview</strong>
-              <button type="button" class="quote-preview-close">Close fullscreen</button>
+              <button type="button" class="quote-preview-close" data-tracking-control="close-preview">Close fullscreen</button>
             </div>
             <div class="quote-preview-dialog-content"></div>
           </dialog>
         </div>
       </div>
-      <div class="quote-step-heading">
+      <div class="quote-step-heading" data-tracking-section="material-and-machine">
         <span aria-hidden="true">02</span>
         <div><h3>Tell us about your material</h3><p>Choose a material. If you are not sure which one to use, <a href="/contact">ask us for advice</a>.</p></div>
       </div>
-      <div class="quote-prototype-grid quote-grid-two">
+      <div class="quote-prototype-grid quote-grid-two" data-tracking-section="material-and-machine">
         <label>Material
-          <select name="material_id" required>
+          <select name="material_id" required data-tracking-control="quote-material">
             <option value="">Choose a material</option>
             <?php foreach ($materials as $m): ?>
               <option value="<?= e((string)$m['id']) ?>"><?= e((string)$m['name']) ?></option>
@@ -151,7 +151,7 @@ $viberBase = (string)($siteConfig['viber'] ?? '');
           </select>
         </label>
         <label>Machine (testing only)
-          <select name="machine_id" required>
+          <select name="machine_id" required data-tracking-control="quote-machine">
             <option value="">Choose a machine</option>
             <?php foreach ($machines as $m): ?>
               <option value="<?= e((string)$m['id']) ?>"><?= e((string)$m['name']) ?></option>
@@ -159,44 +159,44 @@ $viberBase = (string)($siteConfig['viber'] ?? '');
           </select>
         </label>
       </div>
-      <p>Automatic machine selection is not ready yet. Please <a href="/contact">ask us</a> if you are unsure; we will check the material, drawing and machine capacity.</p>
-      <div class="quote-step-heading">
+      <p data-tracking-section="material-and-machine">Automatic machine selection is not ready yet. Please <a href="/contact">ask us</a> if you are unsure; we will check the material, drawing and machine capacity.</p>
+      <div class="quote-step-heading" data-tracking-section="part-details">
         <span aria-hidden="true">03</span>
         <div><h3>Tell us about your parts</h3><p>Enter the actual size of one cut part and the quantity you need. The preview shows the entire drawing, which may contain several parts.</p></div>
       </div>
-      <label>What does your drawing contain?
-        <select name="drawing_contents" class="quote-drawing-contents" required>
+      <label data-tracking-section="part-details">What does your drawing contain?
+        <select name="drawing_contents" class="quote-drawing-contents" required data-tracking-control="drawing-contents">
           <option value="">Choose an option</option>
           <option value="single">One part, including any holes or internal cuts</option>
           <option value="multiple">Multiple separate parts</option>
           <option value="unsure">I'm not sure</option>
         </select>
       </label>
-      <p class="quote-parts-help" aria-live="polite">If you have multiple parts or are unsure, we can review the file and help work out sheet requirements.</p>
-      <p><a href="/contact">Contact us for help with your drawing or sheet requirements</a>.</p>
-      <div class="quote-prototype-grid">
+      <p class="quote-parts-help" aria-live="polite" data-tracking-section="part-details">If you have multiple parts or are unsure, we can review the file and help work out sheet requirements.</p>
+      <p data-tracking-section="part-details"><a href="/contact">Contact us for help with your drawing or sheet requirements</a>.</p>
+      <div class="quote-prototype-grid" data-tracking-section="part-details">
         <label>Part width (mm)
-          <input type="number" name="part_width_mm" min="1" step="0.1" placeholder="Enter width" required />
+          <input type="number" name="part_width_mm" min="1" step="0.1" placeholder="Enter width" required data-tracking-control="part-width" />
         </label>
         <label>Part height (mm)
-          <input type="number" name="part_height_mm" min="1" step="0.1" placeholder="Enter height" required />
+          <input type="number" name="part_height_mm" min="1" step="0.1" placeholder="Enter height" required data-tracking-control="part-height" />
         </label>
         <label>Quantity
-          <input type="number" name="quantity" min="1" step="1" value="1" required />
+          <input type="number" name="quantity" min="1" step="1" value="1" required data-tracking-control="part-quantity" />
         </label>
       </div>
-      <label>Notes (optional)
-        <textarea name="note" rows="3" placeholder="Any details about this job"></textarea>
+      <label data-tracking-section="part-details">Notes (optional)
+        <textarea name="note" rows="3" placeholder="Any details about this job" data-tracking-control="part-notes"></textarea>
       </label>
-      <div class="quote-form-footer">
+      <div class="quote-form-footer" data-tracking-section="calculate-quote">
         <p>Testing estimates assume one part per drawing. Sheet quantities are approximate and must be checked before cutting.</p>
-        <button type="submit" class="btn">Calculate Quote <span aria-hidden="true">→</span></button>
+        <button type="submit" class="btn" data-tracking-control="calculate-quote">Calculate Quote <span aria-hidden="true">→</span></button>
       </div>
     </form>
 
     <?php if (is_array($result) && is_array($result['estimate'] ?? null)): ?>
       <?php $est = $result['estimate']; $token = (string)($result['token'] ?? ''); ?>
-      <article class="quote-card quote-result-card">
+      <article class="quote-card quote-result-card" data-tracking-section="quote-result">
         <p class="quote-card-kicker">Your estimate</p>
         <h2>Quote Result</h2>
         <p>File: <strong><?= e((string)($result['original_file'] ?? '')) ?></strong> · Part size: <?= e((string)($result['input']['part_width_mm'] ?? '')) ?> × <?= e((string)($result['input']['part_height_mm'] ?? '')) ?> mm</p>
@@ -218,25 +218,25 @@ $viberBase = (string)($siteConfig['viber'] ?? '');
         </div>
       </article>
 
-      <article class="quote-card quote-booking-card">
+      <article class="quote-card quote-booking-card" data-tracking-section="order-booking">
         <p class="quote-card-kicker">Ready to proceed?</p>
         <h2>Book This Order</h2>
         <form class="quote-form" action="/online-quote/book" method="post" novalidate>
           <input type="hidden" name="csrf_token" value="<?= e(csrf_token()) ?>" />
           <input type="hidden" name="quote_token" value="<?= e($token) ?>" />
           <label>Full name
-            <input type="text" name="customer_name" required />
+            <input type="text" name="customer_name" required data-tracking-control="order-name" />
           </label>
           <label>Email
-            <input type="email" name="email" required />
+            <input type="email" name="email" required data-tracking-control="order-email" />
           </label>
           <label>Phone
-            <input type="text" name="phone" required />
+            <input type="text" name="phone" required data-tracking-control="order-phone" />
           </label>
           <label>Message
-            <textarea name="message" rows="3" placeholder="Anything you want us to know"></textarea>
+            <textarea name="message" rows="3" placeholder="Anything you want us to know" data-tracking-control="order-message"></textarea>
           </label>
-          <button type="submit" class="btn">Book Order</button>
+          <button type="submit" class="btn" data-tracking-control="book-order">Book Order</button>
         </form>
       </article>
     <?php endif; ?>
