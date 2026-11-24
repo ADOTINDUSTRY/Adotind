@@ -1794,6 +1794,17 @@ p {
   }
 }
 
+@media (max-width: 360px) {
+  .brand-logo {
+    width: 26px;
+    height: 26px;
+  }
+  .brand-text {
+    font-size: 0.68rem;
+    letter-spacing: 0.03em;
+  }
+}
+
 @media (max-width: 920px) {
   .hero-grid,
   .two-col,
