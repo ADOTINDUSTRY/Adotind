@@ -11,6 +11,7 @@ $trackingEnabled = is_writable('/var/www/site-tracking') && ($page['view'] ?? ''
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
+    <link rel="icon" href="/favicon.ico?v=1" sizes="16x16 32x32 48x48 64x64" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title><?= e($page['title']) ?></title>
     <meta

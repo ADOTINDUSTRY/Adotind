@@ -7,7 +7,7 @@ RUN apt-get update \
     && a2enmod rewrite headers expires deflate \
     && mv "$PHP_INI_DIR/php.ini-production" "$PHP_INI_DIR/php.ini"
 WORKDIR /var/www/html
-COPY index.php .htaccess robots.txt sitemap.xml ./
+COPY index.php .htaccess robots.txt sitemap.xml favicon.ico ./
 COPY app/ ./app/
 COPY public/ ./public/
 COPY bluehost-site.conf /etc/apache2/sites-available/000-default.conf
