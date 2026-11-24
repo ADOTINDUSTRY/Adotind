@@ -6,6 +6,8 @@ $updatesSuccess = flash_get('online_quote_updates_success');
 $quoteError = flash_get('online_quote_error');
 $quoteErrorReason = flash_get('online_quote_error_reason', '');
 $quoteSuccess = flash_get('online_quote_success');
+$reviewNotice = flash_get('quote_review_notice');
+$bookingDetails = flash_get('quote_booking_details', []);
 $unlocked = !empty($page['quote_unlocked']);
 $quoteData = $page['quote_data'] ?? ['machines' => [], 'materials' => [], 'rates' => [], 'settings' => []];
 $machines = is_array($quoteData['machines'] ?? null) ? $quoteData['machines'] : [];
@@ -260,9 +262,12 @@ $viberBase = (string)($siteConfig['viber'] ?? '');
 
     <?php if (is_array($result) && is_array($result['estimate'] ?? null)): ?>
       <?php $est = $result['estimate']; $currency = (string)($est['currency'] ?? $currency); $token = (string)($result['token'] ?? ''); ?>
-      <article class="quote-card quote-result-card" data-tracking-section="quote-result">
+      <article id="current-estimate" class="quote-card quote-result-card" data-tracking-section="quote-result">
         <p class="quote-card-kicker">Your estimate</p>
-        <h2>Your estimate<?= isset($result['estimate_id']) ? ' Q-' . (int)$result['estimate_id'] : '' ?></h2>
+        <h2>Estimated total: <?= e($currency . number_format((float)$est['total_cost'], 2)) ?></h2>
+        <?php if (isset($result['previous_price'])): ?>
+          <p class="quote-access-notice" role="status">The price changed from <?= e($result['previous_price']) ?> to <?= e($currency . number_format((float)$est['total_cost'], 2)) ?>. Review this amount before sending your order request.</p>
+        <?php elseif ($reviewNotice): ?><p role="status"><?= e($reviewNotice) ?></p><?php endif; ?>
         <p>File: <strong><?= e((string)($result['original_file'] ?? '')) ?></strong> · Part size: <?= e((string)($result['input']['part_width_mm'] ?? '')) ?> × <?= e((string)($result['input']['part_height_mm'] ?? '')) ?> mm</p>
         <?php if (!empty($result['warnings']) && is_array($result['warnings'])): ?>
           <p class="alert alert-error"><?= e((string)implode(' ', $result['warnings'])) ?></p>
@@ -289,18 +294,18 @@ $viberBase = (string)($siteConfig['viber'] ?? '');
           <input type="hidden" name="csrf_token" value="<?= e(csrf_token()) ?>" />
           <input type="hidden" name="quote_token" value="<?= e($token) ?>" />
           <label>Full name
-            <input type="text" name="customer_name" required data-tracking-control="order-name" />
+            <input type="text" name="customer_name" value="<?= e($bookingDetails['name'] ?? '') ?>" required data-tracking-control="order-name" />
           </label>
           <label>Email
-            <input type="email" name="email" required data-tracking-control="order-email" />
+            <input type="email" name="email" value="<?= e($bookingDetails['email'] ?? '') ?>" required data-tracking-control="order-email" />
           </label>
           <label>Phone
-            <input type="text" name="phone" required data-tracking-control="order-phone" />
+            <input type="text" name="phone" value="<?= e($bookingDetails['phone'] ?? '') ?>" required data-tracking-control="order-phone" />
           </label>
           <label>Message
-            <textarea name="message" rows="3" placeholder="Anything you want us to know" data-tracking-control="order-message"></textarea>
+            <textarea name="message" rows="3" placeholder="Anything you want us to know" data-tracking-control="order-message"><?= e($bookingDetails['message'] ?? '') ?></textarea>
           </label>
-          <button type="submit" class="btn" data-tracking-control="book-order">Book Order</button>
+          <button type="submit" class="btn" data-tracking-control="book-order">Send order request · <?= e($currency . number_format((float)$est['total_cost'], 2)) ?></button>
         </form>
       </article>
     <?php endif; ?>

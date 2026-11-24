@@ -32,7 +32,7 @@ function quote_db(array $siteConfig): PDO
     $pdo->exec('PRAGMA foreign_keys = ON');
     $pdo->exec('PRAGMA journal_mode = WAL');
     // Schema/seed only once per database file; user_version marks completion.
-    if ((int)$pdo->query('PRAGMA user_version')->fetchColumn() < 2) {
+    if ((int)$pdo->query('PRAGMA user_version')->fetchColumn() < 3) {
         $pdo->exec('BEGIN IMMEDIATE');
         try {
             $version = (int)$pdo->query('PRAGMA user_version')->fetchColumn();
@@ -53,6 +53,11 @@ function quote_db(array $siteConfig): PDO
                 );
                 CREATE TABLE website_metadata (name TEXT PRIMARY KEY, payload TEXT NOT NULL);
                 PRAGMA user_version=2");
+            }
+            if ($version < 3) {
+                $pdo->exec('ALTER TABLE quote_estimates ADD COLUMN booking_key TEXT;
+                    CREATE UNIQUE INDEX quote_estimates_booking_key ON quote_estimates(booking_key);
+                    PRAGMA user_version=3');
             }
             $pdo->exec('COMMIT');
         } catch (Throwable $e) {
@@ -853,6 +858,70 @@ function online_quote_fail(string $message, string $reason): never
     redirect('/online-quote', 303);
 }
 
+function quote_current_pricing(array $siteConfig, array $input): array
+{
+    $db = quote_db($siteConfig);
+    $machine = $db->prepare('SELECT * FROM quote_machines WHERE id=? AND active=1');
+    $machine->execute([$input['machine_id']]);
+    $material = $db->prepare('SELECT * FROM quote_materials WHERE id=? AND active=1');
+    $material->execute([$input['material_id']]);
+    $rate = $db->prepare('SELECT * FROM quote_machine_materials WHERE machine_id=? AND material_id=? AND active=1');
+    $rate->execute([$input['machine_id'], $input['material_id']]);
+    $machine = $machine->fetch();
+    $material = $material->fetch();
+    $rate = $rate->fetch();
+    if (!$machine || !$material || !$rate) throw new DomainException('This machine and material combination is no longer available. Please choose again.');
+    $settings = quote_settings($siteConfig);
+    return [
+        'machine'=>$machine, 'material'=>$material, 'rate'=>$rate, 'pricing_settings'=>$settings,
+        'estimate'=>quote_build_estimate($machine, $material, $rate, $settings, $input),
+    ];
+}
+
+function quote_refresh_preview(array $siteConfig, array $result): array
+{
+    if (isset($result['draft_expires']) && time() >= $result['draft_expires']) {
+        throw new DomainException('Your temporary drawing has expired. Upload it again to get today’s price.');
+    }
+    $input = $result['input'];
+    if (!isset($input['vector_length_mm'])) {
+        // Pre-update sessions only kept the rounded length. Recover the exact measurement.
+        $warnings = [];
+        $file = $siteConfig['inquiries_dir'] . '/quote-files/' . basename($result['stored_file']);
+        $input['vector_length_mm'] = quote_measure_vector_mm($file, $input['ext'], $warnings);
+        if (!$input['vector_length_mm']) throw new DomainException('Please upload the drawing again to refresh the price.');
+    }
+    $pricing = quote_current_pricing($siteConfig, $input);
+    $previous = $result['estimate'];
+    $current = $pricing['estimate'];
+    if ($previous['total_cost'] != $current['total_cost'] || $previous['currency'] !== $current['currency']) {
+        $result['previous_price'] = $previous['currency'] . number_format((float)$previous['total_cost'], 2);
+        $result['token'] = bin2hex(random_bytes(16));
+    }
+    return array_replace($result, $pricing, ['input'=>$input]);
+}
+
+function quote_preview_for_display(array $siteConfig): ?array
+{
+    $result = $_SESSION['online_quote_result'] ?? null;
+    if (!$result || !online_quote_unlocked()) return null;
+    $db = quote_db($siteConfig);
+    $db->beginTransaction();
+    try {
+        $result = quote_refresh_preview($siteConfig, $result);
+        $db->commit();
+        return $_SESSION['online_quote_result'] = $result;
+    } catch (RuntimeException $error) {
+        if ($db->inTransaction()) $db->rollBack();
+        flash_set('online_quote_error', $error instanceof PDOException ? 'Pricing is temporarily unavailable. Please try again.' : $error->getMessage());
+        return null;
+    } catch (DomainException $error) {
+        $db->rollBack();
+        flash_set('online_quote_error', $error->getMessage());
+        return null;
+    }
+}
+
 function handle_online_quote_calculate(array $siteConfig): never
 {
     if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
@@ -897,30 +966,10 @@ function handle_online_quote_calculate(array $siteConfig): never
         online_quote_fail('File too large. Maximum size is 50MB.', 'file_too_large');
     }
 
-    $dir = rtrim((string)($siteConfig['inquiries_dir'] ?? (__DIR__ . '/../../storage/inquiries')), '/') . '/quote-files';
-    if (!is_dir($dir)) {
-        mkdir($dir, 0755, true);
-    }
-    $stored = date('Ymd-His') . '-' . bin2hex(random_bytes(4)) . '.' . $ext;
+    $dir = dirname(quote_db_path($siteConfig)) . '/quote-drafts';
+    if (!is_dir($dir) && !mkdir($dir, 0700, true) && !is_dir($dir)) online_quote_fail('Temporary storage is unavailable.', 'file_save_failed');
+    $stored = bin2hex(random_bytes(16)) . '.' . $ext;
     $path = $dir . '/' . $stored;
-
-    $db = quote_db($siteConfig);
-    $machine = $db->prepare('SELECT * FROM quote_machines WHERE id = ? AND active = 1');
-    $machine->execute([$machineId]);
-    $machine = $machine->fetch();
-    $material = $db->prepare('SELECT * FROM quote_materials WHERE id = ? AND active = 1');
-    $material->execute([$materialId]);
-    $material = $material->fetch();
-    if (!is_array($machine) || !is_array($material)) {
-        online_quote_fail('Invalid machine or material selection.', 'invalid_options');
-    }
-
-    $rate = $db->prepare('SELECT * FROM quote_machine_materials WHERE machine_id = ? AND material_id = ? AND active = 1');
-    $rate->execute([(int)$machine['id'], (int)$material['id']]);
-    $rate = $rate->fetch();
-    if (!is_array($rate)) {
-        online_quote_fail('Cutting speed is not configured for this machine/material pair yet.', 'pricing_not_configured');
-    }
 
     $warnings = [];
     try {
@@ -933,14 +982,14 @@ function handle_online_quote_calculate(array $siteConfig): never
         online_quote_fail('No supported cutting geometry was found in this DXF drawing.', 'drawing_unreadable');
     }
 
-    $settings = quote_settings($siteConfig);
+    $input = ['machine_id'=>$machineId, 'material_id'=>$materialId, 'part_width_mm'=>$partW, 'part_height_mm'=>$partH,
+        'vector_length_mm'=>$vectorLength, 'quantity'=>$qty, 'note'=>$note, 'ext'=>$ext];
     try {
-        $estimate = quote_build_estimate($machine, $material, $rate, $settings, [
-            'vector_length_mm' => $vectorLength,
-            'part_width_mm' => $partW,
-            'part_height_mm' => $partH,
-            'quantity' => $qty,
-        ]);
+        $pricing = quote_current_pricing($siteConfig, $input);
+    } catch (DomainException $e) {
+        online_quote_fail($e->getMessage(), 'invalid_options');
+    } catch (PDOException $e) {
+        online_quote_fail('Pricing is temporarily unavailable. Please try again.', 'quote_unavailable');
     } catch (RuntimeException $e) {
         online_quote_fail($e->getMessage(), 'quote_unavailable');
     }
@@ -949,33 +998,18 @@ function handle_online_quote_calculate(array $siteConfig): never
         online_quote_fail('Could not save the uploaded vector file.', 'file_save_failed');
     }
     $token = bin2hex(random_bytes(16));
-    $result = [
+    $result = $pricing + [
+        'input' => $input,
+        'draft_expires' => time() + 86400,
         'stored_file' => $stored,
         'original_file' => $name,
-        'machine' => $machine,
-        'material' => $material,
-        'rate' => $rate,
-        'pricing_settings' => $settings,
-        'input' => [
-            'machine_id' => $machineId,
-            'material_id' => $materialId,
-            'part_width_mm' => $partW,
-            'part_height_mm' => $partH,
-            'quantity' => $qty,
-            'note' => $note,
-            'ext' => $ext,
-        ],
         'warnings' => $warnings,
-        'estimate' => $estimate,
     ];
-    try {
-        $db->prepare('INSERT INTO quote_estimates(snapshot) VALUES (?)')
-            ->execute([json_encode($result, JSON_THROW_ON_ERROR | JSON_INVALID_UTF8_SUBSTITUTE)]);
-    } catch (Throwable $error) {
-        unlink($path);
-        online_quote_fail('We could not save this estimate. Please try again.', 'quote_unavailable');
+    $previous = $_SESSION['online_quote_result'] ?? [];
+    if (isset($previous['draft_expires'], $previous['stored_file'])) {
+        $oldPath = $dir . '/' . basename($previous['stored_file']);
+        if (is_file($oldPath)) unlink($oldPath);
     }
-    $result['estimate_id'] = (int)$db->lastInsertId();
     $result['token'] = $token;
     $_SESSION['online_quote_result'] = $result;
     site_daily_count('estimate');
@@ -997,8 +1031,12 @@ function handle_online_quote_book(array $siteConfig): never
 
     $result = $_SESSION['online_quote_result'] ?? null;
     $token = trim((string)($_POST['quote_token'] ?? ''));
-    if (!is_array($result) || $token === '' || !hash_equals((string)($result['token'] ?? ''), $token)) {
+    if (!is_array($result) || $token === '') {
         online_quote_fail('Quote session expired. Please calculate again.', 'quote_expired');
+    }
+    if (!hash_equals((string)$result['token'], $token)) {
+        flash_set('quote_review_notice', 'This form is out of date. Review the current estimate before sending your request.');
+        redirect('/online-quote#current-estimate', 303);
     }
 
     $customer = [
@@ -1015,26 +1053,48 @@ function handle_online_quote_book(array $siteConfig): never
     }
 
     $db = quote_db($siteConfig);
-    $est = (array)$result['estimate'];
-    $input = (array)$result['input'];
+    $draftPath = $finalPath = null;
     $db->exec('BEGIN IMMEDIATE');
     try {
         $estimateId = (int)($result['estimate_id'] ?? 0);
-        if (!$estimateId) {
-            // A customer may still have an estimate from the previous release.
-            $snapshot = $result;
-            unset($snapshot['token']);
-            $db->prepare('INSERT INTO quote_estimates(snapshot) VALUES (?)')->execute([json_encode($snapshot, JSON_THROW_ON_ERROR | JSON_INVALID_UTF8_SUBSTITUTE)]);
-            $estimateId = (int)$db->lastInsertId();
-        }
-        $linked = $db->prepare('SELECT order_id FROM quote_estimates WHERE id=?');
-        $linked->execute([$estimateId]);
-        $savedEstimate = $linked->fetch();
-        if (!$savedEstimate) throw new RuntimeException('Estimate missing');
-        if ($savedEstimate['order_id'] !== null) {
+        $bookingKey = hash('sha256', $token);
+        $linked = $db->prepare('SELECT id FROM quote_estimates WHERE (booking_key=? OR id=?) AND order_id IS NOT NULL');
+        $linked->execute([$bookingKey, $estimateId]);
+        if ($linked->fetchColumn() !== false) {
             $db->exec('ROLLBACK');
+            unset($_SESSION['online_quote_result']);
             flash_set('online_quote_success', 'This order request was already received.');
             redirect('/online-quote', 303);
+        }
+        $result = quote_refresh_preview($siteConfig, $result);
+        if ($result['token'] !== $token) {
+            $db->exec('ROLLBACK');
+            $_SESSION['online_quote_result'] = $result;
+            flash_set('quote_booking_details', $customer);
+            redirect('/online-quote#current-estimate', 303);
+        }
+        $input = $result['input'];
+        $est = $result['estimate'];
+        $snapshot = $result;
+        unset($snapshot['token'], $snapshot['previous_price'], $snapshot['draft_expires']);
+        $json = json_encode($snapshot, JSON_THROW_ON_ERROR | JSON_INVALID_UTF8_SUBSTITUTE);
+        if ($estimateId) {
+            $update = $db->prepare('UPDATE quote_estimates SET snapshot=?,booking_key=? WHERE id=? AND order_id IS NULL');
+            $update->execute([$json,$bookingKey,$estimateId]);
+            if ($update->rowCount() !== 1) throw new RuntimeException('Missing estimate.');
+        } else {
+            $db->prepare('INSERT INTO quote_estimates(snapshot,booking_key) VALUES (?,?)')->execute([$json,$bookingKey]);
+            $estimateId = (int)$db->lastInsertId();
+        }
+        if (isset($result['draft_expires'])) {
+            $filesDir = $siteConfig['inquiries_dir'] . '/quote-files';
+            if (!is_dir($filesDir) && !mkdir($filesDir, 0750, true) && !is_dir($filesDir)) throw new RuntimeException('Cannot store drawing.');
+            $filename = basename($result['stored_file']);
+            $draftPath = dirname(quote_db_path($siteConfig)) . '/quote-drafts/' . $filename;
+            $destination = $filesDir . '/' . $filename;
+            if (!is_file($draftPath)) throw new DomainException('Your temporary drawing is unavailable. Please upload it again.');
+            if (!link($draftPath, $destination) && fileinode($draftPath) !== @fileinode($destination)) throw new RuntimeException('Cannot save drawing.');
+            $finalPath = $destination;
         }
         $db->prepare("
             INSERT INTO quote_orders (
@@ -1050,14 +1110,17 @@ function handle_online_quote_book(array $siteConfig): never
             (float)($est['vector_length_mm'] ?? 0),
             (float)($est['setup_cost'] ?? 0), (float)($est['cut_cost'] ?? 0), (float)($est['material_cost'] ?? 0),
             (float)($est['vat_cost'] ?? 0), (float)($est['total_cost'] ?? 0), (float)($est['total_minutes'] ?? 0),
-            json_encode($result, JSON_UNESCAPED_SLASHES),
+            $json,
         ]);
         $db->prepare('UPDATE quote_estimates SET order_id=? WHERE id=?')->execute([(int)$db->lastInsertId(), $estimateId]);
         $db->exec('COMMIT');
     } catch (Throwable $error) {
         $db->exec('ROLLBACK');
+        if ($finalPath !== null && is_file($finalPath)) unlink($finalPath);
+        if ($error instanceof DomainException) online_quote_fail($error->getMessage(), 'quote_unavailable');
         online_quote_fail('We could not save the order request. Please try again.', 'quote_unavailable');
     }
+    if ($draftPath !== null && is_file($draftPath)) unlink($draftPath);
 
     $subject = 'Order request for quote Q-' . $estimateId;
     $body = "Customer: {$customer['name']}\nEmail: {$customer['email']}\nPhone: {$customer['phone']}\n\n"

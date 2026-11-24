@@ -260,7 +260,7 @@ $routes = [
         'description' => 'Online quotation for CO2 laser, fiber laser and CNC routing projects based on measured vector cutting length.',
         'quote_unlocked' => online_quote_unlocked(),
         'quote_data' => quote_active_options($siteConfig),
-        'quote_result' => $_SESSION['online_quote_result'] ?? null,
+        'quote_result' => $path === '/online-quote' && $_SERVER['REQUEST_METHOD'] === 'GET' ? quote_preview_for_display($siteConfig) : null,
         'breadcrumbs' => [['label' => 'Home', 'href' => '/'], ['label' => 'Online Quote', 'href' => '/online-quote']],
     ],
     '/dashboard' => [
