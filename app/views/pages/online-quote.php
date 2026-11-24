@@ -27,7 +27,7 @@ $viberBase = (string)($siteConfig['viber'] ?? '');
     <div>
       <p class="eyebrow">Online Quote</p>
       <h1>Make your next idea a reality.</h1>
-      <p class="lead">Upload your DXF drawing and tell us what you need. We will help you prepare your project for cutting.</p>
+      <p class="lead"><?= $unlocked ? 'Start with a DXF drawing for a cutting estimate, or try a cut-line preview from your logo.' : 'Upload your DXF drawing and tell us what you need. We will help you prepare your project for cutting.' ?></p>
     </div>
     <div class="quote-processes" aria-label="Available processes">
       <span>CO2 Laser</span><span>Fiber Laser</span><span>CNC Router</span>
@@ -80,6 +80,24 @@ $viberBase = (string)($siteConfig['viber'] ?? '');
     <?php if (is_string($quoteSuccess)): ?><p class="alert alert-success"><?= e($quoteSuccess) ?></p><?php endif; ?>
     <?php if (is_string($quoteError)): ?><p class="alert alert-error"><?= e($quoteError) ?></p><?php endif; ?>
 
+    <details class="quote-card quote-artwork" data-tracking-section="artwork-preview">
+      <summary>Starting with a photo or logo?</summary>
+      <div class="quote-form">
+        <h2>Preview a cut line</h2>
+        <p>Choose a front-facing, single-colour design with a plain or transparent background. Check the red outline, including any holes. This is a visual proof only.</p>
+        <label>Photo or logo (PNG or JPG, up to 10 MB)
+          <input type="file" id="artwork-file" accept="image/png,image/jpeg" data-private />
+        </label>
+        <p id="artwork-status" role="status"></p>
+        <div id="artwork-controls" hidden>
+          <canvas id="artwork-proof" aria-label="Your artwork with suggested cut lines in red"></canvas>
+          <label>Trace <select id="artwork-tone"><option value="dark">Dark artwork</option><option value="light">Light artwork</option></select></label>
+          <label>Light/dark cutoff <input type="range" id="artwork-cutoff" min="1" max="254" value="160" /></label>
+          <label>Finished width (mm) <input type="number" id="artwork-width" min="0.1" step="0.1" placeholder="Enter width" /></label>
+          <output id="artwork-size" aria-live="polite"></output>
+        </div>
+      </div>
+    </details>
     <form class="quote-form quote-prototype" method="post" action="/online-quote/calculate" enctype="multipart/form-data" novalidate>
       <input type="hidden" name="csrf_token" value="<?= e(csrf_token()) ?>" />
       <div class="quote-form-intro">

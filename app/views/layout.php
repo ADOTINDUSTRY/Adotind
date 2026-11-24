@@ -111,6 +111,7 @@ $trackingEnabled = is_writable('/var/www/site-tracking') && ($page['view'] ?? ''
     <?php if (($page['view'] ?? '') === 'online-quote' && !empty($page['quote_unlocked'])): ?>
     <?php $quoteJsPath = __DIR__ . '/../../public/assets/js/quote-preview.js'; ?>
     <script src="/public/assets/js/quote-preview.js?v=<?= e(is_file($quoteJsPath) ? (string)filemtime($quoteJsPath) : '1') ?>" defer></script>
+    <script src="/public/assets/js/artwork-proof.js?v=<?= e((string)filemtime(__DIR__ . '/../../public/assets/js/artwork-proof.js')) ?>" defer></script>
     <?php endif; ?>
     <?php if ($trackingEnabled): ?>
     <?php $trackingPageSlug = $page['service']['slug'] ?? $page['project']['slug'] ?? ''; ?>
