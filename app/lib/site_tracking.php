@@ -24,7 +24,7 @@ function site_tracking_collect(string $directory, string $origin): never
     $clickTargets = [
         'navigation', 'service', 'project', 'contact', 'quote', 'phone', 'email', 'whatsapp',
         'viber', 'directions', 'quote_file_guide', 'drawing_preview', 'menu', 'portfolio_filter',
-        'drawing_picker', 'attachment_picker', 'link', 'button', 'menu_open', 'menu_close',
+        'drawing_picker', 'attachment_picker', 'link', 'button', 'menu_open', 'menu_close', 'page_area',
     ];
     $formTargets = ['contact_form', 'quote_updates', 'quote_order'];
     $pages = ['home', 'about', 'services', 'service-detail', 'portfolio', 'project-detail', 'machinery', 'materials', 'industries', 'contact', 'online-quote', '404'];
@@ -113,6 +113,13 @@ function site_tracking_collect(string $directory, string $origin): never
             $row['target'] = $target;
         }
         if ($type === 'click') {
+            $horizontal = $event['point_x'] ?? null;
+            $vertical = $event['point_y'] ?? null;
+            if (is_int($horizontal) && $horizontal >= 0 && $horizontal <= 100
+                && is_int($vertical) && $vertical >= 0 && $vertical <= 100) {
+                $row['point_x'] = $horizontal;
+                $row['point_y'] = $vertical;
+            }
             $destination = $event['destination'] ?? '';
             if (in_array($destination, $pages, true) && $destination !== '404') {
                 $row['destination'] = $destination;
