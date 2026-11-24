@@ -168,7 +168,7 @@ $viberBase = (string)($siteConfig['viber'] ?? '');
           <label>DXF drawing
             <input type="file" name="vector_file" accept=".dxf" aria-describedby="quote-file-help" required data-tracking-control="dxf-upload" />
           </label>
-          <p id="quote-file-help">Upload a DXF file up to 50 MB. Need help creating one? Open the guide above or <a href="/contact">contact us</a>.</p>
+          <p id="quote-file-help">Upload one part as a DXF, up to 50 MB. Drawings without units are priced in millimetres. For text, blocks or splines, export the cutting outlines or <a href="/contact">ask us to review the drawing</a>.</p>
           <div class="quote-file-preview" hidden aria-live="polite" data-tracking-section="drawing-preview">
             <div class="quote-preview-image" hidden>
               <div class="quote-preview-render" hidden aria-label="Drawing preview"></div>

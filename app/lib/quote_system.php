@@ -648,6 +648,8 @@ function quote_extract_dxf_length_mm(string $path): float
     }
     $unitScale = 1.0;
     $unitNext = false;
+    $section = null;
+    $sectionNameNext = false;
     $length = 0.0;
     $type = '';
     $data = [];
@@ -704,17 +706,40 @@ function quote_extract_dxf_length_mm(string $path): float
             $hasPairs = true;
             $code = trim($codeLine);
             $value = trim($valueLine);
-            if ($unitNext && $code === '70') {
+            if ($code === '0' && strtoupper($value) === 'SECTION') {
+                $finishEntity();
+                $type = '';
+                $sectionNameNext = true;
+                continue;
+            }
+            if ($sectionNameNext) {
+                if ($code !== '2') throw new RuntimeException('Missing DXF section name.');
+                $section = strtoupper($value);
+                $sectionNameNext = false;
+                continue;
+            }
+            if ($code === '0' && strtoupper($value) === 'ENDSEC') {
+                $finishEntity();
+                $type = '';
+                $section = '';
+                continue;
+            }
+            if ($section === 'HEADER' && $unitNext && $code === '70') {
                 $unitScale = match ((int)$value) {
-                    1 => 25.4, 2 => 304.8, 4 => 1.0, 5 => 10.0, 6 => 1000.0,
-                    14 => 100.0,
-                    default => 1.0,
+                    0, 4 => 1.0, 1 => 25.4, 2 => 304.8, 3 => 1609344.0, 5 => 10.0, 6 => 1000.0,
+                    7 => 1e6, 8 => 0.0000254, 9 => 0.0254, 10 => 914.4, 11 => 1e-7, 12 => 1e-6,
+                    13 => 0.001, 14 => 100.0, 15 => 10000.0, 16 => 100000.0, 17 => 1e12,
+                    default => throw new RuntimeException('Please export the drawing in millimetres.'),
                 };
             }
             $unitNext = $code === '9' && strtoupper($value) === '$INSUNITS';
+            if ($section !== null && $section !== 'ENTITIES') continue;
             if ($code === '0') {
                 $finishEntity();
                 $type = strtoupper($value);
+                if (!in_array($type, ['LINE', 'ARC', 'CIRCLE', 'LWPOLYLINE', 'EOF'], true)) {
+                    throw new RuntimeException('This drawing needs review. Export cutting paths as lines, arcs, circles or lightweight polylines for an instant price.');
+                }
             } elseif ($type === 'LWPOLYLINE') {
                 if ($code === '70') {
                     $closed = (((int)$value) & 1) === 1;

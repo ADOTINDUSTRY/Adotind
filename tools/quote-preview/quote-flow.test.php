@@ -66,6 +66,16 @@ try {
     file_put_contents($drawing, $dxf);
     $expected = (5 + 2 + M_PI + 4) * 100;
     assert_quote(abs(quote_extract_dxf_length_mm($drawing) - $expected) < 0.00001, 'DXF units or polyline bulges were measured incorrectly');
+    $withUnusedBlock = str_replace("2\nENTITIES", "2\nBLOCKS\n0\nLINE\n10\n0\n20\n0\n11\n100\n21\n0\n0\nENDSEC\n0\nSECTION\n2\nENTITIES", $dxf);
+    file_put_contents($drawing, $withUnusedBlock);
+    assert_quote(abs(quote_extract_dxf_length_mm($drawing) - $expected) < 0.00001, 'Unused block geometry must not affect the price');
+    file_put_contents($drawing, str_replace("2\nENTITIES", "2\nENTITIES\n0\nSPLINE", $dxf));
+    try {
+        quote_extract_dxf_length_mm($drawing);
+        throw new RuntimeException('Partial drawing was priced');
+    } catch (RuntimeException $e) {
+        assert_quote(str_contains($e->getMessage(), 'needs review'), 'Unsupported entities must prevent a partial quote');
+    }
     file_put_contents($drawing, "0\nLINE\n10\n");
     try {
         quote_extract_dxf_length_mm($drawing);
