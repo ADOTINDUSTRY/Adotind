@@ -67,19 +67,6 @@
     if (project) open.textContent = 'Open ' + project.querySelector('strong').textContent;
   });
   open.addEventListener('click', () => go(answer.value));
-  const neonText = workspace.querySelector('#neon-text');
-  const neonFont = workspace.querySelector('#neon-font');
-  const neonColour = workspace.querySelector('#neon-colour');
-  const neonPreview = workspace.querySelector('#neon-preview-text');
-  function drawNeon() {
-    neonPreview.textContent = neonText.value.trim() || neonText.placeholder;
-    neonPreview.style.fontFamily = neonFont.value;
-    neonPreview.style.color = neonColour.value;
-  }
-  neonText.addEventListener('input', drawNeon);
-  neonFont.addEventListener('change', drawNeon);
-  neonColour.addEventListener('change', drawNeon);
-  drawNeon();
   const drawing = form.elements.vector_file;
   const contents = form.elements.drawing_contents;
   function validateDrawing() {
@@ -108,5 +95,6 @@
   form.addEventListener('submit', event => {
     if (!advance()) event.preventDefault();
   });
-  show(workspace.querySelector('.alert-error') ? 'drawing' : results.length ? 'result' : 'start', false);
+  const openNeon = location.hash === '#neon' || new URLSearchParams(location.search).get('project') === 'neon';
+  show(openNeon ? 'neon' : workspace.querySelector('.alert-error') ? 'drawing' : results.length ? 'result' : 'start', openNeon);
 })();

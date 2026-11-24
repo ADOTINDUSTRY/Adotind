@@ -1,0 +1,75 @@
+Open centerline fonts bundled with the A Dot Industry neon editor
+
+signature — EMSAllure
+Font name:               EMS Allure
+License:                 SIL Open Font License http://scripts.sil.org/OFL
+Created by:              Sheldon B. Michaels
+SVG font conversion by:  Windell H. Oskay
+A derivative of:         Allura
+Designer:                Rob Leuschke, TypeSETit
+Link:                    http://www.typesetit.com
+Google font page:        https://fonts.google.com/specimen/Allura
+
+studio — Relief
+Created by FontForge 20201107 at Fri Feb 14 11:47:47 2025
+ By Tanguy Vanlaeys
+Copyright 2021 The Relief SingleLine Project Authors (https://github.com/isdat-type/Relief-SingleLine)
+
+capitol — EMSCapitol
+Font name:               EMS Capitol
+License:                 SIL Open Font License http://scripts.sil.org/OFL
+Created by:              Sheldon B. Michaels
+SVG font conversion by:  Windell H. Oskay
+A derivative of:         Sacramento
+Designer:                Brian J. Bonislawsky, Astigmatic One Eye Typographic Institute
+Link:                    http://www.astigmatic.com
+Google font page:        https://fonts.google.com/specimen/Sacramento
+
+hand — EMSNeato
+Font name:               EMS Neato
+License:                 SIL Open Font License http://scripts.sil.org/OFL
+Created by:              Sheldon B. Michaels
+SVG font conversion by:  Windell H. Oskay
+A derivative of:         Bad Script
+Designer:                Roman Shchyukin, Gaslight
+Link:                    https://www.myfonts.com/foundry/Gaslight/
+Google font page:        https://fonts.google.com/specimen/Bad+Script
+
+deco — EMSHerculean
+Font name:               EMS Herculean
+License:                 SIL Open Font License http://scripts.sil.org/OFL
+Created by:              Sheldon B. Michaels
+SVG font conversion by:  Windell H. Oskay
+A derivative of:         Poiret One
+Designer:                Denis Masharov
+Link:                    https://www.myfonts.com/foundry/Denis_Masharov/
+Google font page:        https://fonts.google.com/specimen/Poiret+One
+
+orbit — EMSOsmotron
+Font name:               EMS Osmotron
+License:                 SIL Open Font License http://scripts.sil.org/OFL
+Created by:              Sheldon B. Michaels
+SVG font conversion by:  Windell H. Oskay
+A derivative of:         Orbitron (Regular)
+Designer:                Matt McInerney, the League of Moveable Type
+Link:                    https://www.theleagueofmoveabletype.com
+Google font page:        https://fonts.google.com/specimen/Orbitron
+
+aegean — NewStroke Bene
+Original font by Vladimir Uryvaev and the NewStroke Developers.
+Converted to FontoBene by the FontoBene Developers, version 1.1.
+Selected Greek, Cyrillic and Latin pen paths and spacing converted to SVG coordinates.
+Dedicated to the public domain under CC0 1.0 Universal.
+https://github.com/fontobene/fontobene-fonts/blob/f197bc5157bec6770af06601894ee4d40d93796a/newstroke.bene
+https://creativecommons.org/publicdomain/zero/1.0/
+
+Source releases:
+https://gitlab.com/oskay/svg-fonts
+https://github.com/golanlevin/p5-single-line-font-resources/tree/3b3082d3269548ae0032e51975bf0a3be9b67317/p5_single_line_svg_fonts/single_line_svg_fonts/EMS
+https://github.com/isdat-type/Relief-SingleLine/tree/01dfc5779ec1e9e4b288d96c6c96c23bfccbaf9d
+
+The web edition stores the source pen paths, Unicode glyphs, advances and kerning groups.
+During layout the editor interpolates shallow turns in the Signature, Capitol Script
+and Handwritten pen paths into cubic curves through the original sampled points.
+In Studio Sans, tiny cross-ticks centred on pen endpoints are removed when computing
+the tube runs.

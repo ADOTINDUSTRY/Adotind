@@ -8,23 +8,24 @@ function online_quote_unlocked(): bool
 
 function handle_online_quote_pin_submit(): never
 {
+    $destination = ($_POST['project'] ?? '') === 'neon' ? '/online-quote?project=neon' : '/online-quote';
     if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
         redirect('/online-quote', 303);
     }
     if (!csrf_valid($_POST['csrf_token'] ?? null)) {
         flash_set('online_quote_pin_error', 'Security validation failed. Please try again.');
-        redirect('/online-quote', 303);
+        redirect($destination, 303);
     }
 
     $pin = trim((string)($_POST['pin'] ?? ''));
     if (!hash_equals('2468', $pin)) {
         flash_set('online_quote_pin_error', 'Incorrect PIN. Please try again.');
-        redirect('/online-quote', 303);
+        redirect($destination, 303);
     }
 
     $_SESSION['online_quote_unlocked'] = true;
     flash_set('online_quote_pin_success', 'PIN accepted. Testing mode unlocked.');
-    redirect('/online-quote', 303);
+    redirect($destination, 303);
 }
 
 function handle_online_quote_updates_submit(array $siteConfig): never

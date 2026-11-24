@@ -5,7 +5,7 @@ declare(strict_types=1);
 return [
     'neon' => [
         'name' => 'Neon sign',
-        'description' => 'Design illuminated lettering and try different colours.',
+        'description' => 'Design a 6 mm neon sign, preview it on a wall and get the full-size drawing.',
         'keywords' => 'LED neon light glow name lettering wall sign',
     ],
     'drawing' => [

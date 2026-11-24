@@ -47,6 +47,7 @@ $viberBase = (string)($siteConfig['viber'] ?? '');
       <?php if (is_string($pinSuccess)): ?><p class="quote-access-notice" role="status"><?= e($pinSuccess) ?></p><?php endif; ?>
       <?php if (is_string($pinError)): ?><p class="alert alert-error"><?= e($pinError) ?></p><?php endif; ?>
       <form action="/online-quote/pin" method="post" class="quote-form quote-pin-form" novalidate>
+        <?php if (($_GET['project'] ?? '') === 'neon'): ?><input type="hidden" name="project" value="neon"><?php endif; ?>
         <input type="hidden" name="csrf_token" value="<?= e(csrf_token()) ?>" />
         <label>Enter PIN
           <input type="password" name="pin" inputmode="numeric" maxlength="12" placeholder="PIN" required data-private />
@@ -88,7 +89,9 @@ $viberBase = (string)($siteConfig['viber'] ?? '');
         <label for="project-search">Find a project</label>
         <input id="project-search" type="search" placeholder="Search projects, e.g. neon sign" autocomplete="off" />
         <div class="project-options">
-          <?php foreach (require __DIR__ . '/../../data/quote-projects.php' as $id => $project): ?>
+          <?php require_once __DIR__ . '/../../lib/public_project_picker.php';
+          $projectCatalog = quote_project_catalog();
+          foreach ($projectCatalog as $id => $project): ?>
           <button type="button" data-quote-path="<?= e($id) ?>" data-keywords="<?= e($project['keywords']) ?>">
             <strong><?= e($project['name']) ?></strong><span><?= e($project['description']) ?></span>
           </button>
@@ -104,29 +107,15 @@ $viberBase = (string)($siteConfig['viber'] ?? '');
       <label>Choose the closest description
         <select id="guide-answer">
           <option value="">Choose an option</option>
-          <option value="neon">I want a name or message that lights up</option>
-          <option value="drawing">I have a technical drawing and need pieces cut</option>
-          <option value="picture">I have a picture and want to cut its shape</option>
+          <?php $guidePrompts = ['neon'=>'I want a name or message that lights up', 'drawing'=>'I have a technical drawing and need pieces cut', 'picture'=>'I have a picture and want to cut its shape']; ?>
+          <?php foreach (array_keys($projectCatalog) as $id): ?><option value="<?= e($id) ?>"><?= e($guidePrompts[$id]) ?></option><?php endforeach; ?>
           <option value="unsure">Something else, or I’m not sure</option>
         </select>
       </label>
       <div id="guide-response" aria-live="polite"></div>
       <button type="button" id="guide-open" class="btn" hidden>Open project</button>
     </section>
-    <section class="quote-card quote-form" data-project-panel="neon" hidden>
-      <h2>Design your neon sign</h2>
-      <label>What should your sign say?
-        <input id="neon-text" maxlength="60" placeholder="Your sign text" data-private />
-      </label>
-      <label>Lettering
-        <select id="neon-font"><option value="sans-serif">Modern</option><option value="cursive">Script</option><option value="serif">Classic</option></select>
-      </label>
-      <label>Light colour
-        <select id="neon-colour"><option value="#ff90cc">Pink</option><option value="#ffe7ab">Warm white</option><option value="#8adfff">Ice blue</option><option value="#aeffa1">Green</option></select>
-      </label>
-      <div class="neon-preview" aria-label="Neon lettering preview"><span id="neon-preview-text">Your sign text</span></div>
-      <p>Design preview only. Pricing and ordering for neon signs are in development.</p>
-    </section>
+    <?php require __DIR__ . '/../components/neon-editor.php'; ?>
     <details class="quote-card quote-artwork" data-tracking-section="artwork-preview">
       <summary>Starting with a photo or logo?</summary>
       <div class="quote-form">

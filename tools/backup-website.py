@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Make a verified daily backup of the two live SQLite databases and customer files."""
+"""Make a verified daily backup of the website databases and customer files."""
 import datetime
 import fcntl
 import os
@@ -29,7 +29,7 @@ def main():
         with (tracking / "website-storage.lock").open("rb") as lock:
             fcntl.flock(lock, fcntl.LOCK_EX)
             with tarfile.open(archive, "w:gz") as out:
-                for path in (media / "quote-system.sqlite", tracking / "tracking.sqlite"):
+                for path in (media / "quote-system.sqlite", tracking / "tracking.sqlite", tracking / "neon-shop.sqlite"):
                     snapshot(path, stage / path.name)
                     out.add(stage / path.name, arcname="databases/" + path.name)
                 for name in ("uploads", "inquiries"):
