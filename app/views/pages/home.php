@@ -13,7 +13,7 @@ $featuredMedia = $page['featured_media'] ?? [];
         technical capability and reliable delivery for business clients.
       </p>
       <div class="cta-group">
-        <a href="/contact" class="btn" data-tracking-control="request-custom-quote">Request a Custom Quote</a>
+        <a href="/online-quote" class="btn" data-tracking-control="online-quote">Online Quote</a>
         <a href="/services" class="btn btn-outline" data-tracking-control="explore-capabilities">Explore Capabilities</a>
       </div>
     </div>
@@ -177,7 +177,6 @@ $featuredMedia = $page['featured_media'] ?? [];
 <section class="section cta-band" data-tracking-section="request-quote">
   <div class="container center">
     <h2>Start Your Custom Manufacturing Project</h2>
-    <p class="lead">Send your requirements and our team will prepare a tailored production proposal.</p>
-    <a href="/contact" class="btn" data-tracking-control="request-quote">Request a Quote</a>
+    <a href="/online-quote" class="btn" data-tracking-control="online-quote">Online Quote</a>
   </div>
 </section>
