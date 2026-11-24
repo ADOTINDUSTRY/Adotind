@@ -46,12 +46,14 @@ function site_tracking_collect(string $directory, string $origin): never
             foreach (['x','y'] as $axis) $row[$axis] = max(0, min(10000, (int) ($event[$axis] ?? 0)));
         }
         if ($type === 'layout') {
+            $color = static fn($value): string => is_string($value) && preg_match('/^#[0-9a-f]{6}$/Di', $value) ? $value : '';
+            $row['background'] = $color($event['background'] ?? null);
             $row['boxes'] = [];
             foreach (array_slice(is_array($event['boxes'] ?? null) ? $event['boxes'] : [], 0, 40) as $box) {
-                if (!is_array($box) || count($box) !== 5 || !in_array($box[0] ?? '', $tags, true)) continue;
-                $coords = array_slice(array_values($box), 1);
+                if (!is_array($box) || !in_array(count($box), [5, 7], true) || !in_array($box[0] ?? '', $tags, true)) continue;
+                $coords = array_slice(array_values($box), 1, 4);
                 if (count(array_filter($coords, 'is_int')) !== 4) continue;
-                $row['boxes'][] = [$box[0], ...array_map(static fn(int $n): int => max(0, min(10000, $n)), $coords)];
+                $row['boxes'][] = [$box[0], ...array_map(static fn(int $n): int => max(0, min(10000, $n)), $coords), $color($box[5] ?? null), $color($box[6] ?? null)];
             }
         }
         $records .= json_encode($row, JSON_THROW_ON_ERROR) . "\n";

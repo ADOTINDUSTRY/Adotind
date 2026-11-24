@@ -31,6 +31,11 @@
     }
 
     const scale = (value, size) => Math.max(0, Math.min(10000, Math.round(value / Math.max(1, size) * 10000)));
+    function color(value) {
+        const parts = value.match(/^rgba?\((\d+),\s*(\d+),\s*(\d+)(?:,\s*([\d.]+))?\)$/);
+        if (!parts || (parts[4] !== undefined && Number(parts[4]) < 0.5)) return '';
+        return '#' + parts.slice(1,4).map(n => Math.min(255, Number(n)).toString(16).padStart(2, '0')).join('');
+    }
     function frame() {
         if (mode !== 'replay') return;
         const boxes = [];
@@ -39,10 +44,11 @@
             const rect = el.getBoundingClientRect();
             if (rect.width < 8 || rect.height < 8 || rect.bottom <= 0 || rect.top >= innerHeight) continue;
             const x = Math.max(0, rect.left), y = Math.max(0, rect.top);
-            boxes.push([tags[el.tagName], scale(x, innerWidth), scale(y, innerHeight), scale(Math.min(innerWidth,rect.right)-x,innerWidth), scale(Math.min(innerHeight,rect.bottom)-y,innerHeight)]);
+            const style = getComputedStyle(el);
+            boxes.push([tags[el.tagName], scale(x, innerWidth), scale(y, innerHeight), scale(Math.min(innerWidth,rect.right)-x,innerWidth), scale(Math.min(innerHeight,rect.bottom)-y,innerHeight), color(style.backgroundColor), color(style.color)]);
             if (boxes.length >= 40) break;
         }
-        send({type:'layout',boxes});
+        send({type:'layout',boxes, background:color(getComputedStyle(document.body).backgroundColor) || color(getComputedStyle(document.documentElement).backgroundColor)});
     }
     function start() {
         if (!['analytics','replay'].includes(mode) || pageRecorded) return;
