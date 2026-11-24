@@ -52,6 +52,16 @@ function site_tracking_collect(string $directory, string $origin): never
         ? inet_ntop(substr($packed, 0, 3) . "\0") . '/24'
         : inet_ntop(substr($packed, 0, 6) . str_repeat("\0", 10)) . '/48');
     $receivedAt = (int)floor(microtime(true) * 1000);
+    $visitor = $data['visitor'] ?? null;
+    $visitorDay = null;
+    $country = null;
+    if ($mode === 'activity' && is_string($visitor) && preg_match('/^[a-f0-9]{32}$/D', $visitor)) {
+        $cyprusNow = new DateTimeImmutable('now', new DateTimeZone('Asia/Nicosia'));
+        $day = $cyprusNow->format('Y-m-d');
+        if (($data['visitor_day'] ?? null) === $day) $visitorDay = $day;
+    }
+    $sources = ['direct','google','bing','duckduckgo','yahoo','facebook','instagram','whatsapp','referral','other_search'];
+    $media = ['organic_search','social','referral','direct','paid','email'];
     $records = '';
     foreach ($data['events'] as $event) {
         if (!is_array($event) || !in_array($event['type'] ?? '', $types, true)) continue;
@@ -65,6 +75,29 @@ function site_tracking_collect(string $directory, string $origin): never
         ];
         $seq = $event['seq'] ?? null;
         if (is_int($seq) && $seq > 0 && $seq <= 1000000) $row['seq'] = $seq;
+        if ($visitorDay !== null && $cyprusNow->setTimestamp(intdiv($at, 1000))->format('Y-m-d') === $visitorDay) {
+            $row['visitor'] = $visitor;
+            $row['visitor_day'] = $visitorDay;
+            if ($type === 'page') {
+                if ($country === null) {
+                    $geoLibrary = __DIR__ . '/site_tracking_geo.php';
+                    if ($packed !== false && is_file($geoLibrary)) {
+                        require_once $geoLibrary;
+                        $country = site_tracking_country($address) ?? '';
+                    } else {
+                        $country = '';
+                    }
+                }
+                if (preg_match('/^[A-Z]{2}$/D', $country)) $row['country'] = $country;
+                $source = $event['source'] ?? null;
+                if (in_array($source, $sources, true)) {
+                    $row['source'] = $source;
+                    if (in_array($event['medium'] ?? null, $media, true)) $row['medium'] = $event['medium'];
+                    $landingDetail = site_tracking_destination_detail($data['page'], $event['landing_slug'] ?? null);
+                    if ($landingDetail !== null) $row['landing_detail'] = $landingDetail;
+                }
+            }
+        }
         if ($type === 'page' && $maskedIp !== '') $row['network'] = $maskedIp;
         if (in_array($type, ['upload', 'unsupported_upload'], true)) {
             $ext = $event['format'] ?? '';

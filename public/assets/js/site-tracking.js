@@ -2,7 +2,12 @@
     const panel = document.querySelector('[data-site-tracking]');
     if (!panel) return;
 
-    const preferenceKey = 'adotind-tracking-preference-v1';
+    const legacyPreferenceKey = 'adotind-tracking-preference-v1';
+    const preferenceKey = 'adotind-tracking-preference-v2';
+    const visitorKey = 'adotind-tracking-visitor-v2';
+    const visitorDate = new Intl.DateTimeFormat('en-CA', {
+        timeZone:'Asia/Nicosia', year:'numeric', month:'2-digit', day:'2-digit'
+    });
     const sessionKey = 'adotind-tracking-session-v1';
     const settings = panel.querySelector('details');
     const status = panel.querySelector('[role=status]');
@@ -25,13 +30,22 @@
     const scrollPause = 180;
     const backgroundDelay = 300;
     const previewOutcomes = ['quote_preview_ready', 'quote_preview_error', 'quote_blocked'];
+    function readPreference() {
+        const upgraded = localStorage.getItem(preferenceKey);
+        const legacy = localStorage.getItem(legacyPreferenceKey) || '';
+        if (upgraded === 'off' || legacy === 'off') return {mode:'off',visitors:false};
+        if (upgraded === 'activity') return {mode:'activity',visitors:true};
+        return {mode:legacy === 'replay' ? 'activity' : legacy,visitors:false};
+    }
+
     let mode = '';
+    let visitors = false;
     try {
-        const saved = localStorage.getItem(preferenceKey) || '';
-        mode = saved === 'replay' ? 'activity' : saved;
+        ({mode, visitors} = readPreference());
+        if (!visitors) localStorage.removeItem(visitorKey);
     } catch { return; }
 
-    settings.open = !mode;
+    settings.open = !visitors && mode !== 'off';
     let pageRecorded = false;
     let scrollAnchor = mode === 'activity' ? Math.max(0, scrollY) : 0;
     let pendingScroll;
@@ -43,33 +57,86 @@
     let leavingPage = false;
     const selectedFiles = new WeakSet();
 
-    function send(event, occurredAt = Date.now()) {
+    function randomId() {
+        return [...crypto.getRandomValues(new Uint8Array(16))]
+            .map(n => n.toString(16).padStart(2, '0')).join('');
+    }
+
+    function getDailyVisitor(now) {
+        const parts = Object.fromEntries(visitorDate.formatToParts(now).map(part => [part.type, part.value]));
+        const day = parts.year + '-' + parts.month + '-' + parts.day;
+        let stored;
+        try { stored = JSON.parse(localStorage.getItem(visitorKey) || 'null'); } catch {}
+        if (stored?.day === day && /^[a-f0-9]{32}$/.test(stored.id)) return stored;
+        const next = {day,id:randomId()};
+        localStorage.setItem(visitorKey, JSON.stringify(next));
+        return next;
+    }
+
+    function landingSource() {
+        const search = new URLSearchParams(location.search);
+        const taggedSources = {
+            google:'google', bing:'bing', duckduckgo:'duckduckgo', yahoo:'yahoo',
+            facebook:'facebook', fb:'facebook', instagram:'instagram', ig:'instagram',
+            whatsapp:'whatsapp'
+        };
+        const tag = search.get('utm_source')?.toLowerCase();
+        const tagged = Object.hasOwn(taggedSources, tag) ? taggedSources[tag] : '';
+        const medium = search.get('utm_medium')?.toLowerCase();
+        let referrer;
+        try { referrer = document.referrer ? new URL(document.referrer) : null; } catch { referrer = null; }
+        const host = referrer?.hostname.toLowerCase() || '';
+        const matches = domain => host === domain || host.endsWith('.' + domain);
+        let source = tagged;
+        if (!source) {
+            if (referrer?.origin === location.origin) return {};
+            if (/(^|\.)google\.(?:com|[a-z]{2}|(?:com|co)\.[a-z]{2})$/.test(host)) source = 'google';
+            else if (matches('bing.com')) source = 'bing';
+            else if (matches('duckduckgo.com')) source = 'duckduckgo';
+            else if (matches('yahoo.com')) source = 'yahoo';
+            else if (matches('facebook.com') || matches('fb.com')) source = 'facebook';
+            else if (matches('instagram.com')) source = 'instagram';
+            else if (matches('whatsapp.com') || matches('wa.me')) source = 'whatsapp';
+            else if (['search.brave.com','ecosia.org','yandex.com','yandex.ru','baidu.com'].some(matches)) source = 'other_search';
+            else source = host ? 'referral' : 'direct';
+        }
+        if (['cpc','ppc','paid','paid_search','paid_social','display'].includes(medium)) return {source, medium:'paid'};
+        if (medium === 'email') return {source, medium:'email'};
+        if (['google','bing','duckduckgo','yahoo','other_search'].includes(source)) return {source, medium:'organic_search'};
+        if (['facebook','instagram','whatsapp'].includes(source)) return {source, medium:'social'};
+        return {source, medium:source === 'direct' ? 'direct' : 'referral'};
+    }
+
+    function send(event, occurredAt = Date.now(), isLanding = false) {
         if (mode !== 'analytics' && mode !== 'activity') return;
         const now = Date.now();
         let state;
         let newSession = false;
         try {
+            const visitor = visitors ? getDailyVisitor(now) : null;
             state = JSON.parse(sessionStorage.getItem(sessionKey) || 'null');
             if (!state || !/^[a-f0-9]{32}$/.test(state.id) || !Number.isFinite(state.time)
-                || now - state.time >= 1800000 || now < state.time) {
-                state = {
-                    id: [...crypto.getRandomValues(new Uint8Array(16))]
-                        .map(n => n.toString(16).padStart(2, '0')).join(''),
-                    seq: 0
-                };
+                || now - state.time >= 1800000 || now < state.time
+                || (state.visitorDay || '') !== (visitor?.day || '')) {
+                state = {id:randomId(), seq:0, visitorDay:visitor?.day || ''};
                 newSession = true;
             }
             state.seq = Number.isSafeInteger(state.seq) && state.seq >= 0 ? state.seq : 0;
             const events = [];
             if (newSession && event.type !== 'page') events.push({type:'page', at:now, seq:++state.seq});
-            events.push({...event, at:occurredAt, seq:++state.seq});
+            const acquisition = visitor && newSession && isLanding ? landingSource() : {};
+            if (acquisition.source && panel.dataset.trackingPageSlug) acquisition.landing_slug = panel.dataset.trackingPageSlug;
+            events.push({...event, ...acquisition, at:occurredAt, seq:++state.seq});
             state.time = now;
             sessionStorage.setItem(sessionKey, JSON.stringify(state));
             fetch('/site-tracking/events', {
                 method:'POST',
                 headers:{'Content-Type':'application/json'},
                 credentials:'omit',
-                body:JSON.stringify({session:state.id, page, device, mode, sent_at:now, events}),
+                body:JSON.stringify({
+                    session:state.id, page, device, mode, sent_at:now, events,
+                    ...(visitor ? {visitor:visitor.id, visitor_day:visitor.day} : {})
+                }),
                 keepalive:true
             }).catch(() => {});
         } catch {
@@ -79,20 +146,21 @@
 
     function showPreference() {
         status.textContent = {
-            activity: 'Activity tracking is on.',
+            activity: visitors ? 'Activity tracking and visitor analytics are on.' : 'Activity tracking is on. You can also allow visitor analytics.',
             analytics: 'Basic analytics is on. You can also allow activity tracking.',
             off: 'Activity tracking is off.'
         }[mode] || '';
         panel.querySelectorAll('[data-tracking-choice]').forEach(button => {
-            button.setAttribute('aria-pressed', String(button.dataset.trackingChoice === mode));
+            const selected = button.dataset.trackingChoice === 'activity' ? visitors : mode === 'off';
+            button.setAttribute('aria-pressed', String(selected));
         });
     }
 
-    function start({restored = false} = {}) {
+    function start({restored = false, pageOnly = false} = {}) {
         if ((mode !== 'analytics' && mode !== 'activity') || pageRecorded) return;
         pageRecorded = true;
-        send({type:'page'});
-        if (restored) return;
+        send({type:'page'}, Date.now(), !restored);
+        if (restored || pageOnly) return;
         document.querySelectorAll('[data-tracking-outcome]').forEach(outcome => {
             send({type:outcome.dataset.trackingOutcome, reason:outcome.dataset.trackingReason || ''});
         });
@@ -100,38 +168,38 @@
         if (navigation && navigation.responseStart > 2000) send({type:'slow_page'});
     }
 
+    function refreshPreference() {
+        const previousMode = mode;
+        const previousVisitors = visitors;
+        try {
+            ({mode, visitors} = readPreference());
+            if (!visitors) localStorage.removeItem(visitorKey);
+            if (mode === 'off' || !mode || previousVisitors !== visitors) sessionStorage.removeItem(sessionKey);
+        } catch {
+            mode = '';
+            visitors = false;
+        }
+        if (mode !== previousMode || visitors !== previousVisitors) {
+            resetScroll();
+            resetBackground();
+            const wasRecorded = pageRecorded;
+            pageRecorded = false;
+            showPreference();
+            start({pageOnly:wasRecorded});
+        }
+    }
+
     panel.addEventListener('click', (e) => {
         const choice = e.target.closest('[data-tracking-choice]')?.dataset.trackingChoice;
         if (choice !== 'off' && choice !== 'activity') return;
         try {
+            localStorage.setItem(legacyPreferenceKey, choice);
             localStorage.setItem(preferenceKey, choice);
-            if (choice === 'off') sessionStorage.removeItem(sessionKey);
         } catch { return; }
-        const previous = mode;
-        mode = choice;
-        if (mode !== previous) {
-            resetScroll();
-            resetBackground();
-        }
-        if (mode === 'off') pageRecorded = false;
-        showPreference();
-        start();
+        refreshPreference();
     });
     addEventListener('storage', (e) => {
-        if (e.key !== preferenceKey && e.key !== null) return;
-        const choice = e.newValue;
-        const previous = mode;
-        mode = choice === 'replay' ? 'activity' : (choice || '');
-        if (mode !== previous) {
-            resetScroll();
-            resetBackground();
-        }
-        if (mode === 'off' || !mode) {
-            try { sessionStorage.removeItem(sessionKey); } catch {}
-            pageRecorded = false;
-        }
-        showPreference();
-        start();
+        if (e.key === preferenceKey || e.key === legacyPreferenceKey || e.key === null) refreshPreference();
     });
 
     function clickTarget(el) {
@@ -231,9 +299,13 @@
         if (!e.persisted) return;
         leavingPage = false;
         visibility = document.visibilityState;
-        let saved = '';
-        try { saved = localStorage.getItem(preferenceKey) || ''; } catch {}
-        mode = saved === 'replay' ? 'activity' : saved;
+        mode = '';
+        visitors = false;
+        try {
+            ({mode, visitors} = readPreference());
+            if (!visitors) localStorage.removeItem(visitorKey);
+            if (mode === 'off' || !mode) sessionStorage.removeItem(sessionKey);
+        } catch {}
         resetScroll();
         resetBackground();
         pageRecorded = false;

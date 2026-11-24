@@ -111,12 +111,13 @@ $jsVersion = is_file($jsPath) ? (string)filemtime($jsPath) : '1';
     <script src="/public/assets/js/quote-preview.js?v=<?= e(is_file($quoteJsPath) ? (string)filemtime($quoteJsPath) : '1') ?>" defer></script>
     <?php endif; ?>
     <?php if (is_writable('/var/www/site-tracking') && ($page['view'] ?? '') !== 'dashboard'): ?>
-    <aside class="container" data-site-tracking="<?= e($page['view'] ?? '') ?>">
+    <?php $trackingPageSlug = $page['service']['slug'] ?? $page['project']['slug'] ?? ''; ?>
+    <aside class="container" data-site-tracking="<?= e($page['view'] ?? '') ?>" data-tracking-page-slug="<?= e($trackingPageSlug) ?>">
       <details>
         <summary>Website analytics preferences</summary>
-        <p>Help improve this site by sharing the pages you visit, buttons you use, and any errors you encounter. We exclude what you type and the names and contents of uploaded files.</p>
+        <p>If you allow it, we record page visits, actions, errors, and how you found the site. We use a browser identifier that changes daily to count visitors. We estimate your country from your IP address and save only a shortened IP address. We exclude what you type and the names and contents of uploaded files.</p>
         <button type="button" data-tracking-choice="off">Decline</button>
-        <button type="button" data-tracking-choice="activity">Allow activity tracking</button>
+        <button type="button" data-tracking-choice="activity">Allow activity tracking and visitor analytics</button>
         <span role="status"></span>
       </details>
     </aside>
