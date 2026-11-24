@@ -22,4 +22,6 @@ RUN sed -i 's|https://adotind.com|https://adotind.cy|g' robots.txt sitemap.xml \
 RUN php -l index.php && apache2ctl configtest \
     && php -r 'file_put_contents("public/site-build.txt", bin2hex(random_bytes(16)));'
 ENV ADOTIND_PUBLIC_URL=https://adotind.cy
+RUN printf 'session.save_path=/var/www/adotind-media/private-sessions\nsession.gc_probability=1\nsession.gc_divisor=100\n' > "$PHP_INI_DIR/conf.d/zz-session-storage.ini"
+CMD ["sh", "-c", "install -d -m 0700 -o www-data -g www-data /var/www/adotind-media/private-sessions && exec apache2-foreground"]
 EXPOSE 80

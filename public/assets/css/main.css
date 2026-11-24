@@ -1861,6 +1861,30 @@ p {
   cursor: pointer;
   font-weight: 700;
 }
+
+.quote-page .quote-access-notice {
+  background: #edf4ff;
+  color: #193660;
+  border: 1px solid #b6cae8;
+  border-left: 4px solid #365e9b;
+  border-radius: 8px;
+  margin: 0 0 1rem;
+  padding: 0.8rem 1rem;
+  font-weight: 600;
+}
+.quote-stage, .quote-choices { display: grid; gap: 1rem; }
+.quote-choices { margin-top: 1.25rem; justify-items: start; }
+.quote-back {
+  border: 0;
+  background: transparent;
+  color: #273e83;
+  font: inherit;
+  cursor: pointer;
+  margin-bottom: 0.75rem;
+  padding: 0.5rem 0;
+}
+.quote-next { justify-self: start; }
+.quote-workspace [hidden] { display: none !important; }
 .quote-artwork[open] summary { margin-bottom: 1rem; }
 #artwork-controls:not([hidden]) { display: grid; gap: 1rem; }
 #artwork-proof {

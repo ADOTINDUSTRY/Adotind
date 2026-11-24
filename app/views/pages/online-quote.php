@@ -27,11 +27,11 @@ $viberBase = (string)($siteConfig['viber'] ?? '');
     <div>
       <p class="eyebrow">Online Quote</p>
       <h1>Make your next idea a reality.</h1>
-      <p class="lead"><?= $unlocked ? 'Start with a DXF drawing for a cutting estimate, or try a cut-line preview from your logo.' : 'Upload your DXF drawing and tell us what you need. We will help you prepare your project for cutting.' ?></p>
+      <?php if (!$unlocked): ?><p class="lead">Upload your DXF drawing and tell us what you need. We will help you prepare your project for cutting.</p><?php endif; ?>
     </div>
-    <div class="quote-processes" aria-label="Available processes">
+    <?php if (!$unlocked): ?><div class="quote-processes" aria-label="Available processes">
       <span>CO2 Laser</span><span>Fiber Laser</span><span>CNC Router</span>
-    </div>
+    </div><?php endif; ?>
   </div>
 </section>
 
@@ -42,7 +42,7 @@ $viberBase = (string)($siteConfig['viber'] ?? '');
       <p class="quote-card-kicker">For testers</p>
       <h2>Private Testing Access</h2>
       <p>This page is temporarily PIN-protected while we finalize production settings.</p>
-      <?php if (is_string($pinSuccess)): ?><p class="alert alert-success"><?= e($pinSuccess) ?></p><?php endif; ?>
+      <?php if (is_string($pinSuccess)): ?><p class="quote-access-notice" role="status"><?= e($pinSuccess) ?></p><?php endif; ?>
       <?php if (is_string($pinError)): ?><p class="alert alert-error"><?= e($pinError) ?></p><?php endif; ?>
       <form action="/online-quote/pin" method="post" class="quote-form quote-pin-form" novalidate>
         <input type="hidden" name="csrf_token" value="<?= e(csrf_token()) ?>" />
@@ -76,10 +76,19 @@ $viberBase = (string)($siteConfig['viber'] ?? '');
 <?php else: ?>
 <section class="section section-light quote-page">
   <div class="container quote-workspace" data-tracking-section="quote-workspace">
-    <?php if (is_string($pinSuccess)): ?><p class="alert alert-success"><?= e($pinSuccess) ?></p><?php endif; ?>
+    <?php if (is_string($pinSuccess)): ?><p class="quote-access-notice" role="status"><?= e($pinSuccess) ?></p><?php endif; ?>
     <?php if (is_string($quoteSuccess)): ?><p class="alert alert-success"><?= e($quoteSuccess) ?></p><?php endif; ?>
     <?php if (is_string($quoteError)): ?><p class="alert alert-error"><?= e($quoteError) ?></p><?php endif; ?>
 
+    <section class="quote-card quote-start" hidden>
+      <h2 tabindex="-1">What would you like to do?</h2>
+      <div class="quote-choices">
+        <button type="button" class="btn" data-quote-path="drawing">Get a price for a DXF drawing</button>
+        <button type="button" class="btn" data-quote-path="picture">Preview a cut line from a picture</button>
+        <a href="/contact">I need help planning my project</a>
+      </div>
+    </section>
+    <button type="button" class="quote-back" hidden>&larr; Back</button>
     <details class="quote-card quote-artwork" data-tracking-section="artwork-preview">
       <summary>Starting with a photo or logo?</summary>
       <div class="quote-form">
@@ -100,115 +109,116 @@ $viberBase = (string)($siteConfig['viber'] ?? '');
     </details>
     <form class="quote-form quote-prototype" method="post" action="/online-quote/calculate" enctype="multipart/form-data" novalidate>
       <input type="hidden" name="csrf_token" value="<?= e(csrf_token()) ?>" />
-      <div class="quote-form-intro">
-        <div>
-          <p class="quote-card-kicker">Your project</p>
-          <h2>Let's build your quote</h2>
-          <p>Hi! Let's start with your drawing. We'll guide you through the details.</p>
+      <div class="quote-stage" data-stage="drawing">
+        <div class="quote-step-heading" data-tracking-section="drawing-upload">
+          <span aria-hidden="true">01</span>
+          <div><h3>Upload your design</h3><p>Choose your DXF drawing to see a preview and measurements.</p></div>
         </div>
+        <div class="quote-upload" data-tracking-section="drawing-upload">
+          <details class="quote-file-guide">
+            <summary data-tracking-control="dxf-guide">What is a DXF file? How do I create one?</summary>
+            <p>DXF is a drawing file that describes lines and curves for cutting machines. It is not the same as a photo or screenshot.</p>
+            <label for="quote-drawing-software">What did you use to draw your design?
+              <select id="quote-drawing-software" data-tracking-control="drawing-software">
+                <option value="">Choose an option</option>
+                <option value="cad">A CAD program (such as AutoCAD or Fusion)</option>
+                <option value="vector">A vector design program (such as Illustrator, CorelDRAW or Inkscape)</option>
+                <option value="other">Something else / I'm not sure</option>
+              </select>
+            </label>
+            <p class="quote-software-help" aria-live="polite">Choose an option for a starting point, or contact us and we will help.</p>
+            <p>Draw at the intended size, use millimetres, and remove unwanted or duplicate lines. Close outlines where appropriate. Ask us to check your file if you are unsure.</p>
+          </details>
+          <label>DXF drawing
+            <input type="file" name="vector_file" accept=".dxf" aria-describedby="quote-file-help" required data-tracking-control="dxf-upload" />
+          </label>
+          <p id="quote-file-help">Upload a DXF file up to 50 MB. Need help creating one? Open the guide above or <a href="/contact">contact us</a>.</p>
+          <div class="quote-file-preview" hidden aria-live="polite" data-tracking-section="drawing-preview">
+            <div class="quote-preview-image" hidden>
+              <div class="quote-preview-render" hidden aria-label="Drawing preview"></div>
+              <button type="button" class="quote-preview-expand" data-tracking-control="expand-preview">View fullscreen</button>
+              <div class="quote-preview-measurements" hidden>
+                <p class="quote-preview-width"></p>
+                <p class="quote-preview-height"></p>
+                <p class="quote-preview-length"></p>
+              </div>
+            </div>
+            <div class="quote-preview-details">
+              <strong class="quote-preview-name"></strong>
+              <p class="quote-preview-size"></p>
+              <p class="quote-preview-dimensions"></p>
+              <p class="quote-preview-message"></p>
+            </div>
+            <dialog class="quote-preview-dialog" aria-label="Fullscreen drawing preview">
+              <div class="quote-preview-dialog-header">
+                <strong>Drawing preview</strong>
+                <button type="button" class="quote-preview-close" data-tracking-control="close-preview">Close fullscreen</button>
+              </div>
+              <div class="quote-preview-dialog-content"></div>
+            </dialog>
+          </div>
+        </div>
+        <label data-tracking-section="part-details">What does your drawing contain?
+          <select name="drawing_contents" class="quote-drawing-contents" required data-tracking-control="drawing-contents">
+            <option value="">Choose an option</option>
+            <option value="single">One part, including any holes or internal cuts</option>
+            <option value="multiple">Multiple separate parts</option>
+            <option value="unsure">I'm not sure</option>
+          </select>
+        </label>
+        <p class="quote-parts-help" aria-live="polite" data-tracking-section="part-details">If you have multiple parts or are unsure, we can review the file and help work out sheet requirements.</p>
+        <p data-tracking-section="part-details"><a href="/contact">Contact us for help with your drawing or sheet requirements</a>.</p>
+        <button type="button" class="btn quote-next" data-next="material" hidden>Continue to material</button>
       </div>
-      <div class="quote-step-heading" data-tracking-section="drawing-upload">
-        <span aria-hidden="true">01</span>
-        <div><h3>Upload your design</h3><p>Choose your DXF drawing to see a preview and measurements.</p></div>
-      </div>
-      <div class="quote-upload" data-tracking-section="drawing-upload">
-        <details class="quote-file-guide">
-          <summary data-tracking-control="dxf-guide">What is a DXF file? How do I create one?</summary>
-          <p>DXF is a drawing file that describes lines and curves for cutting machines. It is not the same as a photo or screenshot.</p>
-          <label for="quote-drawing-software">What did you use to draw your design?
-            <select id="quote-drawing-software" data-tracking-control="drawing-software">
-              <option value="">Choose an option</option>
-              <option value="cad">A CAD program (such as AutoCAD or Fusion)</option>
-              <option value="vector">A vector design program (such as Illustrator, CorelDRAW or Inkscape)</option>
-              <option value="other">Something else / I'm not sure</option>
+      <div class="quote-stage" data-stage="material">
+        <div class="quote-step-heading" data-tracking-section="material-and-machine">
+          <span aria-hidden="true">02</span>
+          <div><h3>Tell us about your material</h3><p>Choose a material. If you are not sure which one to use, <a href="/contact">ask us for advice</a>.</p></div>
+        </div>
+        <div class="quote-prototype-grid quote-grid-two" data-tracking-section="material-and-machine">
+          <label>Material
+            <select name="material_id" required data-tracking-control="quote-material">
+              <option value="">Choose a material</option>
+              <?php foreach ($materials as $m): ?>
+                <option value="<?= e((string)$m['id']) ?>"><?= e((string)$m['name']) ?></option>
+              <?php endforeach; ?>
             </select>
           </label>
-          <p class="quote-software-help" aria-live="polite">Choose an option for a starting point, or contact us and we will help.</p>
-          <p>Draw at the intended size, use millimetres, and remove unwanted or duplicate lines. Close outlines where appropriate. Ask us to check your file if you are unsure.</p>
-        </details>
-        <label>DXF drawing
-          <input type="file" name="vector_file" accept=".dxf" aria-describedby="quote-file-help" required data-tracking-control="dxf-upload" />
-        </label>
-        <p id="quote-file-help">Upload a DXF file up to 50 MB. Need help creating one? Open the guide above or <a href="/contact">contact us</a>.</p>
-        <div class="quote-file-preview" hidden aria-live="polite" data-tracking-section="drawing-preview">
-          <div class="quote-preview-image" hidden>
-            <div class="quote-preview-render" hidden aria-label="Drawing preview"></div>
-            <button type="button" class="quote-preview-expand" data-tracking-control="expand-preview">View fullscreen</button>
-            <div class="quote-preview-measurements" hidden>
-              <p class="quote-preview-width"></p>
-              <p class="quote-preview-height"></p>
-              <p class="quote-preview-length"></p>
-            </div>
-          </div>
-          <div class="quote-preview-details">
-            <strong class="quote-preview-name"></strong>
-            <p class="quote-preview-size"></p>
-            <p class="quote-preview-dimensions"></p>
-            <p class="quote-preview-message"></p>
-          </div>
-          <dialog class="quote-preview-dialog" aria-label="Fullscreen drawing preview">
-            <div class="quote-preview-dialog-header">
-              <strong>Drawing preview</strong>
-              <button type="button" class="quote-preview-close" data-tracking-control="close-preview">Close fullscreen</button>
-            </div>
-            <div class="quote-preview-dialog-content"></div>
-          </dialog>
+          <label>Machine (testing only)
+            <select name="machine_id" required data-tracking-control="quote-machine">
+              <option value="">Choose a machine</option>
+              <?php foreach ($machines as $m): ?>
+                <option value="<?= e((string)$m['id']) ?>"><?= e((string)$m['name']) ?></option>
+              <?php endforeach; ?>
+            </select>
+          </label>
         </div>
+        <p data-tracking-section="material-and-machine">Automatic machine selection is not ready yet. Please <a href="/contact">ask us</a> if you are unsure; we will check the material, drawing and machine capacity.</p>
+        <button type="button" class="btn quote-next" data-next="parts" hidden>Continue to size and quantity</button>
       </div>
-      <div class="quote-step-heading" data-tracking-section="material-and-machine">
-        <span aria-hidden="true">02</span>
-        <div><h3>Tell us about your material</h3><p>Choose a material. If you are not sure which one to use, <a href="/contact">ask us for advice</a>.</p></div>
-      </div>
-      <div class="quote-prototype-grid quote-grid-two" data-tracking-section="material-and-machine">
-        <label>Material
-          <select name="material_id" required data-tracking-control="quote-material">
-            <option value="">Choose a material</option>
-            <?php foreach ($materials as $m): ?>
-              <option value="<?= e((string)$m['id']) ?>"><?= e((string)$m['name']) ?></option>
-            <?php endforeach; ?>
-          </select>
+      <div class="quote-stage" data-stage="parts">
+        <div class="quote-step-heading" data-tracking-section="part-details">
+          <span aria-hidden="true">03</span>
+          <div><h3>Tell us about your parts</h3><p>Enter the actual size of one cut part and the quantity you need. The preview shows the entire drawing, which may contain several parts.</p></div>
+        </div>
+        <div class="quote-prototype-grid" data-tracking-section="part-details">
+          <label>Part width (mm)
+            <input type="number" name="part_width_mm" min="1" step="0.1" placeholder="Enter width" required data-tracking-control="part-width" />
+          </label>
+          <label>Part height (mm)
+            <input type="number" name="part_height_mm" min="1" step="0.1" placeholder="Enter height" required data-tracking-control="part-height" />
+          </label>
+          <label>Quantity
+            <input type="number" name="quantity" min="1" step="1" value="1" required data-tracking-control="part-quantity" />
+          </label>
+        </div>
+        <label data-tracking-section="part-details">Notes (optional)
+          <textarea name="note" rows="3" placeholder="Any details about this job" data-tracking-control="part-notes"></textarea>
         </label>
-        <label>Machine (testing only)
-          <select name="machine_id" required data-tracking-control="quote-machine">
-            <option value="">Choose a machine</option>
-            <?php foreach ($machines as $m): ?>
-              <option value="<?= e((string)$m['id']) ?>"><?= e((string)$m['name']) ?></option>
-            <?php endforeach; ?>
-          </select>
-        </label>
-      </div>
-      <p data-tracking-section="material-and-machine">Automatic machine selection is not ready yet. Please <a href="/contact">ask us</a> if you are unsure; we will check the material, drawing and machine capacity.</p>
-      <div class="quote-step-heading" data-tracking-section="part-details">
-        <span aria-hidden="true">03</span>
-        <div><h3>Tell us about your parts</h3><p>Enter the actual size of one cut part and the quantity you need. The preview shows the entire drawing, which may contain several parts.</p></div>
-      </div>
-      <label data-tracking-section="part-details">What does your drawing contain?
-        <select name="drawing_contents" class="quote-drawing-contents" required data-tracking-control="drawing-contents">
-          <option value="">Choose an option</option>
-          <option value="single">One part, including any holes or internal cuts</option>
-          <option value="multiple">Multiple separate parts</option>
-          <option value="unsure">I'm not sure</option>
-        </select>
-      </label>
-      <p class="quote-parts-help" aria-live="polite" data-tracking-section="part-details">If you have multiple parts or are unsure, we can review the file and help work out sheet requirements.</p>
-      <p data-tracking-section="part-details"><a href="/contact">Contact us for help with your drawing or sheet requirements</a>.</p>
-      <div class="quote-prototype-grid" data-tracking-section="part-details">
-        <label>Part width (mm)
-          <input type="number" name="part_width_mm" min="1" step="0.1" placeholder="Enter width" required data-tracking-control="part-width" />
-        </label>
-        <label>Part height (mm)
-          <input type="number" name="part_height_mm" min="1" step="0.1" placeholder="Enter height" required data-tracking-control="part-height" />
-        </label>
-        <label>Quantity
-          <input type="number" name="quantity" min="1" step="1" value="1" required data-tracking-control="part-quantity" />
-        </label>
-      </div>
-      <label data-tracking-section="part-details">Notes (optional)
-        <textarea name="note" rows="3" placeholder="Any details about this job" data-tracking-control="part-notes"></textarea>
-      </label>
-      <div class="quote-form-footer" data-tracking-section="calculate-quote">
-        <p>Testing estimates assume one part per drawing. Sheet quantities are approximate and must be checked before cutting.</p>
-        <button type="submit" class="btn" data-tracking-control="calculate-quote">Calculate Quote <span aria-hidden="true">→</span></button>
+        <div class="quote-form-footer" data-tracking-section="calculate-quote">
+          <p>Testing estimates assume one part per drawing. Sheet quantities are approximate and must be checked before cutting.</p>
+          <button type="submit" class="btn" data-tracking-control="calculate-quote">Calculate Quote <span aria-hidden="true">→</span></button>
+        </div>
       </div>
     </form>
 
