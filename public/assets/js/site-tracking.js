@@ -23,6 +23,7 @@
     };
     const minimumScrollDistance = 8;
     const scrollPause = 180;
+    const backgroundDelay = 300;
     const previewOutcomes = ['quote_preview_ready', 'quote_preview_error', 'quote_blocked'];
     let mode = '';
     try {
@@ -36,6 +37,10 @@
     let pendingScroll;
     let scrollTimer;
     let visibility = document.visibilityState;
+    let hiddenAt;
+    let backgroundTimer;
+    let backgroundRecorded = false;
+    let leavingPage = false;
     const selectedFiles = new WeakSet();
 
     function send(event, occurredAt = Date.now()) {
@@ -83,10 +88,11 @@
         });
     }
 
-    function start() {
+    function start({restored = false} = {}) {
         if ((mode !== 'analytics' && mode !== 'activity') || pageRecorded) return;
         pageRecorded = true;
         send({type:'page'});
+        if (restored) return;
         document.querySelectorAll('[data-tracking-outcome]').forEach(outcome => {
             send({type:outcome.dataset.trackingOutcome, reason:outcome.dataset.trackingReason || ''});
         });
@@ -103,7 +109,10 @@
         } catch { return; }
         const previous = mode;
         mode = choice;
-        if (mode !== previous) resetScroll();
+        if (mode !== previous) {
+            resetScroll();
+            resetBackground();
+        }
         if (mode === 'off') pageRecorded = false;
         showPreference();
         start();
@@ -113,7 +122,10 @@
         const choice = e.newValue;
         const previous = mode;
         mode = choice === 'replay' ? 'activity' : (choice || '');
-        if (mode !== previous) resetScroll();
+        if (mode !== previous) {
+            resetScroll();
+            resetBackground();
+        }
         if (mode === 'off' || !mode) {
             try { sessionStorage.removeItem(sessionKey); } catch {}
             pageRecorded = false;
@@ -197,17 +209,58 @@
         clearTimeout(scrollTimer);
         scrollTimer = setTimeout(flushScroll, scrollPause);
     }, {passive:true});
-    addEventListener('pagehide', flushScroll);
+    function resetBackground() {
+        clearTimeout(backgroundTimer);
+        hiddenAt = undefined;
+        backgroundRecorded = false;
+    }
+
+    function recordBackground() {
+        if (mode !== 'activity' || leavingPage || hiddenAt === undefined) return;
+        send({type:'page_backgrounded'}, hiddenAt);
+        hiddenAt = undefined;
+        backgroundRecorded = true;
+    }
+
+    addEventListener('pagehide', () => {
+        leavingPage = true;
+        flushScroll();
+        resetBackground();
+    });
+    addEventListener('pageshow', (e) => {
+        if (!e.persisted) return;
+        leavingPage = false;
+        visibility = document.visibilityState;
+        let saved = '';
+        try { saved = localStorage.getItem(preferenceKey) || ''; } catch {}
+        mode = saved === 'replay' ? 'activity' : saved;
+        resetScroll();
+        resetBackground();
+        pageRecorded = false;
+        showPreference();
+        if (visibility === 'visible') start({restored:true});
+    });
 
     document.addEventListener('visibilitychange', () => {
         const previous = visibility;
         visibility = document.visibilityState;
-        if (mode !== 'activity' || previous === visibility) return;
+        if (leavingPage || previous === visibility) return;
+        if (visibility === 'visible' && !pageRecorded) {
+            start({restored:true});
+            return;
+        }
+        if (mode !== 'activity') return;
         if (visibility === 'hidden') {
             flushScroll();
-            send({type:'page_backgrounded'});
+            hiddenAt = Date.now();
+            // A document replacement also becomes hidden. Pagehide cancels that event.
+            backgroundTimer = setTimeout(recordBackground, backgroundDelay);
+        } else if (visibility === 'visible') {
+            clearTimeout(backgroundTimer);
+            recordBackground();
+            if (backgroundRecorded) send({type:'page_resumed'});
+            resetBackground();
         }
-        if (visibility === 'visible') send({type:'page_resumed'});
     });
 
     document.addEventListener('change', (e) => {
