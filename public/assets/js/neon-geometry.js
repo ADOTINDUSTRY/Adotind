@@ -744,7 +744,7 @@
   function backboard(art, spec) {
     if (!spec.backing || spec.backing === 'none') return null;
     const contour = spec.boardShape === 'contour';
-    const w = art.widthMm, h = art.heightMm, pad = contour ? 300 : 22;
+    const w = art.widthMm, h = art.heightMm, pad = contour ? 30 : 22;
     const n = Math.ceil(w / 8), dx = w / n;
     const top = Array(n+1).fill(Infinity), bottom = Array(n+1).fill(-Infinity);
     if (spec.boardShape === 'contour') {

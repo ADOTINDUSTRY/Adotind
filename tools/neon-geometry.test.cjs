@@ -523,6 +523,9 @@ test('100 mm shop geometry and contoured spacer hardware use true drawing units'
   const model=geometry.layout({...design,text:'Hello',widthMm:600});
   const spec={...design,backing:'clear',boardShape:'contour',mount:'wall'};
   const board=geometry.backboard(model,spec);
+  assert.equal(board.pad,30);
+  assert.equal(Math.min(...board.outline.map(([x])=>x)),-30);
+  assert.equal(Math.max(...board.outline.map(([x])=>x)),model.widthMm+30);
   assert.equal(board.holes.length,4);
   assert.ok(new Set(board.outline.map(p=>p[1])).size>4);
   const dxf=geometry.dxf(model,spec);
@@ -530,5 +533,6 @@ test('100 mm shop geometry and contoured spacer hardware use true drawing units'
   assert.equal((dxf.match(/\r\n40\r\n5\.5\r\n/g)||[]).length,4);
   assert.ok(dxf.includes('ACRYLIC_OUTLINE'));
   assert.ok(geometry.svg(model,spec).includes('MOUNT_HOLES'));
+  assert.match(geometry.svg(model,spec),/viewBox="-30 -30 660 /);
   assert.equal(geometry.backboard(model,{...spec,backing:'none'}),null);
 });
