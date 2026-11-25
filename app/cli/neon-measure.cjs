@@ -15,7 +15,7 @@ const choices = {
   mount: ['wall', 'suspended', 'freestanding'],
   scene: ['studio', 'brick', 'concrete', 'drawing'],
 };
-const ranges = {widthMm: [100, 3000], letterSpacing: [0, 0.30], lineSpacing: [1, 2], brightness: [10, 100]};
+const ranges = {widthMm: [100, 3000], boardGap: [30, 150], letterSpacing: [0, 0.30], lineSpacing: [1, 2], brightness: [10, 100]};
 const fields = new Set(['version', 'text', 'color', 'cover', 'power', ...Object.keys(choices), ...Object.keys(ranges)]);
 
 function measure(input, intent = 'production') {
@@ -46,7 +46,7 @@ function measure(input, intent = 'production') {
     return {error: 'Cut-around acrylic is available for wall mounting only.'};
   }
   for (const [key, [min, max]] of Object.entries(ranges)) {
-    const value = input[key];
+    const value = key === 'boardGap' && input[key] === undefined ? 30 : input[key];
     if (!Number.isFinite(value) || value < min || value > max) return {error: 'Choose a value within the control limits.'};
     design[key] = value;
   }

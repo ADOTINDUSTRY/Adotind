@@ -69,14 +69,14 @@
   const defaults = {
     version: 2, text: 'Hello', font: fonts[0].id, widthMm: Math.min(maxWidth, Math.max(minWidth, 600)),
     align: 'center', letterSpacing: 0, lineSpacing: 1.25, color: colors[0], cover: WHITE_COVER,
-    boardShape: 'rectangle', backing: 'clear', mount: 'wall', scene: 'studio', power: true, brightness: 85,
+    boardShape: 'rectangle', boardGap: 30, backing: 'clear', mount: 'wall', scene: 'studio', power: true, brightness: 85,
   };
   const options = {
     font: fonts.map(f => f.id), color: colors, cover: covers, align: ['left', 'center', 'right'],
     boardShape: ['rectangle','contour'], backing: ['clear', 'black', 'none'], mount: ['wall', 'suspended', 'freestanding'],
     scene: ['brick', 'studio', 'concrete', 'drawing'],
   };
-  const limits = {widthMm: [minWidth, maxWidth], letterSpacing: [0, 0.3], lineSpacing: [1, 2], brightness: [10, 100]};
+  const limits = {widthMm: [minWidth, maxWidth], boardGap: [30, 150], letterSpacing: [0, 0.3], lineSpacing: [1, 2], brightness: [10, 100]};
   let design = {...defaults};
   let geometry;
   let geometryKey;
@@ -281,7 +281,7 @@
     const technical = !wallURL && design.scene === 'drawing';
     const lit = design.power && !technical;
     const color = design.color;
-    const boardKey = JSON.stringify([geometryKey, design.backing, design.boardShape, design.mount]);
+    const boardKey = JSON.stringify([geometryKey, design.backing, design.boardShape, design.boardGap, design.mount]);
     if (boardKey !== paintedBoardKey) {
       paintedBoard = engine.backboard(geometry, design);
       paintedBoardKey = boardKey;
@@ -394,6 +394,9 @@
     root.dataset.power = design.power ? 'on' : 'off';
     root.dataset.backing = design.backing;
     root.querySelector('[data-neon-field="boardShape"]').disabled = design.backing === 'none';
+    const gap = root.querySelector('[data-neon-field="boardGap"]');
+    gap.disabled = design.backing === 'none' || design.boardShape !== 'contour';
+    gap.closest('label').hidden = gap.disabled;
     root.querySelector('[data-neon-field="boardShape"] option[value="contour"]').disabled = design.mount !== 'wall';
     root.dataset.mount = design.mount;
     root.style.setProperty('--neon-color', design.color);
@@ -628,6 +631,7 @@
         throw Error('Choose a .neon.json design exported by this editor.');
       }
       if (imported.boardShape === undefined) imported.boardShape = 'rectangle';
+      if (imported.boardGap === undefined) imported.boardGap = 30;
       if (imported.version === 1) imported = {...imported, version: 2, cover: WHITE_COVER};
       const disabledFont = !options.font.includes(imported.font) && engine.fonts.some(f => f.id === imported.font);
       if (disabledFont) {

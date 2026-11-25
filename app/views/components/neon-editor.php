@@ -136,6 +136,7 @@ $neonIcon = static function (string $key) use ($neonIcons): string {
           <input type="range" aria-label="Adjust lettering width in millimetres" min="100" max="3000" step="1" value="600" data-neon-field="widthMm">
           <div class="neon-input-pair">
             <label>Plexiglass shape<select data-neon-field="boardShape"><option value="rectangle">Rectangle</option><option value="contour">Cut around lettering</option></select></label>
+            <label hidden>Acrylic gap from lettering (mm)<input type="number" data-neon-field="boardGap" min="30" max="150" step="any" value="30" disabled></label>
             <label>Backboard<select data-neon-field="backing"><option value="clear">Clear acrylic</option><option value="black">Black acrylic</option><option value="none">No backboard</option></select></label>
             <label>Mounting<select data-neon-field="mount"><option value="wall">Wall mounted</option><option value="suspended">Suspended</option><option value="freestanding">Freestanding</option></select></label>
           </div>

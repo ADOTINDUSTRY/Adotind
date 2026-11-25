@@ -739,7 +739,7 @@
     return null;
   }
 
-  function contourPanels(art) {
+  function contourPanels(art, gap) {
     const clipper = typeof module === 'object' && module.exports
       ? require('./neon-clipper.js') : globalThis.ClipperLib;
     const scale=100;
@@ -750,9 +750,30 @@
     }
     const result=[];
     // Offset the centreline by the tube radius plus the acrylic clearance.
-    offset.Execute(result,33*scale);
+    offset.Execute(result,(gap+3)*scale);
+    const islands = result.filter(clipper.Clipper.Orientation);
+    const joined = islands.splice(0,1);
+    while (islands.length && joined.length) {
+      let closest, shortest = Infinity;
+      for (const [index,island] of islands.entries()) {
+        for (const path of joined) for (const a of path) for (const b of island) {
+          const squared = (a.X-b.X)**2+(a.Y-b.Y)**2;
+          if (squared < shortest) { shortest = squared; closest = {index,a,b}; }
+        }
+      }
+      const {index,a,b} = closest;
+      const bridge = new clipper.ClipperOffset(2,0.05*scale);
+      bridge.AddPath([a,b],clipper.JoinType.jtRound,clipper.EndType.etOpenRound);
+      const connection = [];
+      bridge.Execute(connection,15*scale);
+      const union = new clipper.Clipper();
+      union.AddPaths([...joined,islands.splice(index,1)[0],...connection],clipper.PolyType.ptSubject,true);
+      const merged = [];
+      union.Execute(clipper.ClipType.ctUnion,merged,clipper.PolyFillType.pftNonZero,clipper.PolyFillType.pftNonZero);
+      joined.splice(0,joined.length,...merged.filter(clipper.Clipper.Orientation));
+    }
     const outlines=[], holes=[];
-    for(const path of result.filter(clipper.Clipper.Orientation)) {
+    for(const path of joined) {
       outlines.push(path.map(({X,Y})=>[X/scale,Y/scale]));
       const inset=new clipper.ClipperOffset(2,0.05*scale);
       inset.AddPath(path,clipper.JoinType.jtRound,clipper.EndType.etClosedPolygon);
@@ -770,12 +791,12 @@
         if (Math.hypot(last.X-first.X,last.Y-first.Y)>=20*scale) holes.push([last.X/scale,last.Y/scale]);
       }
     }
-    return {outline:outlines[0] || [],outlines,holes,wall:true,pad:30};
+    return {outline:outlines[0] || [],outlines,holes,wall:true,pad:gap+15};
   }
 
   function backboard(art, spec) {
     if (!spec.backing || spec.backing === 'none') return null;
-    if (spec.boardShape === 'contour') return contourPanels(art);
+    if (spec.boardShape === 'contour') return contourPanels(art, spec.boardGap ?? 30);
     const w = art.widthMm, h = art.heightMm, pad = 22;
     const radius=20;
     const corners=[[-pad+radius,-pad+radius],[w+pad-radius,-pad+radius],
