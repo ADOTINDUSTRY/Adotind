@@ -289,9 +289,9 @@
     camera();
     const defs = svg('defs');
     const d = geometry.paths.map(path => path.d).join(' ');
-    defs.append(svg('path', {id: 'neon-tube-centerlines', d, fill: 'none', 'stroke-width': 6, 'stroke-linecap': 'round', 'stroke-linejoin': 'round'}));
-    for (const [name, blur] of [['halo', 7], ['bloom', 2.4], ['shadow', 1.5]]) {
-      const filter = svg('filter', {id: 'neon-' + name, filterUnits: 'userSpaceOnUse', x: -36, y: -36, width: w + 72, height: h + 72});
+    defs.append(svg('path', {id: 'neon-tube-centerlines', d, fill: 'none', 'stroke-linecap': 'round', 'stroke-linejoin': 'round'}));
+    for (const [name, blur] of [['halo', 11], ['bloom', 3], ['shadow', 1.5]]) {
+      const filter = svg('filter', {id: 'neon-' + name, filterUnits: 'userSpaceOnUse', x: -52, y: -52, width: w + 104, height: h + 104});
       filter.append(svg('feGaussianBlur', {stdDeviation: blur}));
       defs.append(filter);
     }
@@ -311,7 +311,7 @@
         for (const x of xs) for (const y of ys) canvas.append(svg('circle', {cx: x, cy: y, r: 2.5, fill: technical ? 'none' : '#475560', stroke: fixture, 'stroke-width': .9}));
       }
     }
-    const useTube = attrs => svg('use', {href: '#neon-tube-centerlines', ...attrs});
+    const useTube = attrs => svg('use', {href: '#neon-tube-centerlines', 'stroke-width': 6, ...attrs});
     if (technical) {
       // The narrow edge keeps white silicone and pale light visible on drafting paper.
       canvas.append(svg('path', {d, fill: 'none', stroke: '#536478', 'stroke-width': 7,
@@ -319,12 +319,18 @@
     } else {
       canvas.append(useTube({transform: 'translate(1.2 3.3)', stroke: '#050609', opacity: .75, filter: 'url(#neon-shadow)'}));
     }
+    const face = useTube({stroke: design.power ? color : design.cover});
     if (lit) {
-      const brightness = design.brightness / 100;
-      canvas.append(useTube({stroke: color, opacity: brightness * .95, filter: 'url(#neon-halo)'}));
-      canvas.append(useTube({stroke: color, opacity: brightness * .9, filter: 'url(#neon-bloom)'}));
+      const level = design.brightness / 100;
+      // Spread the LED colour over the wall. Only the light spill widens with the dimmer.
+      canvas.append(useTube({stroke: color, 'stroke-width': 8 + 20 * level, opacity: level,
+        filter: 'url(#neon-halo)', style: 'mix-blend-mode:screen'}));
+      canvas.append(useTube({stroke: color, 'stroke-width': 6 + 4 * level, opacity: level,
+        filter: 'url(#neon-bloom)', style: 'mix-blend-mode:screen'}));
+      face.setAttribute('opacity', .42 + .58 * level);
+      face.style.stroke = `color-mix(in srgb, ${color}, white ${20 * level * level}%)`;
     }
-    canvas.append(useTube({stroke: design.power ? color : design.cover, opacity: lit ? .46 + design.brightness / 185 : 1}));
+    canvas.append(face);
     const measure = svg('g', {stroke: technical ? '#526371' : '#d2dadf', 'stroke-width': Math.max(.5, chartSize * .065), fill: 'none', opacity: .85});
     const offset = dimOffset + mountBottom, tick = chartSize * .33, side = w + dimOffset;
     measure.append(svg('path', {d: 'M0 ' + offset + 'h' + w + ' M0 ' + (offset - tick) + 'v' + (2 * tick) +
