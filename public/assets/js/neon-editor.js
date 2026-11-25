@@ -77,6 +77,7 @@
   };
   const limits = {widthMm: [minWidth, maxWidth], boardGap: [30, 150], letterSpacing: [0, 0.3], lineSpacing: [1, 2], brightness: [10, 100]};
   let design = {...defaults};
+  let widthAllowance = 0;
   let geometry;
   let geometryKey;
   let paintedBoardKey;
@@ -393,12 +394,7 @@
     const requiredWidth = Math.max(minWidth, longestLine*(shop.mmPerCharacter ?? 100));
     const effectiveMin = Math.min(requiredWidth, maxWidth);
     const sizeError = requiredWidth > maxWidth ? 'Split the lettering over more lines to fit the maximum width of '+maxWidth+' mm.' : '';
-    const previousWidth = design.widthMm;
-    design.widthMm = Math.max(effectiveMin, design.widthMm);
-    for (const control of fields.filter(field => field.dataset.neonField === 'widthMm')) {
-      control.min = effectiveMin;
-      if (previousWidth !== design.widthMm) control.value = design.widthMm;
-    }
+    if (design.widthMm < effectiveMin) design = {...design,widthMm:effectiveMin};
     const nextKey = JSON.stringify([design.text, design.font, design.widthMm, design.align, design.letterSpacing, design.lineSpacing]);
     if (nextKey !== geometryKey) {
       geometry = engine.layout(design);
@@ -418,6 +414,7 @@
     for (const node of fields) {
       const key = node.dataset.neonField;
       if (!(key in design)) continue;
+      if (key === 'widthMm') continue;
       if (node.type === 'checkbox') node.checked = design[key];
       else if (node.type === 'radio') node.checked = node.value === String(design[key]);
       else if (!(node.type === 'number' && node === document.activeElement) && node.value !== String(design[key])) node.value = design[key];
@@ -453,6 +450,14 @@
     output('lineSpacing', design.lineSpacing.toFixed(2) + '×');
     const board = geometry.valid ? currentBoard() : null;
     const finished = geometry.valid ? engine.finishedSize(geometry,board,design) : null;
+    widthAllowance = board ? Math.max(0,finished.widthMm-design.widthMm) : 0;
+    root.querySelector('label[for="neon-width"]').textContent = design.backing === 'none' ? 'Lettering width' : 'Finished acrylic width';
+    for (const control of fields.filter(field => field.dataset.neonField === 'widthMm')) {
+      control.min = Math.min(3000,effectiveMin+widthAllowance);
+      control.max = Math.min(3000,maxWidth+widthAllowance);
+      control.setAttribute('aria-label',design.backing === 'none' ? 'Lettering width in millimetres' : 'Finished acrylic width in millimetres');
+      if (control.type === 'range' || control !== document.activeElement) control.value = Number((design.widthMm+widthAllowance).toFixed(1));
+    }
     const limitError = finished && !finished.withinLimit ? 'The finished sign must fit within 3,000 × 2,000 mm. Reduce the lettering size or acrylic gap.' : '';
     const structuralError = sizeError || limitError || projectError(design);
     output('acrylic-size',board ? mm(finished.widthMm)+' × '+mm(finished.heightMm) : '—');
@@ -494,6 +499,20 @@
     else changed(key, value, group);
   }
   for (const node of fields) {
+    if (node.dataset.neonField === 'widthMm') {
+      const applyWidth = () => {
+        if (!Number.isFinite(node.valueAsNumber)) return;
+        const width = Math.min(Number(node.max),Math.max(Number(node.min),node.valueAsNumber));
+        changed('widthMm',Math.max(minWidth,width-widthAllowance),true);
+      };
+      if (node.type === 'range') node.addEventListener('input',applyWidth);
+      node.addEventListener('change',applyWidth);
+      node.addEventListener('blur',()=>{
+        sequence = undefined;
+        render();
+      });
+      continue;
+    }
     const update = () => edit(node.dataset.neonField, node.type === 'checkbox' ? node.checked : node.value, true);
     node.addEventListener('input', update);
     node.addEventListener('change', update);
@@ -522,7 +541,6 @@
     sequence = undefined;
     to.push(design);
     design = from.pop();
-    root.querySelector('#neon-width').value = design.widthMm;
     render();
   }
   function clearWall() {
