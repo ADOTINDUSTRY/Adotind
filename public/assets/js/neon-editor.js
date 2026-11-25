@@ -379,7 +379,7 @@
     const copy=canvas.cloneNode(true);
     copy.removeAttribute('tabindex');
     copy.style.cursor='';
-    previewPanel.replaceChildren(copy);
+    previewPanel.replaceChildren(copy,root.querySelector('[data-neon-preview-price]').cloneNode(true));
   }
   const previewObserver=new MutationObserver(syncDetachedPreview);
   function detachPreview() {
@@ -410,6 +410,7 @@
     host.append(previewPanel);
     doc.body.replaceChildren(host);
     previewObserver.observe(canvas,{attributes:true,childList:true,subtree:true});
+    previewObserver.observe(root.querySelector('[data-neon-preview-price]'),{attributes:true,childList:true});
     syncDetachedPreview();
     previewWindow.addEventListener('pagehide',()=>{
       previewObserver.disconnect();

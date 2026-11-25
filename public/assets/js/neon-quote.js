@@ -48,6 +48,7 @@
   }
 
   const delivery = form.querySelector('[data-neon-delivery]');
+  const previewPrice = root.querySelector('[data-neon-preview-price]');
   let designDetails;
   function updateEstimate() {
     const {spec, lengthMm, finished, strokeCount, bendCount, spacerCount} = designDetails;
@@ -60,6 +61,7 @@
     if (valid) deliveryOption.textContent = ({120:'Standard delivery',240:'Large-sign delivery',300:'Oversize delivery'})[finished.tier];
     const rates = shop.rates;
     let label = valid ? 'Shop quote on request' : 'Complete your lettering to request a quote';
+    let estimate = '';
     if (valid && rates) {
       const acrylicRate = finished.areaMm2 ? rates['acrylic'+finished.tier] : 0;
       const deliveryFee = delivery.value==='delivery' ? rates['delivery'+finished.tier] : 0;
@@ -67,10 +69,12 @@
         const cents = rates.base + Math.round(Math.round(lengthMm)*rates.perMetre/1000)
           + Math.round(finished.areaMm2*acrylicRate/1_000_000) + rates[spec.mount] + deliveryFee
           + strokeCount*(rates.perStroke ?? 0) + bendCount*(rates.perBend ?? 0) + spacerCount*(rates.perSpacer ?? 0);
-        label = 'Estimated price '+money.format(cents/100);
+        label = estimate = 'Estimated price '+money.format(cents/100);
       }
     }
     if (price.textContent !== label) price.textContent = label;
+    previewPrice.hidden = !estimate;
+    if (previewPrice.textContent !== estimate) previewPrice.textContent = estimate;
     refreshButton();
     clearOldMessage();
   }

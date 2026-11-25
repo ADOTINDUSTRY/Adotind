@@ -48,6 +48,7 @@ $neonIcon = static function (string $key) use ($neonIcons): string {
         </div>
         <div class="neon-drawing-area">
           <svg data-neon-canvas role="img" aria-label="Preview of your sign with 6 mm neon tubing"></svg>
+          <output class="neon-preview-price" data-neon-preview-price hidden></output>
         </div>
         <div class="neon-stage-footer">
           <div class="neon-zoom">
