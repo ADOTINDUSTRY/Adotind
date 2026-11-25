@@ -44,7 +44,7 @@
     swatch.hidden = !available.includes(swatch.dataset.value);
     swatch.disabled = swatch.hidden;
   }
-  const minWidth = Number.isFinite(shop.minWidth) ? Math.max(200, shop.minWidth) : 200;
+  const minWidth = Number.isFinite(shop.minWidth) ? Math.max(100, shop.minWidth) : 100;
   const maxWidth = Number.isFinite(shop.maxWidth) ? Math.min(3000, shop.maxWidth) : 3000;
   if (!canvas || typeof engine?.cutLayout !== 'function' || !engine.fonts.length) {
     output('warnings', 'The lettering engine could not load. Refresh the page to try again.');
@@ -71,11 +71,11 @@
   const defaults = {
     version: 2, text: 'Hello', font: fonts[0].id, widthMm: Math.min(maxWidth, Math.max(minWidth, 600)),
     align: 'center', letterSpacing: 0, lineSpacing: 1.25, color: colors[0], cover: WHITE_COVER,
-    backing: 'clear', mount: 'wall', scene: 'studio', power: true, brightness: 85,
+    boardShape: 'rectangle', backing: 'clear', mount: 'wall', scene: 'studio', power: true, brightness: 85,
   };
   const options = {
     font: fonts.map(f => f.id), color: colors, cover: covers, align: ['left', 'center', 'right'],
-    backing: ['clear', 'black', 'none'], mount: ['wall', 'suspended', 'freestanding'],
+    boardShape: ['rectangle','contour'], backing: ['clear', 'black', 'none'], mount: ['wall', 'suspended', 'freestanding'],
     scene: ['brick', 'studio', 'concrete', 'drawing'],
   };
   const limits = {widthMm: [minWidth, maxWidth], letterSpacing: [0, 0.3], lineSpacing: [1, 2], brightness: [10, 100]};
@@ -290,7 +290,8 @@
     const defs = svg('defs');
     const d = geometry.paths.map(path => path.d).join(' ');
     defs.append(svg('path', {id: 'neon-tube-centerlines', d, fill: 'none', 'stroke-linecap': 'round', 'stroke-linejoin': 'round'}));
-    for (const [name, blur] of [['halo', 11], ['bloom', 3], ['shadow', 1.5]]) {
+    const previewSpread = Math.sqrt(w / 600);
+    for (const [name, blur] of [['halo', 7 * previewSpread], ['bloom', 2 * previewSpread], ['shadow', 1.5]]) {
       const filter = svg('filter', {id: 'neon-' + name, filterUnits: 'userSpaceOnUse', x: -52, y: -52, width: w + 104, height: h + 104});
       filter.append(svg('feGaussianBlur', {stdDeviation: blur}));
       defs.append(filter);
@@ -298,18 +299,15 @@
     canvas.append(defs);
     const fixture = technical ? '#72808d' : '#c1cdd7';
     if (design.backing !== 'none') {
-      if (design.mount === 'suspended') {
-        for (const x of [w * .16, w * .84]) canvas.append(svg('line', {x1: x, x2: x, y1: -padding - mountTop, y2: -padding + 6, stroke: fixture, 'stroke-width': 1.4}));
+      const board = engine.backboard(geometry, design);
+      canvas.append(svg('polygon', {points:board.outline.map(p=>p.join(',')).join(' '), fill: technical ? 'none' : design.backing === 'black' ? '#0d1017' : '#cee1f7',
+        'fill-opacity': design.backing === 'clear' ? .08 : .94, stroke:fixture, 'stroke-width':1.2}));
+      for (const [x,y] of board.holes) {
+        if (!board.wall) canvas.append(svg('line',{x1:x,x2:x,y1:-padding-mountTop,y2:y,stroke:fixture,'stroke-width':1.4}));
+        if (board.wall) canvas.append(svg('circle',{cx:x,cy:y,r:8,fill:technical?'none':'#8b939b',stroke:fixture,'stroke-width':.6}));
+        if (technical || !board.wall) canvas.append(svg('circle',{cx:x,cy:y,r:board.wall?5.5:2.5,fill:'none',stroke:fixture,'stroke-width':.6}));
       }
-      canvas.append(svg('rect', {x: -padding, y: -padding, width: bw, height: bh, rx: 9, fill: technical ? 'none' : design.backing === 'black' ? '#0d1017' : '#cee1f7',
-        'fill-opacity': design.backing === 'clear' ? .08 : .94, stroke: fixture, 'stroke-opacity': technical ? .8 : .42, 'stroke-width': 1.2}));
-      if (design.mount === 'freestanding') {
-        canvas.append(svg('rect', {x: w * .09, y: h + padding - 2, width: w * .82, height: mountBottom, rx: 3, fill: technical ? 'none' : '#343d47', stroke: fixture, 'stroke-width': 1.2}));
-      } else {
-        const xs = design.mount === 'suspended' ? [w * .16, w * .84] : [-padding + 9, w + padding - 9];
-        const ys = design.mount === 'suspended' ? [-padding + 6] : [-padding + 9, h + padding - 9];
-        for (const x of xs) for (const y of ys) canvas.append(svg('circle', {cx: x, cy: y, r: 2.5, fill: technical ? 'none' : '#475560', stroke: fixture, 'stroke-width': .9}));
-      }
+      if (design.mount === 'freestanding') canvas.append(svg('rect',{x:w*.09,y:h+padding-2,width:w*.82,height:mountBottom,rx:3,fill:technical?'none':'#343d47',stroke:fixture}));
     }
     const useTube = attrs => svg('use', {href: '#neon-tube-centerlines', 'stroke-width': 6, ...attrs});
     if (technical) {
@@ -322,10 +320,10 @@
     const face = useTube({stroke: design.power ? color : design.cover});
     if (lit) {
       const level = design.brightness / 100;
-      // Spread the LED colour over the wall. Only the light spill widens with the dimmer.
-      canvas.append(useTube({stroke: color, 'stroke-width': 8 + 20 * level, opacity: level,
+      // Dim the reflected light while keeping the physical tube width fixed.
+      canvas.append(useTube({stroke: color, 'stroke-width': 12 * previewSpread, opacity: .46 * level,
         filter: 'url(#neon-halo)', style: 'mix-blend-mode:screen'}));
-      canvas.append(useTube({stroke: color, 'stroke-width': 6 + 4 * level, opacity: level,
+      canvas.append(useTube({stroke: color, 'stroke-width': 6 + 2 * previewSpread, opacity: .52 * level,
         filter: 'url(#neon-bloom)', style: 'mix-blend-mode:screen'}));
       face.setAttribute('opacity', .42 + .58 * level);
       face.style.stroke = `color-mix(in srgb, ${color}, white ${20 * level * level}%)`;
@@ -404,9 +402,12 @@
     cutRows.replaceChildren(rows);
   }
   function render() {
+    const longestLine = Math.max(0,...design.text.normalize('NFC').split('\n').map(line=>Array.from(line.replace(/\s/gu,'')).length));
+    const requiredWidth = Math.max(minWidth, longestLine*(shop.mmPerCharacter ?? 100));
+    const sizeError = design.widthMm < requiredWidth ? 'This lettering needs at least '+requiredWidth+' mm. Increase the width, shorten the longest line or split it over more lines.' : '';
     const nextKey = JSON.stringify([design.text, design.font, design.widthMm, design.align, design.letterSpacing, design.lineSpacing]);
     if (nextKey !== geometryKey) {
-      geometry = engine.cutLayout(design, {minWidth, maxWidth});
+      geometry = engine.cutLayout(design, {minWidth:requiredWidth, maxWidth});
       geometryKey = nextKey;
       renderCutPlan(geometry.cutPlan);
       renderFontSummary();
@@ -414,6 +415,7 @@
     root.dataset.scene = design.scene;
     root.dataset.power = design.power ? 'on' : 'off';
     root.dataset.backing = design.backing;
+    root.querySelector('[data-neon-field="boardShape"]').disabled = design.backing === 'none';
     root.dataset.mount = design.mount;
     root.style.setProperty('--neon-color', design.color);
     for (const node of fields) {
@@ -445,7 +447,7 @@
     output('spacing', design.letterSpacing.toFixed(2) + ' em');
     output('letterSpacing', design.letterSpacing.toFixed(2) + ' em');
     output('lineSpacing', design.lineSpacing.toFixed(2) + '×');
-    const structuralError = projectError(design);
+    const structuralError = sizeError || projectError(design);
     const plan = geometry.cutPlan;
     const warnings = [...new Set([structuralError, ...(geometry.errors || []), ...(geometry.warnings || [])]
       .filter(message => message && (!plan?.pieces.length || message !== plan.error)))];
@@ -461,6 +463,8 @@
     output('width', hasPaths ? mm(w) : '—');
     output('height', hasPaths ? mm(h) : '—');
     output('size', hasPaths ? mm(w) + ' × ' + mm(h) : '—');
+    const metres = (ready ? plan.totalCutMm : geometry.lengthMm) / 1000;
+    output('electrical', hasPaths ? (ready?'':'≈ ') + (metres*7.2).toFixed(1)+' W · '+(metres*.6).toFixed(2)+' A · '+Math.round(metres*120)+' LEDs' : '—');
     output('length', hasPaths ? mm(ready ? plan.totalCutMm : geometry.lengthMm) : '—');
     output('runs', String(geometry.paths.length));
     output('strokes', String(geometry.paths.length));
@@ -611,7 +615,7 @@
       output('status', 'Centerline drawing downloaded.');
     }
     if (action === 'export-dxf' && root.dataset.neonValid === 'true') {
-      download(engine.dxf(geometry), 'application/dxf', 'dxf');
+      download(engine.dxf(geometry,design), 'application/dxf', 'dxf');
       output('status', 'DXF centerlines downloaded in millimetres.');
     }
     if (action === 'export-project' || action === 'save') {
@@ -642,6 +646,7 @@
       if (!imported || ![1, 2].includes(imported.version) || (imported.version === 1 && Object.hasOwn(imported, 'cover'))) {
         throw Error('Choose a .neon.json design exported by this editor.');
       }
+      if (imported.boardShape === undefined) imported.boardShape = 'rectangle';
       if (imported.version === 1) imported = {...imported, version: 2, cover: WHITE_COVER};
       const disabledFont = !options.font.includes(imported.font) && engine.fonts.some(f => f.id === imported.font);
       if (disabledFont) {

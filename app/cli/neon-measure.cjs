@@ -10,11 +10,12 @@ const warmWhite = '#ffedcc';
 const choices = {
   font: geometry.fonts.map(font => font.id),
   align: ['left', 'center', 'right'],
+  boardShape: ['rectangle','contour'],
   backing: ['clear', 'black', 'none'],
   mount: ['wall', 'suspended', 'freestanding'],
   scene: ['studio', 'brick', 'concrete', 'drawing'],
 };
-const ranges = {widthMm: [200, 3000], letterSpacing: [0, 0.30], lineSpacing: [1, 2], brightness: [10, 100]};
+const ranges = {widthMm: [100, 3000], letterSpacing: [0, 0.30], lineSpacing: [1, 2], brightness: [10, 100]};
 const fields = new Set(['version', 'text', 'color', 'cover', 'power', ...Object.keys(choices), ...Object.keys(ranges)]);
 
 function measure(input, intent = 'production') {
@@ -37,8 +38,9 @@ function measure(input, intent = 'production') {
   }
   const design = {version: 2, text, color, cover, power: input.power};
   for (const [key, values] of Object.entries(choices)) {
-    if (!values.includes(input[key])) return {error: 'Choose a valid ' + key + ' option.'};
-    design[key] = input[key];
+    const value = key === 'boardShape' && input[key] === undefined ? 'rectangle' : input[key];
+    if (!values.includes(value)) return {error: 'Choose a valid ' + key + ' option.'};
+    design[key] = value;
   }
   for (const [key, [min, max]] of Object.entries(ranges)) {
     const value = input[key];
@@ -66,7 +68,7 @@ function measure(input, intent = 'production') {
   if (!proof.valid) return {error: proof.errors[0] || 'The cutting geometry could not be verified.'};
   return {
     reviewOnly: false, cutPlan, design, widthMm: proof.widthMm, heightMm: proof.heightMm, lengthMm: cutPlan.totalCutMm,
-    warnings: proof.warnings, svg: geometry.svg(proof, design), dxf: geometry.dxf(proof),
+    warnings: proof.warnings, svg: geometry.svg(proof, design), dxf: geometry.dxf(proof,design),
   };
 }
 

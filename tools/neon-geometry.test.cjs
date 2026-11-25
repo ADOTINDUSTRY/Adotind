@@ -186,7 +186,7 @@ function cutSpec(font,text,pieceMm,index=0) {
 }
 
 test('manufacturing sums whole 25 mm modules only when every separate CAD and SVG run physically fits', () => {
-  for (const [font,text,pieceMm] of [['studio','-',200],['studio','-----',25],['deco','ll',1000],['deco','O',1800]]) {
+  for (const [font,text,pieceMm] of [['studio','-',600],['studio','-----',125],['deco','ll',2000],['deco','O',2400]]) {
     const spec=cutSpec(font,text,pieceMm);
     const production=geometry.cutLayout(spec), plan=production.cutPlan;
     assert.ok(production.valid && plan.ready, font+' '+text+' at '+spec.widthMm);
@@ -216,14 +216,14 @@ test('manufacturing sums whole 25 mm modules only when every separate CAD and SV
     assert.equal(server.reviewOnly,false);
     assert.equal(server.cutPlan.totalCutMm,plan.totalCutMm);
     assert.equal(server.lengthMm,plan.totalCutMm);
-    assert.equal(server.dxf,geometry.dxf(production));
+    assert.equal(server.dxf,geometry.dxf(production,spec));
   }
 });
 
 test('a divisible total cannot hide incompatible pieces, and a small dot survives in review', () => {
-  const halfUnits=cutSpec('studio','--',112.5);
+  const halfUnits=cutSpec('studio','--',312.5);
   const twoStrokes=geometry.layout(halfUnits);
-  near(twoStrokes.lengthMm,225,0.001);
+  near(twoStrokes.lengthMm,625,0.001);
   for (const spec of [halfUnits,{...design,font:'signature',text:'iiiiiii',widthMm:200}]) {
     const raw=geometry.layout(spec), result=geometry.cutLayout(spec), plan=result.cutPlan;
     assert.ok(!result.valid && !plan.ready);
@@ -435,15 +435,15 @@ test('invalid values and unsupported glyphs never generate a submission or parti
   assert.throws(() => geometry.svg(invalid));
   for (const patch of [
     {version:2}, {text:''}, {text:'a'.repeat(81)}, {text:'a\nb\nc\nd\ne'}, {text:'Open\tNow'},
-    {font:'__proto__'}, {text:'🦩'}, {widthMm:'700'}, {widthMm:3001}, {widthMm:199},
+    {font:'__proto__'}, {text:'🦩'}, {widthMm:'700'}, {widthMm:3001}, {widthMm:99},
     {color:'red'}, {align:'top'}, {letterSpacing:-0.1}, {lineSpacing:2.1}, {brightness:101},
     {scene:'foo'}, {power:1}, {backing:'wood'}, {mount:'no'}, {svg:'trusted client path'}, {lengthMm:1},
     {cutPlan:{ready:true,totalCutMm:25}}, {intent:'review'},
   ]) assert.deepEqual(Object.keys(measure({...design, ...patch})), ['error'], JSON.stringify(patch));
-  const accepted={...design,text:'-',font:'studio',widthMm:206};
+  const accepted={...design,text:'-',font:'studio',widthMm:606};
   const proof = measure(accepted);
   assert.equal(proof.design.color, '#ff488d');
-  assert.equal(proof.widthMm, 206);
+  assert.equal(proof.widthMm, 606);
   assert.equal(proof.cutPlan.ready, true);
   assert.ok(measure(accepted,'review').error);
   assert.ok(measure(accepted,'unexpected').error);
@@ -453,7 +453,7 @@ test('invalid values and unsupported glyphs never generate a submission or parti
 test('silicone and LEDs obey the same indoor product rules on quotes and shop reviews', () => {
   const white = '#ffffff', warmWhite = '#ffedcc', red = '#ff3030', blue = '#356bff';
   const leds = [white, warmWhite, red, blue, '#ff488d', '#ff6248', '#ffb149', '#caff63', '#58ebcc', '#68c7ff', '#bc8bff'];
-  const sign = {...design, version: 2, text: '-', font: 'studio', widthMm: 206};
+  const sign = {...design, version: 2, text: '-', font: 'studio', widthMm: 606};
   const original = measure({...sign, version: 1, color: blue});
   assert.equal(original.design.cover, white);
   const originalPlan = original.cutPlan;
@@ -506,7 +506,7 @@ test('Aegean Greek uses distinct native Greek strokes, final sigma and composed 
 
 test('HTTP helper can send UTF-8 JSON to the bounded stdin CLI', () => {
   const cli = require.resolve('../app/cli/neon-measure.cjs');
-  const accepted={...design,text:'-',font:'studio',widthMm:206};
+  const accepted={...design,text:'-',font:'studio',widthMm:606};
   for (const [input, valid] of [[JSON.stringify(accepted),true], [JSON.stringify(design),false],
     ['{bad',false], [' '.repeat(8193),false]]) {
     const run = spawnSync(process.execPath,[cli], {input, encoding:'utf8'});
@@ -515,4 +515,20 @@ test('HTTP helper can send UTF-8 JSON to the bounded stdin CLI', () => {
     assert.equal(Boolean(proof.error), !valid);
     if (valid) assert.equal(proof.design.text, accepted.text);
   }
+});
+
+test('100 mm shop geometry and contoured spacer hardware use true drawing units', () => {
+  const small=geometry.layout({...design,text:'A',widthMm:100});
+  assert.ok(small.valid);
+  const model=geometry.layout({...design,text:'Hello',widthMm:600});
+  const spec={...design,backing:'clear',boardShape:'contour',mount:'wall'};
+  const board=geometry.backboard(model,spec);
+  assert.equal(board.holes.length,4);
+  assert.ok(new Set(board.outline.map(p=>p[1])).size>4);
+  const dxf=geometry.dxf(model,spec);
+  assert.equal((dxf.match(/\r\nCIRCLE\r\n/g)||[]).length,4);
+  assert.equal((dxf.match(/\r\n40\r\n5\.5\r\n/g)||[]).length,4);
+  assert.ok(dxf.includes('ACRYLIC_OUTLINE'));
+  assert.ok(geometry.svg(model,spec).includes('MOUNT_HOLES'));
+  assert.equal(geometry.backboard(model,{...spec,backing:'none'}),null);
 });

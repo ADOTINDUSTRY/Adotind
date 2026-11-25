@@ -428,7 +428,7 @@
     if (!font) fail('Choose a supported lettering style.');
     if (!text.trim()) fail('Enter the lettering for your sign.');
     if (Array.from(text).length > 80 || rows.length > 4) fail('Use up to 80 characters on a maximum of four lines.');
-    if (!(width >= 200 && width <= 3000)) fail('Choose a width from 200 to 3000 mm.');
+    if (!(width >= 100 && width <= 3000)) fail('Choose a width from 100 to 3000 mm.');
     if (!(tracking >= 0 && tracking <= 0.30 && leading >= 1 && leading <= 2)) fail('Choose a valid letter and line spacing.');
     if (!['left','center','right'].includes(align)) fail('Choose left, centre or right alignment.');
     if (errors.length) return result;
@@ -686,7 +686,7 @@
   // exact scale for each cut mark; a clear straight tip permits a small trim.
   // Intersect these intervals before rebuilding any suggested production art.
   function suggestCutWidth(options,limits,strokes,design) {
-    const min=Math.max(200,limits.minWidth??200), max=Math.min(3000,limits.maxWidth??3000);
+    const min=Math.max(100,limits.minWidth??100), max=Math.min(3000,limits.maxWidth??3000);
     if (min>max || strokes.some(s=>s.length<=CUT_EPS)) return null;
     const span=design.widthMm-TUBE, minScale=(min-TUBE)/span, maxScale=(max-TUBE)/span;
     const constraints=strokes.map(s=>({
@@ -739,7 +739,52 @@
     return null;
   }
 
-  function svg(design, {color = '#262626', cover, power = true, reviewOnly = false} = {}) {
+  // Sample the upper and lower silhouette across the lettering. Interpolate
+  // through gaps to keep one connected sheet, including on multiline signs.
+  function backboard(art, spec) {
+    if (!spec.backing || spec.backing === 'none') return null;
+    const w = art.widthMm, h = art.heightMm, pad = 22;
+    const n = Math.ceil(w / 8), dx = w / n;
+    const top = Array(n+1).fill(Infinity), bottom = Array(n+1).fill(-Infinity);
+    if (spec.boardShape === 'contour') {
+      for (const run of art.runs) for (let i=0; i<run.length; i++) {
+        const [x,y] = run[i], [px,py] = run[i-1] || run[i];
+        const steps = Math.max(1, Math.ceil(Math.abs(x-px)/dx*2));
+        for (let j=0; j<=steps; j++) {
+          const k = Math.max(0,Math.min(n,Math.round((px+(x-px)*j/steps)/dx)));
+          const v = py+(y-py)*j/steps;
+          top[k]=Math.min(top[k],v); bottom[k]=Math.max(bottom[k],v);
+        }
+      }
+      let prev=-1;
+      for (let i=0; i<=n; i++) if (Number.isFinite(top[i])) {
+        for (let j=prev+1;j<i;j++) for (const edge of [top,bottom])
+          edge[j]=prev<0 ? edge[i] : edge[prev]+(edge[i]-edge[prev])*(j-prev)/(i-prev);
+        prev=i;
+      }
+      for (let j=prev+1;j<=n;j++) {top[j]=prev<0?0:top[prev]; bottom[j]=prev<0?h:bottom[prev];}
+    } else {top.fill(0);bottom.fill(h);}
+    function edgePoints(edge, upper) {
+      const pts=edge.map((_,i)=>{
+        const near=edge.slice(Math.max(0,i-3),Math.min(n+1,i+4));
+        return [i*dx,upper?Math.min(...near)-pad:Math.max(...near)+pad];
+      });
+      return [[-pad,pts[0][1]],...pts,[w+pad,pts[n][1]]];
+    }
+    const hi=edgePoints(top,true), lo=edgePoints(bottom,false);
+    const outline=spec.boardShape==='contour' ? [...hi,...lo.slice().reverse()] :
+      [[-pad,-pad],[w+pad,-pad],[w+pad,h+pad],[-pad,h+pad]];
+    const wall=spec.mount==='wall', holes=[];
+    if (wall) {
+      for (const [x,i] of [[-11,0],[w+11,n]]) for (const y of [hi[i+1][1]+11,lo[i+1][1]-11]) holes.push([x,y]);
+    } else if (spec.mount==='suspended') {
+      for (const i of [Math.round(n*.16),Math.round(n*.84)]) holes.push([i*dx,hi[i+1][1]+11]);
+    }
+    return {outline,holes,wall};
+  }
+
+  function svg(design, spec = {}) {
+    let {color = '#262626', cover, power = true, reviewOnly = false} = spec;
     if (!design.valid) throw new Error('Complete the design before exporting it.');
     if (!/^#[0-9a-f]{3}(?:[0-9a-f]{3})?$/i.test(color)) color = '#262626';
     const hasCover = typeof cover === 'string' && /^#[0-9a-f]{6}$/i.test(cover);
@@ -748,18 +793,23 @@
     const description = [];
     if (hasCover) description.push('Indoor use only. Silicone cover: ' + cover + '. LED colour: ' + color + '.');
     if (reviewOnly) description.push('Strip lengths require review before cutting.');
-    const w = number(design.widthMm), h = number(design.heightMm);
+    const board = backboard(design,spec);
+    const pad = board ? 22 : 0;
+    const w = number(design.widthMm+2*pad), h = number(design.heightMm+2*pad);
+    const boardSvg = board ? '<g fill="none" stroke="#718398" stroke-width="0.4"><polygon id="ACRYLIC_OUTLINE" points="' +
+      board.outline.map(([x,y])=>number(x)+','+number(y)).join(' ')+'"/><g id="MOUNT_HOLES">'+
+      board.holes.map(([x,y])=>'<circle cx="'+number(x)+'" cy="'+number(y)+'" r="'+(board.wall?5.5:2.5)+'"/>').join('')+'</g></g>' : '';
     // A CSS backdrop makes white LEDs and silicone visible in standalone proofs
     // without adding an object that a cutting program could interpret as a path.
     const backdrop = hasCover ? ' style="background-color:#25272c"' : '';
-    return '<svg xmlns="http://www.w3.org/2000/svg" width="'+w+'mm" height="'+h+'mm" viewBox="0 0 '+w+' '+h+'"'+backdrop+'>\n'
+    return '<svg xmlns="http://www.w3.org/2000/svg" width="'+w+'mm" height="'+h+'mm" viewBox="'+(-pad)+' '+(-pad)+' '+w+' '+h+'"'+backdrop+'>\n'
       + (reviewOnly ? '<title>Artwork for shop review only</title>\n' : '')
       + (description.length ? '<desc>' + description.join(' ') + '</desc>\n' : '')
-      + '<g id="'+layer+'" fill="none" stroke="'+stroke+'" stroke-width="6" stroke-linecap="round" stroke-linejoin="round">\n'
+      + boardSvg + '<g id="'+layer+'" fill="none" stroke="'+stroke+'" stroke-width="6" stroke-linecap="round" stroke-linejoin="round">\n'
       + design.paths.map(path => '  <path d="'+path.d+'"/>').join('\n')+'\n</g>\n</svg>\n';
   }
 
-  function dxf(design) {
+  function dxf(design, spec = {}) {
     if (!design.valid || !design.runs) throw new Error('Complete the design before exporting it.');
     const layer = 'TUBE_CENTERLINE_6MM';
     const groups = [0,'SECTION',2,'HEADER',9,'$ACADVER',1,'AC1015',9,'$INSUNITS',70,4,9,'$MEASUREMENT',70,1,0,'ENDSEC',
@@ -772,9 +822,20 @@
       const format=design.cutPlan ? cutNumber : number;
       for (const p of points) groups.push(10,format(p[0]),20,format(design.heightMm-p[1]));
     }
+    const board=backboard(design,spec);
+    if (board) {
+      const layerEnd=groups.indexOf('ENDTAB')-1;
+      const layers=['ACRYLIC_OUTLINE', ...(board.holes.length ? ['MOUNT_HOLES'] : [])];
+      groups[groups.indexOf('AcDbSymbolTable')+2]=1+layers.length;
+      groups.splice(layerEnd,0,...layers.flatMap((name,i)=>[0,'LAYER',5,(50+i).toString(16),330,'2',100,'AcDbSymbolTableRecord',100,'AcDbLayerTableRecord',2,name,70,0,62,i+3,6,'CONTINUOUS']));
+      const handle=0x100+design.runs.length;
+      groups.push(0,'LWPOLYLINE',5,handle.toString(16),100,'AcDbEntity',8,layers[0],100,'AcDbPolyline',90,board.outline.length,70,1);
+      for(const [x,y] of board.outline) groups.push(10,number(x),20,number(design.heightMm-y));
+      board.holes.forEach(([x,y],i)=>groups.push(0,'CIRCLE',5,(handle+1+i).toString(16),100,'AcDbEntity',8,layers[1],100,'AcDbCircle',10,number(x),20,number(design.heightMm-y),40,board.wall?5.5:2.5));
+    }
     groups.push(0,'ENDSEC',0,'EOF');
     return groups.join('\r\n')+'\r\n';
   }
 
-  globalThis.NeonGeometry = {fonts, layout, cutLayout, svg, dxf};
+  globalThis.NeonGeometry = {fonts, layout, cutLayout, svg, dxf, backboard};
 })();

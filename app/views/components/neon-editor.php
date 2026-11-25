@@ -66,6 +66,7 @@ $neonIcon = static function (string $key) use ($neonIcons): string {
       <dl class="neon-measurements">
         <div><dt>Lettering size</dt><dd data-neon-output="size">—</dd></div>
         <div><dt>Tube width</dt><dd>6 mm</dd></div>
+        <div><dt>12 V strip · rated load (7.2 W/m, 120 LEDs/m)</dt><dd data-neon-output="electrical">—</dd></div>
         <div><dt>Tube length</dt><dd data-neon-output="length">—</dd></div>
       </dl>
       <section class="neon-cut-check" data-neon-cut-check aria-labelledby="neon-cut-heading" hidden>
@@ -147,9 +148,10 @@ $neonIcon = static function (string $key) use ($neonIcons): string {
         <summary>Size &amp; mounting</summary>
         <div class="neon-group-body">
           <label for="neon-width">Lettering width</label>
-          <div class="neon-unit"><input id="neon-width" type="number" min="200" max="3000" step="any" inputmode="decimal" value="600" data-neon-field="widthMm"><span>mm</span></div>
-          <input type="range" aria-label="Adjust lettering width in millimetres" min="200" max="3000" step="1" value="600" data-neon-field="widthMm">
+          <div class="neon-unit"><input id="neon-width" type="number" min="100" max="3000" step="any" inputmode="decimal" value="600" data-neon-field="widthMm"><span>mm</span></div>
+          <input type="range" aria-label="Adjust lettering width in millimetres" min="100" max="3000" step="1" value="600" data-neon-field="widthMm">
           <div class="neon-input-pair">
+            <label>Plexiglass shape<select data-neon-field="boardShape"><option value="rectangle">Rectangle</option><option value="contour">Cut around lettering</option></select></label>
             <label>Backboard<select data-neon-field="backing"><option value="clear">Clear acrylic</option><option value="black">Black acrylic</option><option value="none">No backboard</option></select></label>
             <label>Mounting<select data-neon-field="mount"><option value="wall">Wall mounted</option><option value="suspended">Suspended</option><option value="freestanding">Freestanding</option></select></label>
           </div>

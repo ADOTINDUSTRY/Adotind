@@ -71,12 +71,13 @@ function neon_settings(PDO $db): array
     $row = $db->query('SELECT revision,settings FROM shop WHERE id=1')->fetch();
     $values = json_decode($row['settings'], true, 16, JSON_THROW_ON_ERROR);
     unset($values['rateDraft']);
+    $values['minWidth'] = max(100, (int)($values['minWidth'] ?? 100));
     $library = neon_font_library();
     $available = array_column($library['fonts'], 'id');
     $enabled = array_values(array_intersect($values['fonts'] ?? $available, $available));
     return ['revision'=>(int)$row['revision'], 'edition'=>$library['edition'], 'fonts'=>$enabled] + $values + [
         'colors'=>array_keys(neon_color_palette()),
-        'minWidth'=>200, 'maxWidth'=>3000, 'rates'=>null,
+        'minWidth'=>100, 'mmPerCharacter'=>100, 'maxWidth'=>3000, 'rates'=>null,
     ];
 }
 
@@ -151,6 +152,9 @@ function neon_handle_request(): never
         $proof = neon_measure($design, $intent);
         if (isset($proof['error'])) neon_reply(422, ['error'=>$proof['error']]);
         $spec = $proof['design'];
+        $lineCounts = array_map(static fn($line) => preg_match_all('/[^\s]/u', $line), explode("\n",$spec['text']));
+        $requiredWidth = max($shop['minWidth'], max($lineCounts) * $shop['mmPerCharacter']);
+        if ($spec['widthMm'] < $requiredWidth) neon_reply(422, ['error'=>"This lettering needs at least $requiredWidth mm. Increase the width or shorten the longest line."]);
         $db->exec('BEGIN IMMEDIATE');
         $shop = neon_settings($db);
         if ($shop['edition'] !== ($_POST['edition'] ?? '') || (string)$shop['revision'] !== ($_POST['revision'] ?? '') ||
