@@ -366,7 +366,7 @@
     if (parsed.has(cacheKey)) return parsed.get(cacheKey);
     let commands = readPath(glyph[1]);
     if (fontId === 'studio') commands = cleanStudioTerminals(commands);
-    if (fontId !== 'studio' && fontId !== 'atelier' && fontId !== 'orbit') commands = smoothPenPaths(commands, globalThis.NeonStrokeFonts[fontId].em);
+    if (fontId !== 'orbit') commands = smoothPenPaths(commands, globalThis.NeonStrokeFonts[fontId].em);
     const box = emptyBounds();
     let x = 0, y = 0;
     for (const c of commands) {
@@ -397,9 +397,9 @@
     return kernMaps.get(fontId);
   }
 
-  // De Casteljau subdivision; both control points must fit inside a 0.025 mm
+  // De Casteljau subdivision; both control points must fit inside a 0.01 mm
   // capsule around the chord. The control polygon excess also detects reversals.
-  function flattenCubic(out, p, a, b, q, depth = 0, tolerance = 0.025) {
+  function flattenCubic(out, p, a, b, q, depth = 0, tolerance = 0.01) {
     const dx = q[0]-p[0], dy = q[1]-p[1], chord = distance(p,q);
     const lineDistance = r => chord ? Math.abs(dx*(p[1]-r[1]) - dy*(p[0]-r[0])) / chord : distance(p,r);
     const excess = distance(p,a) + distance(a,b) + distance(b,q) - chord;
