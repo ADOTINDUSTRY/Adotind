@@ -423,7 +423,14 @@
   function render() {
     const longestLine = Math.max(0,...design.text.normalize('NFC').split('\n').map(line=>Array.from(line.replace(/\s/gu,'')).length));
     const requiredWidth = Math.max(minWidth, longestLine*(shop.mmPerCharacter ?? 100));
-    const sizeError = design.widthMm < requiredWidth ? 'This lettering needs at least '+requiredWidth+' mm. Increase the width, shorten the longest line or split it over more lines.' : '';
+    const effectiveMin = Math.min(requiredWidth, maxWidth);
+    const sizeError = requiredWidth > maxWidth ? 'Split the lettering over more lines to fit the maximum width of '+maxWidth+' mm.' : '';
+    const previousWidth = design.widthMm;
+    design.widthMm = Math.max(effectiveMin, design.widthMm);
+    for (const control of fields.filter(field => field.dataset.neonField === 'widthMm')) {
+      control.min = effectiveMin;
+      if (previousWidth !== design.widthMm) control.value = design.widthMm;
+    }
     const nextKey = JSON.stringify([design.text, design.font, design.widthMm, design.align, design.letterSpacing, design.lineSpacing]);
     if (nextKey !== geometryKey) {
       geometry = engine.cutLayout(design, {minWidth:requiredWidth, maxWidth});

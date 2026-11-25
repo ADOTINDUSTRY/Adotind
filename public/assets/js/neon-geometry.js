@@ -766,16 +766,22 @@
       for (let j=prev+1;j<=n;j++) {top[j]=prev<0?0:top[prev]; bottom[j]=prev<0?h:bottom[prev];}
     } else {top.fill(0);bottom.fill(h);}
     function edgePoints(edge, upper) {
-      const pts=edge.map((_,i)=>{
-        const near=edge.slice(Math.max(0,i-3),Math.min(n+1,i+4));
-        return [i*dx,upper?Math.min(...near)-pad:Math.max(...near)+pad];
+      const radius = Math.ceil(30/dx);
+      const envelope = edge.map((_,i)=>{
+        const near=edge.slice(Math.max(0,i-radius*2),Math.min(n+1,i+radius*2+1));
+        return upper ? Math.min(...near)-pad : Math.max(...near)+pad;
+      });
+      // Average a widened envelope so smoothing keeps clearance at peaks.
+      const pts=envelope.map((_,i)=>{
+        const near=envelope.slice(Math.max(0,i-radius),Math.min(n+1,i+radius+1));
+        return [i*dx,near.reduce((sum,y)=>sum+y,0)/near.length];
       });
       return [[-pad,pts[0][1]],...pts,[w+pad,pts[n][1]]].flatMap((p,i,points)=>{
         if (!i) return [p];
         const [x,y]=points[i-1];
         return Array.from({length:8},(_,j)=>{
           const t=(j+1)/8;
-          return [x+(p[0]-x)*t,y+(p[1]-y)*(1-Math.cos(Math.PI*t))/2];
+          return [x+(p[0]-x)*t,y+(p[1]-y)*t];
         });
       });
     }
