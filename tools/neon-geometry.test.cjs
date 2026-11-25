@@ -457,3 +457,13 @@ test('acrylic and spacer inset scale, with width tiers and extra rows above one 
     assert.equal(geometry.backboard(drawing,contour).holes.length,count);
   }
 });
+test('labour counts separate pen paths and sharp joins without charging for a smooth loop', () => {
+  const spec={...design,font:'studio',widthMm:600,backing:'none'};
+  const h=measure({...spec,text:'H'});
+  const o=measure({...spec,text:'O'});
+  const l=measure({...spec,text:'L'});
+  assert.equal(h.strokeCount,3);
+  assert.equal(h.bendCount,0);
+  assert.equal(o.bendCount,0);
+  assert.equal(l.bendCount,1);
+});

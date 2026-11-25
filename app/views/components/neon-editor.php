@@ -68,6 +68,8 @@ $neonIcon = static function (string $key) use ($neonIcons): string {
         <div><dt>Finished acrylic size</dt><dd data-neon-output="acrylic-size">—</dd></div>
         <div><dt>Tube width</dt><dd>6 mm</dd></div>
         <div><dt>12 V strip · rated load (7.2 W/m, 120 LEDs/m)</dt><dd data-neon-output="electrical">—</dd></div>
+        <div><dt>Separate strokes</dt><dd data-neon-output="strokes">—</dd></div>
+        <div><dt>Sharp bends</dt><dd data-neon-output="bends">—</dd></div>
         <div><dt>Tube length</dt><dd data-neon-output="length">—</dd></div>
       </dl>
       <p class="neon-warning" data-neon-output="warnings" role="status"></p>

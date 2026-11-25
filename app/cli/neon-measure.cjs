@@ -61,6 +61,7 @@ function measure(input, intent = 'production') {
   if (!finished.withinLimit) return {error:'The finished sign must fit within 3,000 × 2,000 mm.'};
   return {
     finished, reviewOnly: false, design, widthMm: proof.widthMm, heightMm: proof.heightMm, lengthMm: proof.lengthMm,
+    strokeCount:proof.paths.length, bendCount:proof.bendCount,
     warnings: proof.warnings, svg: geometry.svg(proof, design), dxf: geometry.dxf(proof, design),
   };
 }

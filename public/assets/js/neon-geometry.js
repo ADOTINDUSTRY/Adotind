@@ -446,6 +446,40 @@
     flattenCubic(out, mid, r, bq, q, depth+1,tolerance);
   }
 
+  function sharpBends(commands) {
+    let bends=0, start, previous, incoming, firstDirection;
+    const direction=(a,b)=>[b[0]-a[0],b[1]-a[1]];
+    const angleIsSharp=(a,b)=>{
+      if (!a || !b) return false;
+      const size=Math.hypot(...a)*Math.hypot(...b);
+      return size>0 && (a[0]*b[0]+a[1]*b[1])/size<=Math.SQRT1_2+1e-9;
+    };
+    function closeRun() {
+      if (start && previous && distance(start,previous)<1e-7 && angleIsSharp(incoming,firstDirection)) bends++;
+    }
+    for (const [type,...coords] of commands) {
+      const end=coords.slice(-2);
+      if (type==='M') {
+        closeRun();
+        start=previous=end;
+        incoming=firstDirection=null;
+        continue;
+      }
+      const points=[previous];
+      for (let i=0;i<coords.length;i+=2) points.push(coords.slice(i,i+2));
+      const vectors=points.slice(1).map((point,index)=>direction(points[index],point))
+        .filter(vector=>Math.hypot(...vector)>1e-7);
+      if (vectors.length) {
+        if (angleIsSharp(incoming,vectors[0])) bends++;
+        firstDirection ||= vectors[0];
+        incoming=vectors.at(-1);
+      }
+      previous=end;
+    }
+    closeRun();
+    return bends;
+  }
+
   function layout(options = {}) {
     const text = String(options.text ?? '').replace(/\r\n?/g,'\n').normalize('NFC');
     const fontId = options.font ?? fonts[0].id;
@@ -455,7 +489,7 @@
     const align = options.align ?? 'center';
     const rows = text.split('\n');
     const errors = [], warnings = [], unsupported = [];
-    const result = {valid:false, widthMm:0, heightMm:0, lengthMm:0, tubeMm:TUBE, lineCount:rows.length,
+    const result = {valid:false, widthMm:0, heightMm:0, lengthMm:0, bendCount:0, tubeMm:TUBE, lineCount:rows.length,
       paths:[], bounds:{x:0,y:0,width:0,height:0}, unsupported, errors, warnings};
     function fail(message) { errors.push(message); warnings.push(message); }
     if (!font) fail('Choose a supported lettering style.');
@@ -479,7 +513,7 @@
         if (previous) x += tracking * font.em - (kern.get(previous + ch) || 0);
         const g = glyphGeometry(fontId, ch, raw);
         if (Number.isFinite(g.box.left)) {
-          glyphs.push({x, g});
+          glyphs.push({x, g, ch});
           include(box, x+g.box.left, g.box.bottom); include(box, x+g.box.right, g.box.top);
         }
         x += g.advance;
@@ -523,6 +557,7 @@
     const runs = [];
     for (const [index, line] of lines.entries()) {
       for (const {x, g} of line.glyphs) {
+        result.bendCount += sharpBends(g.commands);
         let run = null, d = '';
         function finish() {
           if (run && run.length >= 2) {

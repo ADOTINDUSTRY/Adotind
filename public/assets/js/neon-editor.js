@@ -478,6 +478,7 @@
     output('length', hasPaths ? mm(geometry.lengthMm) : '—');
     output('runs', String(geometry.paths.length));
     output('strokes', String(geometry.paths.length));
+    output('bends', String(geometry.bendCount));
     if (spec) spec.value = ready ? JSON.stringify(design) : '';
     const intent = 'production';
     if (requestIntent) requestIntent.value = intent;
@@ -487,7 +488,7 @@
     buttonState('redo', !future.length);
     paint();
     root.dispatchEvent(new CustomEvent('neon:design', {bubbles: true,
-      detail: {spec: ready ? {...design} : null, intent, finished, lengthMm: geometry.lengthMm}}));
+      detail: {spec: ready ? {...design} : null, intent, finished, strokeCount:geometry.paths.length, bendCount:geometry.bendCount, lengthMm: geometry.lengthMm}}));
   }
   function edit(key, input, group) {
     if (!(key in defaults) || key === 'version') return;

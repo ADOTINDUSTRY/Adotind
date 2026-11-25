@@ -179,10 +179,14 @@ function neon_handle_request(): never
                 'tube'=>(int)round(round($proof['lengthMm']) * $rates['perMetre'] / 1000),
                 'backing'=>(int)round($area*$acrylicRate/1000000), 'mount'=>$rates[$spec['mount']],
                 'delivery'=>$deliveryFee, 'acrylicRate'=>$acrylicRate,
+                'strokes'=>$proof['strokeCount'] * ($rates['perStroke'] ?? 0),
+                'bends'=>$proof['bendCount'] * ($rates['perBend'] ?? 0),
             ];
         }
-        $estimate = $breakdown === null ? null : $breakdown['base'] + $breakdown['tube'] + $breakdown['backing'] + $breakdown['mount'] + $breakdown['delivery'];
+        $estimate = $breakdown === null ? null : $breakdown['base'] + $breakdown['tube'] + $breakdown['backing'] + $breakdown['mount'] + $breakdown['delivery'] + $breakdown['strokes'] + $breakdown['bends'];
         $spec['finished'] = $finished;
+        $spec['strokeCount'] = $proof['strokeCount'];
+        $spec['bendCount'] = $proof['bendCount'];
         $spec['delivery'] = $delivery === 'delivery' ? 'delivery'.$tier : 'pickup';
         $insert = $db->prepare('INSERT INTO requests(request_key,name,email,message,design,width_mm,height_mm,tube_length_mm,warnings,estimated_cents,retail_breakdown,settings_revision,svg,dxf)
             VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(request_key) DO NOTHING');
