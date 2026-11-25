@@ -5,8 +5,8 @@ declare(strict_types=1);
 return [
     'neon' => [
         'name' => 'Neon sign',
-        'description' => 'Design a 6 mm neon sign, preview it on a wall and get the full-size drawing.',
-        'keywords' => 'LED neon light glow name lettering wall sign',
+        'description' => 'Design an indoor neon sign with 6 mm tubing. Choose the silicone cover and LED light, then preview it on your wall.',
+        'keywords' => 'indoor LED neon light glow silicone name lettering wall sign',
     ],
     'drawing' => [
         'name' => 'Custom cut parts',

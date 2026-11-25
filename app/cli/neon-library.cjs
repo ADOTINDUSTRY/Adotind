@@ -11,6 +11,7 @@ for (const filename of ['neon-fonts.js', 'neon-geometry.js']) {
   require(source);
   hash.update(fs.readFileSync(source, 'utf8').replace(/\r\n/g, '\n'));
 }
+hash.update(fs.readFileSync(path.join(__dirname, '../data/neon-colors.json'), 'utf8').replace(/\r\n/g, '\n'));
 const geometry = globalThis.NeonGeometry;
 const fonts = geometry.fonts.map(font => {
   const words = font.id === 'aegean' ? ['Φως'] : ['Studio', 'Light', 'Aa'];

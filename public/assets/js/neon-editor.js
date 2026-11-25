@@ -10,6 +10,7 @@
   const engine = window.NeonGeometry;
   const NS = 'http://www.w3.org/2000/svg';
   const MAX_FILE_BYTES = 16384;
+  const WHITE_COVER = '#ffffff';
   const fields = Array.from(root.querySelectorAll('[data-neon-field]'));
   const choices = root.querySelector('[data-neon-fonts]');
   const fontDialog = root.querySelector('.neon-font-dialog');
@@ -36,14 +37,22 @@
   const fonts = (engine?.fonts || []).filter(font => !Array.isArray(shop.fonts) || shop.fonts.includes(font.id));
   const swatches = Array.from(root.querySelectorAll('[data-neon-choice="color"]'));
   const colors = swatches.map(sw => sw.dataset.value).filter(color => !Array.isArray(shop.colors) || shop.colors.includes(color));
-  for (const swatch of swatches) {
-    swatch.hidden = !colors.includes(swatch.dataset.value);
+  const coverSwatches = Array.from(root.querySelectorAll('[data-neon-choice="cover"]'));
+  const covers = coverSwatches.map(sw => sw.dataset.value).filter(value => value === WHITE_COVER || colors.includes(value));
+  for (const swatch of [...swatches, ...coverSwatches]) {
+    const available = swatch.dataset.neonChoice === 'cover' ? covers : colors;
+    swatch.hidden = !available.includes(swatch.dataset.value);
     swatch.disabled = swatch.hidden;
   }
   const minWidth = Number.isFinite(shop.minWidth) ? Math.max(200, shop.minWidth) : 200;
   const maxWidth = Number.isFinite(shop.maxWidth) ? Math.min(3000, shop.maxWidth) : 3000;
   if (!canvas || typeof engine?.cutLayout !== 'function' || !engine.fonts.length) {
     output('warnings', 'The lettering engine could not load. Refresh the page to try again.');
+    if (submit) submit.disabled = true;
+    return;
+  }
+  if (!covers.includes(WHITE_COVER) || !outputs.has('pairing')) {
+    output('warnings', 'The neon colour options have changed. Reload the page to open the updated designer.');
     if (submit) submit.disabled = true;
     return;
   }
@@ -60,12 +69,12 @@
     btn.disabled = Number(btn.dataset.value) < minWidth || Number(btn.dataset.value) > maxWidth;
   }
   const defaults = {
-    version: 1, text: 'Hello', font: fonts[0].id, widthMm: Math.min(maxWidth, Math.max(minWidth, 600)),
-    align: 'center', letterSpacing: 0, lineSpacing: 1.25, color: colors[0],
+    version: 2, text: 'Hello', font: fonts[0].id, widthMm: Math.min(maxWidth, Math.max(minWidth, 600)),
+    align: 'center', letterSpacing: 0, lineSpacing: 1.25, color: colors[0], cover: WHITE_COVER,
     backing: 'clear', mount: 'wall', scene: 'studio', power: true, brightness: 85,
   };
   const options = {
-    font: fonts.map(f => f.id), color: colors, align: ['left', 'center', 'right'],
+    font: fonts.map(f => f.id), color: colors, cover: covers, align: ['left', 'center', 'right'],
     backing: ['clear', 'black', 'none'], mount: ['wall', 'suspended', 'freestanding'],
     scene: ['brick', 'studio', 'concrete', 'drawing'],
   };
@@ -101,6 +110,7 @@
   }
   function changed(key, value, group) {
     if (design[key] === value) return;
+    if (key === 'color' && design.cover !== WHITE_COVER && value !== design.cover) return;
     const now = performance.now();
     if (!group || !sequence || sequence.key !== key || now - sequence.at > 850) {
       past.push(design);
@@ -109,16 +119,20 @@
     sequence = group ? {key, at: now} : undefined;
     future.length = 0;
     design = {...design, [key]: value};
+    if (key === 'cover' && value !== WHITE_COVER) design.color = value;
     output('status', '');
     render();
   }
   function projectError(value) {
-    if (!value || value.version !== 1 || typeof value.text !== 'string' || [...value.text].length > 80 ||
+    if (!value || value.version !== 2 || typeof value.text !== 'string' || [...value.text].length > 80 ||
         value.text.split('\n').length > 4 || /[\x00-\x09\x0b-\x1f\x7f]/.test(value.text)) {
       return 'Use up to 80 characters and four lines of text.';
     }
     for (const [key, values] of Object.entries(options)) {
       if (!values.includes(value[key])) return 'Choose one of the available ' + key + ' options.';
+    }
+    if (value.cover !== WHITE_COVER && value.cover !== value.color) {
+      return 'A coloured silicone cover requires a matching LED. Choose a white cover to use a different LED.';
     }
     for (const [key, [lo, hi]] of Object.entries(limits)) {
       if (!Number.isFinite(value[key]) || value[key] < lo || value[key] > hi) return 'Choose a value within the control limits.';
@@ -298,13 +312,19 @@
       }
     }
     const useTube = attrs => svg('use', {href: '#neon-tube-centerlines', ...attrs});
-    if (!technical) canvas.append(useTube({transform: 'translate(1.2 3.3)', stroke: '#050609', opacity: .75, filter: 'url(#neon-shadow)'}));
+    if (technical) {
+      // The narrow edge keeps white silicone and pale light visible on drafting paper.
+      canvas.append(svg('path', {d, fill: 'none', stroke: '#536478', 'stroke-width': 7,
+        'stroke-linecap': 'round', 'stroke-linejoin': 'round'}));
+    } else {
+      canvas.append(useTube({transform: 'translate(1.2 3.3)', stroke: '#050609', opacity: .75, filter: 'url(#neon-shadow)'}));
+    }
     if (lit) {
       const brightness = design.brightness / 100;
       canvas.append(useTube({stroke: color, opacity: brightness * .95, filter: 'url(#neon-halo)'}));
       canvas.append(useTube({stroke: color, opacity: brightness * .9, filter: 'url(#neon-bloom)'}));
     }
-    canvas.append(useTube({stroke: technical ? '#29344c' : lit ? color : '#c5bec3', opacity: lit ? .46 + design.brightness / 185 : 1}));
+    canvas.append(useTube({stroke: design.power ? color : design.cover, opacity: lit ? .46 + design.brightness / 185 : 1}));
     // Highlight sits within the silicone tube. It is excluded from production SVGs.
     if (lit) canvas.append(svg('path', {d, fill: 'none', stroke: '#fff7f6', 'stroke-width': 1.5,
       'stroke-linecap': 'round', 'stroke-linejoin': 'round', opacity: design.brightness / 150}));
@@ -402,13 +422,20 @@
     }
     for (const btn of root.querySelectorAll('[data-neon-choice]')) {
       const key = btn.dataset.neonChoice;
+      if (key === 'color') btn.disabled = btn.hidden || (design.cover !== WHITE_COVER && btn.dataset.value !== design.cover);
       const selected = key === 'power' ? design.power === (btn.dataset.value === 'on') :
         !(wallURL && key === 'scene') && String(design[key]) === btn.dataset.value;
       btn.setAttribute('aria-pressed', String(selected));
       btn.classList.toggle('is-active', selected);
     }
-    const colorButton = Array.from(root.querySelectorAll('[data-neon-choice="color"]')).find(el => el.dataset.value === design.color);
-    output('color', colorButton?.dataset.label || colorButton?.title || colorButton?.getAttribute('aria-label') || design.color);
+    const ledLabel = swatches.find(el => el.dataset.value === design.color).dataset.label;
+    const coverLabel = coverSwatches.find(el => el.dataset.value === design.cover).dataset.label;
+    output('color', ledLabel);
+    output('cover', coverLabel);
+    const pairingHelp = design.cover === WHITE_COVER
+      ? 'White silicone shows when the lights are off. Choose any available LED colour for when they are on.'
+      : coverLabel + ' silicone uses a matching LED. Choose a white cover to use a different light colour.';
+    if (outputs.get('pairing')[0].textContent !== pairingHelp) output('pairing', pairingHelp);
     output('font', engine.fonts.find(f => f.id === design.font)?.label || design.font);
     output('chars', [...design.text].length + ' / 80');
     output('brightness', design.brightness + '%');
@@ -577,7 +604,7 @@
     }
     if (action === 'export-svg' || action === 'export') {
       if (root.dataset.neonValid !== 'true') return;
-      download(engine.svg(geometry, {color: design.color}), 'image/svg+xml', 'svg');
+      download(engine.svg(geometry, design), 'image/svg+xml', 'svg');
       output('status', 'Centerline drawing downloaded.');
     }
     if (action === 'export-dxf' && root.dataset.neonValid === 'true') {
@@ -608,8 +635,11 @@
     if (!file) return;
     try {
       if (file.size > MAX_FILE_BYTES) throw Error('This file is too large for a neon project.');
-      const imported = JSON.parse(await file.text());
-      if (!imported || imported.version !== 1) throw Error('Choose a .neon.json design exported by this editor.');
+      let imported = JSON.parse(await file.text());
+      if (!imported || ![1, 2].includes(imported.version) || (imported.version === 1 && Object.hasOwn(imported, 'cover'))) {
+        throw Error('Choose a .neon.json design exported by this editor.');
+      }
+      if (imported.version === 1) imported = {...imported, version: 2, cover: WHITE_COVER};
       const disabledFont = !options.font.includes(imported.font) && engine.fonts.some(f => f.id === imported.font);
       if (disabledFont) {
         const error = projectError({...imported, font: fonts[0].id});

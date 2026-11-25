@@ -739,12 +739,23 @@
     return null;
   }
 
-  function svg(design, {color = '#262626'} = {}) {
+  function svg(design, {color = '#262626', cover, power = true, reviewOnly = false} = {}) {
     if (!design.valid) throw new Error('Complete the design before exporting it.');
     if (!/^#[0-9a-f]{3}(?:[0-9a-f]{3})?$/i.test(color)) color = '#262626';
+    const hasCover = typeof cover === 'string' && /^#[0-9a-f]{6}$/i.test(cover);
+    const stroke = hasCover && !power ? cover : color;
+    const layer = reviewOnly ? 'VISUAL_REVIEW_ONLY' : 'TUBE_CENTERLINE_6MM';
+    const description = [];
+    if (hasCover) description.push('Indoor use only. Silicone cover: ' + cover + '. LED colour: ' + color + '.');
+    if (reviewOnly) description.push('Strip lengths require review before cutting.');
     const w = number(design.widthMm), h = number(design.heightMm);
-    return '<svg xmlns="http://www.w3.org/2000/svg" width="'+w+'mm" height="'+h+'mm" viewBox="0 0 '+w+' '+h+'">\n'
-      + '<g id="TUBE_CENTERLINE_6MM" fill="none" stroke="'+color+'" stroke-width="6" stroke-linecap="round" stroke-linejoin="round">\n'
+    // A CSS backdrop makes white LEDs and silicone visible in standalone proofs
+    // without adding an object that a cutting program could interpret as a path.
+    const backdrop = hasCover ? ' style="background-color:#25272c"' : '';
+    return '<svg xmlns="http://www.w3.org/2000/svg" width="'+w+'mm" height="'+h+'mm" viewBox="0 0 '+w+' '+h+'"'+backdrop+'>\n'
+      + (reviewOnly ? '<title>Artwork for shop review only</title>\n' : '')
+      + (description.length ? '<desc>' + description.join(' ') + '</desc>\n' : '')
+      + '<g id="'+layer+'" fill="none" stroke="'+stroke+'" stroke-width="6" stroke-linecap="round" stroke-linejoin="round">\n'
       + design.paths.map(path => '  <path d="'+path.d+'"/>').join('\n')+'\n</g>\n</svg>\n';
   }
 

@@ -1,8 +1,6 @@
 <?php
-$neonColours = [
-    '#ff488d' => 'Pink', '#ff6248' => 'Coral', '#ffb149' => 'Amber', '#ffedcc' => 'Warm white',
-    '#caff63' => 'Lime', '#58ebcc' => 'Mint', '#68c7ff' => 'Ice blue', '#bc8bff' => 'Violet',
-];
+$neonColours = neon_color_palette();
+$neonCovers = ['#ffffff' => $neonColours['#ffffff']] + array_diff_key($neonColours, ['#ffedcc' => true]);
 $neonIcons = [
     'undo' => 'M9 5 4 10l5 5 M4 10h9a6 6 0 0 1 6 6v2',
     'redo' => 'm15 5 5 5-5 5 M20 10h-9a6 6 0 0 0-6 6v2',
@@ -25,7 +23,10 @@ $neonIcon = static function (string $key) use ($neonIcons): string {
 ?>
 <section class="neon-studio" data-project-panel="neon" data-neon-editor data-scene="studio" data-power="on" aria-labelledby="neon-title" hidden>
   <header class="neon-heading">
-    <h2 id="neon-title" tabindex="-1">Neon designer</h2>
+    <div>
+      <h2 id="neon-title" tabindex="-1">Neon designer</h2>
+      <p class="neon-use">Indoor use only</p>
+    </div>
     <div class="neon-file-actions">
       <button type="button" data-neon-action="import-project"><?= $neonIcon('open') ?> Open design</button>
       <button type="button" data-neon-action="export-project"><?= $neonIcon('save') ?> Save design</button>
@@ -125,15 +126,19 @@ $neonIcon = static function (string $key) use ($neonIcons): string {
         </div>
       </details>
       <details class="neon-group" open>
-        <summary>Light &amp; colour</summary>
+        <summary>Cover &amp; LED colour</summary>
         <div class="neon-group-body">
-          <fieldset><legend>Tube colour <output data-neon-output="color">Pink</output></legend>
-            <div class="neon-palette">
-              <?php foreach ($neonColours as $hex => $label): ?>
-                <button type="button" class="neon-swatch" data-neon-choice="color" data-value="<?= $hex ?>" title="<?= $label ?>" aria-label="<?= $label ?>" aria-pressed="<?= $hex === '#ff488d' ? 'true' : 'false' ?>" style="--swatch:<?= $hex ?>"></button>
-              <?php endforeach; ?>
-            </div>
-          </fieldset>
+          <?php foreach (['cover' => ['Silicone front cover', $neonCovers], 'color' => ['LED light', $neonColours]] as $key => [$title, $palette]): ?>
+            <fieldset class="neon-colour-group"<?= $key === 'color' ? ' aria-describedby="neon-pairing-help"' : '' ?>>
+              <legend><?= $title ?> <output data-neon-output="<?= $key ?>"></output></legend>
+              <div class="neon-palette">
+                <?php foreach ($palette as $hex => $label): ?>
+                  <button type="button" class="neon-swatch" data-neon-choice="<?= $key ?>" data-value="<?= e($hex) ?>" data-label="<?= e($label) ?>" title="<?= e($label) ?>" aria-label="<?= e($label.' '.($key === 'cover' ? 'cover' : 'LED')) ?>" aria-pressed="false" style="--swatch:<?= e($hex) ?>"></button>
+                <?php endforeach; ?>
+              </div>
+            </fieldset>
+          <?php endforeach; ?>
+          <p class="neon-pairing-help" id="neon-pairing-help" data-neon-output="pairing" aria-live="polite"></p>
           <div class="neon-label-pair"><label for="neon-brightness">Preview brightness</label><output data-neon-output="brightness">85%</output></div>
           <input id="neon-brightness" type="range" data-neon-field="brightness" min="10" max="100" value="85" step="1">
         </div>

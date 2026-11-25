@@ -7,6 +7,12 @@ function neon_font_library(): array
     return $library ??= json_decode(file_get_contents(dirname(__DIR__) . '/data/neon-library.json'), true, 16, JSON_THROW_ON_ERROR);
 }
 
+function neon_color_palette(): array
+{
+    static $palette;
+    return $palette ??= json_decode(file_get_contents(dirname(__DIR__) . '/data/neon-colors.json'), true, 8, JSON_THROW_ON_ERROR);
+}
+
 // Publish the same specimens and identifiers used by the deployed editor into
 // the ERP's shared store. Already-submitted requests keep their original proofs.
 function neon_publish_library(PDO $db): void
@@ -69,7 +75,7 @@ function neon_settings(PDO $db): array
     $available = array_column($library['fonts'], 'id');
     $enabled = array_values(array_intersect($values['fonts'] ?? $available, $available));
     return ['revision'=>(int)$row['revision'], 'edition'=>$library['edition'], 'fonts'=>$enabled] + $values + [
-        'colors'=>['#ff488d','#ff6248','#ffb149','#ffedcc','#caff63','#58ebcc','#68c7ff','#bc8bff'],
+        'colors'=>array_keys(neon_color_palette()),
         'minWidth'=>200, 'maxWidth'=>3000, 'rates'=>null,
     ];
 }

@@ -450,6 +450,45 @@ test('invalid values and unsupported glyphs never generate a submission or parti
   assert.ok(measure({...design,text:'🦩'},'review').error);
 });
 
+test('silicone and LEDs obey the same indoor product rules on quotes and shop reviews', () => {
+  const white = '#ffffff', warmWhite = '#ffedcc', red = '#ff3030', blue = '#356bff';
+  const leds = [white, warmWhite, red, blue, '#ff488d', '#ff6248', '#ffb149', '#caff63', '#58ebcc', '#68c7ff', '#bc8bff'];
+  const sign = {...design, version: 2, text: '-', font: 'studio', widthMm: 206};
+  const original = measure({...sign, version: 1, color: blue});
+  assert.equal(original.design.cover, white);
+  const originalPlan = original.cutPlan;
+  for (const cover of leds) {
+    for (const color of leds) {
+      const label = 'cover ' + cover + ' with LED ' + color;
+      const proof = measure({...sign, cover, color});
+      if (cover === white || (cover !== warmWhite && cover === color)) {
+        assert.equal(proof.error, undefined, label);
+        assert.equal(proof.design.cover, cover, label);
+        assert.equal(proof.design.color, color, label);
+        assert.deepEqual(proof.cutPlan, originalPlan, label);
+        assert.equal(proof.dxf, original.dxf, label);
+      } else {
+        assert.ok(proof.error, label);
+      }
+    }
+  }
+  const draft = {...sign, text: 'Hello', widthMm: 600, cover: white, color: warmWhite};
+  const shop = measure(draft, 'review');
+  assert.equal(shop.reviewOnly, true);
+  assert.equal(shop.design.cover, white);
+  assert.equal(shop.design.color, warmWhite);
+  assert.match(shop.svg, /Indoor use only/);
+  const powerOn = measure({...sign, cover: white, color: blue, power: true});
+  const powerOff = measure({...sign, cover: white, color: blue, power: false});
+  assert.ok(powerOn.svg.includes('stroke="' + blue + '"'));
+  assert.ok(powerOff.svg.includes('stroke="' + white + '"'));
+  assert.equal(powerOn.dxf, powerOff.dxf);
+  assert.ok(measure({...draft, cover: red}, 'review').error);
+  for (const patch of [{cover: undefined}, {cover:'#123456'}, {color:'#123456'}, {cover:42}, {version:3}]) {
+    assert.ok(measure({...sign, cover:white, color:blue, ...patch}).error);
+  }
+});
+
 test('Aegean Greek uses distinct native Greek strokes, final sigma and composed Greek accents', () => {
   const alphabet = 'ΑΒΓΔΕΖΗΘΙΚΛΜΝΞΟΠΡΣΤΥΦΧΨΩ\nαβγδεζηθικλμνξοπρστυφχψως\nΆΈΉΊΌΎΏΪΫάέήίόύώϊϋΐΰ';
   assert.equal(geometry.layout({...design,text:alphabet,font:'aegean'}).valid,true);
