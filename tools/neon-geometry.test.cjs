@@ -536,3 +536,14 @@ test('100 mm shop geometry and contoured spacer hardware use true drawing units'
   assert.ok(measure({...design,boardGap:29}).error);
   assert.equal(geometry.backboard(model,{...spec,backing:'none'}),null);
 });
+
+test('a safe interior loop fits its nearest module while other strokes stay in review', () => {
+  const spec={...design,text:'W o W',font:'deco',widthMm:737,letterSpacing:.25,lineSpacing:1.8};
+  const proof=geometry.cutLayout(spec,{suggestions:false});
+  const loop=proof.cutPlan.pieces.find(piece=>piece.character==='o');
+  assert.ok(loop.adjusted);
+  assert.equal(loop.cutMm,225);
+  near(measuredSvgLength(proof.paths[loop.index].d),225,.012);
+  assert.equal(proof.cutPlan.ready,false);
+  assert.throws(()=>geometry.dxf(proof));
+});

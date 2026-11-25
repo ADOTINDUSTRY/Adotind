@@ -634,6 +634,42 @@
     return points;
   }
 
+  function fitIsolatedStroke(stroke, target, strokes, design) {
+    const ratio = target/stroke.length;
+    if (!Number.isFinite(ratio) || Math.abs(ratio-1)>.06) return null;
+    const {left,right,bottom,top}=stroke.box;
+    if (left<=3+CUT_EPS || bottom<=3+CUT_EPS ||
+        right>=design.widthMm-3-CUT_EPS || top>=design.heightMm-3-CUT_EPS) return null;
+    const cx=(left+right)/2, cy=(bottom+top)/2;
+    const movement=Math.abs(ratio-1)*Math.hypot(right-left,top-bottom)/2;
+    if (movement>4) return null;
+    const box=[cx+(left-cx)*ratio,cy+(bottom-cy)*ratio,cx+(right-cx)*ratio,cy+(top-cy)*ratio];
+    if (box[0]<3-CUT_EPS || box[1]<3-CUT_EPS || box[2]>design.widthMm-3+CUT_EPS ||
+        box[3]>design.heightMm-3+CUT_EPS) return null;
+    // Leave neighbouring strokes and junctions alone. Allow for both strokes moving.
+    const clearance=TUBE+movement+4+.05;
+    for (const other of strokes) {
+      if (other===stroke || right+clearance<other.box.left || left-clearance>other.box.right ||
+          top+clearance<other.box.bottom || bottom-clearance>other.box.top) continue;
+      for (let i=1;i<stroke.run.length;i++) {
+        const a=stroke.run[i-1], b=stroke.run[i];
+        const step=Math.max(1,Math.ceil(distance(a,b)/2));
+        for (let j=1;j<other.run.length;j++) {
+          const c=other.run[j-1], d=other.run[j];
+          if ([0,1].some(axis=>Math.max(a[axis],b[axis])+clearance+1<Math.min(c[axis],d[axis]) ||
+            Math.max(c[axis],d[axis])+clearance+1<Math.min(a[axis],b[axis]))) continue;
+          for (let k=0;k<=step;k++) {
+            if (pointSegmentDistance(interpolate(a,b,k/step),c,d)<clearance+1) return null;
+          }
+        }
+      }
+    }
+    return stroke.commands.map(([op,...coords])=>[op,...coords.map((value,index)=>{
+      const center=index%2===0?cx:cy;
+      return center+(value-center)*ratio;
+    })]);
+  }
+
   function cutLayout(options={}, limits={}) {
     const strokes=[], design=layout(options,strokes);
     if (!design.valid) return design;
@@ -655,8 +691,13 @@
           cutMm=lower;ready=true;
         }
       }
+      if (!ready && cutMm>=CUT_STEP) {
+        stroke.fittedCommands=fitIsolatedStroke(stroke,cutMm,strokes,design);
+        ready=Boolean(stroke.fittedCommands);
+      }
       return {index,character,line,charIndex,runIndex,lengthMm:length,cutMm:ready ? cutMm : null,
-        modules:ready ? cutMm/CUT_STEP : null,ready,reason:ready ? null : length<CUT_STEP ? 'too-short' : 'off-mark'};
+        modules:ready ? cutMm/CUT_STEP : null,ready,adjusted:Boolean(stroke.fittedCommands || stroke.trimStart || stroke.trimEnd),
+        reason:ready ? null : length<CUT_STEP ? 'too-short' : 'off-mark'};
     });
     const ready=pieces.every(piece=>piece.ready);
     const plan={stepMm:CUT_STEP,ready,pieces,suggestedWidthMm:null,totalCutMm:ready ? pieces.reduce((s,p)=>s+p.cutMm,0) : null};
@@ -665,10 +706,10 @@
       plan.error='Each separate LED strip needs a cut length of 25 mm or a whole multiple of 25 mm.';
       design.errors.push(plan.error);design.valid=false;
       if (limits.suggestions!==false) plan.suggestedWidthMm=suggestCutWidth(options,limits,strokes,design);
-      return design;
     }
     for (const stroke of strokes) {
-      const c=stroke.commands;
+      if (stroke.pathIndex === null || (!ready && !stroke.fittedCommands && !stroke.trimStart && !stroke.trimEnd)) continue;
+      const c=stroke.fittedCommands || stroke.commands;
       const start=c[0].slice(1), end=c.at(-1).slice(-2);
       const startTowards=c.length>1 ? c[1].slice(-2) : start, endTowards=c.at(-2).slice(-2);
       if(stroke.trimStart) c[0]=['M',...interpolate(start,startTowards,stroke.trimStart/distance(start,startTowards))];
@@ -676,7 +717,7 @@
       design.paths[stroke.pathIndex].d=c.map(cmd=>cmd[0]+cmd.slice(1).map(cutNumber).join(' ')).join('');
       design.runs[stroke.pathIndex]=cutPolyline(c);
     }
-    design.lengthMm=plan.totalCutMm;
+    design.lengthMm=ready ? plan.totalCutMm : pieces.reduce((total,piece)=>total+(piece.cutMm ?? piece.lengthMm),0);
     return design;
   }
 

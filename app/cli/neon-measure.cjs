@@ -60,7 +60,7 @@ function measure(input, intent = 'production') {
     return {error: 'This design fits the strip cuts. Review the current design and submit it from the editor.'};
   }
   if (!cutPlan.ready) {
-    const artwork = geometry.layout(design);
+    const artwork = proof.paths.length ? Object.assign(proof, {valid:true}) : geometry.layout(design);
     if (!artwork.valid) return {error: artwork.errors[0]};
     // Shop enquiries keep a visual reference. Only a verified production plan
     // receives a machine file or a cutting layer.

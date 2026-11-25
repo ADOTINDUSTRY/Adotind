@@ -436,8 +436,10 @@
     const reviewable = !structuralError && Boolean(plan?.pieces.length) && geometry.paths.length > 0 &&
       fields.every(field => field.type !== 'number' || (field.value !== '' && field.validity.valid));
     const ready = reviewable && geometry.valid && plan.ready;
-    const warningText = [...warnings, ...(!structuralError && plan?.pieces.length && !plan.ready
-      ? ['This size needs shop review before cutting.'] : [])].join(' ');
+    const cutMessage = ready && plan.pieces.some(piece=>piece.adjusted)
+      ? 'Strokes fitted to 25 mm cut marks. The preview shows the corrected paths.'
+      : !structuralError && plan?.pieces.length && !plan.ready ? 'This size needs shop review before cutting.' : '';
+    const warningText = [...warnings, cutMessage].filter(Boolean).join(' ');
     output('warnings', warningText);
     output('warning', warningText);
     root.dataset.neonValid = String(ready);
