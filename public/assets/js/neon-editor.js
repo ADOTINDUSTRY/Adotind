@@ -82,6 +82,7 @@
   let design = {...defaults};
   let geometry;
   let geometryKey;
+  let fitWidth;
   let currentSampleKey;
   let compatibleFonts = fonts;
   let pendingImport;
@@ -359,7 +360,8 @@
     buttonState('zoom-out', zoom <= minZoom());
   }
   const clampZoom = value => Math.min(maxZoom, Math.max(minZoom(), value));
-  function renderCutPlan(plan) {
+  function renderCutPlan(plan, requiredWidth) {
+    fitWidth = null;
     cutCheck.hidden = !plan?.pieces.length;
     if (cutCheck.hidden) return;
     const pieces = plan.pieces;
@@ -371,11 +373,26 @@
     if (plan.ready && pieces.some(piece => piece.lengthMm - piece.cutMm > .001)) {
       help += ' The preview includes a small trim at a free straight end to reach a cut mark.';
     }
-    const suggestion = plan.suggestedWidthMm;
-    resizeButton.hidden = plan.ready || !Number.isFinite(suggestion);
+    const undersized = design.widthMm < requiredWidth;
+    let verified = true;
+    if (undersized && requiredWidth <= maxWidth) {
+      const candidate = engine.cutLayout({...design, widthMm:requiredWidth}, {minWidth:requiredWidth, maxWidth});
+      fitWidth = candidate.cutPlan?.ready ? requiredWidth : candidate.cutPlan?.suggestedWidthMm;
+      verified = Number.isFinite(fitWidth);
+      if (!verified) fitWidth = requiredWidth;
+    } else if (!undersized && !plan.ready) {
+      fitWidth = plan.suggestedWidthMm;
+    }
+    const suggestion = fitWidth;
+    resizeButton.hidden = !Number.isFinite(suggestion);
+    if (undersized) {
+      cutCheck.dataset.ready = 'false';
+      output('cut-summary', 'Lettering needs more width');
+    }
     if (!resizeButton.hidden) {
       resizeButton.textContent = 'Fit at ' + (Number.isInteger(suggestion) ? '' : '≈ ') + cutMeasure.format(suggestion) + ' mm wide';
-      help += ' This size fits the cut marks and keeps the letter shapes.';
+      help += verified ? ' This size fits the cut marks and keeps the letter shapes.'
+        : ' This size fits the lettering allowance. The strip cuts still need shop review.';
     } else if (!plan.ready) {
       help += ' Try a different style or send this design to the shop for review.';
     }
@@ -409,7 +426,7 @@
     if (nextKey !== geometryKey) {
       geometry = engine.cutLayout(design, {minWidth:requiredWidth, maxWidth});
       geometryKey = nextKey;
-      renderCutPlan(geometry.cutPlan);
+      renderCutPlan(geometry.cutPlan, requiredWidth);
       renderFontSummary();
     }
     root.dataset.scene = design.scene;
@@ -518,6 +535,7 @@
     sequence = undefined;
     to.push(design);
     design = from.pop();
+    root.querySelector('#neon-width').value = design.widthMm;
     render();
   }
   function clearWall() {
@@ -595,8 +613,8 @@
       }
     }
     if (action === 'browse-fonts') browseFonts();
-    if (action === 'use-cut-width' && Number.isFinite(geometry.cutPlan?.suggestedWidthMm)) {
-      changed('widthMm', geometry.cutPlan.suggestedWidthMm, false);
+    if (action === 'use-cut-width' && Number.isFinite(fitWidth)) {
+      changed('widthMm', fitWidth, false);
       root.querySelector('#neon-width').focus({preventScroll: true});
     }
     if (action === 'close-fonts') fontDialog.close();
