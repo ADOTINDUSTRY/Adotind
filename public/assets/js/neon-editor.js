@@ -74,6 +74,8 @@
   let pendingImport;
   let returnFocus;
   let zoom = 1;
+  const maxZoom = 3;
+  const minZoom = () => wallURL ? .25 : .65;
   let pan = {x: 0, y: 0};
   let frame;
   let wallURL = '';
@@ -250,7 +252,10 @@
   function paint() {
     const w = geometry.widthMm, h = geometry.heightMm;
     canvas.replaceChildren();
-    if (!geometry.paths.length || !(w > 0 && h > 0)) return;
+    if (!geometry.paths.length || !(w > 0 && h > 0)) {
+      frame = undefined;
+      return;
+    }
     const technical = !wallURL && design.scene === 'drawing';
     const lit = design.power && !technical;
     const color = design.color;
@@ -319,14 +324,15 @@
     canvas.setAttribute('viewBox', [cx + pan.x - vw / 2, cy + pan.y - vh / 2, vw, vh].join(' '));
     const movable = zoom > 1 || Boolean(wallURL);
     canvas.style.cursor = movable ? 'grab' : '';
-    canvas.style.touchAction = movable ? 'none' : 'pan-y';
     canvas.setAttribute('tabindex', movable ? '0' : '-1');
     canvas.setAttribute('aria-label', movable ?
-      'Sign preview. Drag or use arrow keys to reposition the sign.' : 'Preview of your sign with 6 mm neon tubing');
+      'Sign preview. Scroll or pinch to zoom. Drag or use arrow keys to reposition the sign.' :
+      'Preview of your sign with 6 mm neon tubing. Scroll or pinch to zoom.');
     output('zoom', Math.round(zoom * 100) + '%');
-    buttonState('zoom-in', zoom >= 3);
-    buttonState('zoom-out', zoom <= (wallURL ? .25 : .65));
+    buttonState('zoom-in', zoom >= maxZoom);
+    buttonState('zoom-out', zoom <= minZoom());
   }
+  const clampZoom = value => Math.min(maxZoom, Math.max(minZoom(), value));
   function render() {
     const nextKey = JSON.stringify([design.text, design.font, design.widthMm, design.align, design.letterSpacing, design.lineSpacing]);
     if (nextKey !== geometryKey) {
@@ -508,7 +514,7 @@
     if (action === 'clear-wall') { clearWall(); render(); }
     if (action === 'undo' || action === 'redo') history(action);
     if (action === 'zoom-in' || action === 'zoom-out' || action === 'fit') {
-      zoom = action === 'fit' ? (wallURL ? .75 : 1) : Math.min(3, Math.max(wallURL ? .25 : .65, +(zoom * (action === 'zoom-in' ? 1.25 : .8)).toFixed(2)));
+      zoom = action === 'fit' ? (wallURL ? .75 : 1) : clampZoom(+(zoom * (action === 'zoom-in' ? 1.25 : .8)).toFixed(2));
       if (action === 'fit') pan = {x: 0, y: 0};
       camera();
     }
@@ -562,23 +568,88 @@
       output('status', err instanceof SyntaxError ? 'Choose a valid .neon.json design file.' : err.message);
     }
   });
-  // Drag to inspect a zoomed drawing; use the inverse SVG transform so dragging
-  // tracks the pointer even when the sign is letterboxed on a narrow screen.
-  let drag;
+  // Keep the same point on the sign under the cursor or the moving finger midpoint.
+  // The inverse SVG transform accounts for empty space around a letterboxed drawing.
+  function signPoint(point) {
+    const matrix = canvas.getScreenCTM();
+    if (!frame || !matrix || !matrix.a || !matrix.d) return null;
+    return new DOMPoint(point.x, point.y).matrixTransform(matrix.inverse());
+  }
+  function cameraAt(value, anchor, screenPoint) {
+    const under = signPoint(screenPoint);
+    if (!anchor || !under) return;
+    const next = clampZoom(value), ratio = zoom / next;
+    const cx = frame.x + frame.width / 2, cy = frame.y + frame.height / 2;
+    pan.x = anchor.x - cx - (under.x - cx - pan.x) * ratio;
+    pan.y = anchor.y - cy - (under.y - cy - pan.y) * ratio;
+    zoom = next;
+    camera();
+  }
+  const clientPoint = event => ({x: event.clientX, y: event.clientY});
+  const pointers = new Map();
+  let gesture, nativePinch;
+  function pointerPose() {
+    const [a, b] = pointers.values();
+    if (!a) return null;
+    if (!b) return {point: a, distance: 0};
+    return {point: {x: (a.x+b.x)/2, y: (a.y+b.y)/2}, distance: Math.hypot(a.x-b.x, a.y-b.y)};
+  }
+  function startGesture() {
+    const pose = pointerPose();
+    gesture = pose && {anchor: signPoint(pose.point), distance: pose.distance, zoom};
+  }
   canvas.addEventListener('pointerdown', ev => {
-    if ((!wallURL && zoom <= 1) || !ev.isPrimary || ev.button !== 0) return;
-    const ctm = canvas.getScreenCTM();
-    if (!ctm) return;
-    drag = {id: ev.pointerId, x: ev.clientX, y: ev.clientY, start: {...pan}, scale: ctm.a};
+    if (!frame || ev.button !== 0 || (ev.pointerType !== 'touch' && !wallURL && zoom <= 1)) return;
+    nativePinch = null;
+    pointers.set(ev.pointerId, clientPoint(ev));
     canvas.setPointerCapture(ev.pointerId);
+    startGesture();
   });
   canvas.addEventListener('pointermove', ev => {
-    if (!drag || ev.pointerId !== drag.id) return;
-    pan.x = drag.start.x + (drag.x - ev.clientX) / drag.scale;
-    pan.y = drag.start.y + (drag.y - ev.clientY) / drag.scale;
-    camera();
+    if (!gesture || !pointers.has(ev.pointerId)) return;
+    pointers.set(ev.pointerId, clientPoint(ev));
+    const pose = pointerPose();
+    if (pointers.size > 1 && gesture.distance < 1) { startGesture(); return; }
+    if (pointers.size === 1 && !wallURL && zoom <= 1) return;
+    const scale = pointers.size > 1 ? pose.distance / gesture.distance : 1;
+    cameraAt(gesture.zoom * scale, gesture.anchor, pose.point);
   });
-  canvas.addEventListener('lostpointercapture', () => { drag = undefined; });
+  function endPointer(ev) {
+    if (pointers.delete(ev.pointerId)) startGesture();
+  }
+  for (const type of ['pointerup', 'pointercancel', 'lostpointercapture']) canvas.addEventListener(type, endPointer);
+  canvas.addEventListener('wheel', ev => {
+    if (!frame || !ev.deltaY) return;
+    ev.preventDefault();
+    if (nativePinch || pointers.size > 1) return;
+    const unit = ev.deltaMode === WheelEvent.DOM_DELTA_LINE ? 16 :
+      ev.deltaMode === WheelEvent.DOM_DELTA_PAGE ? canvas.clientHeight : 1;
+    const exponent = -ev.deltaY * unit * (ev.ctrlKey ? .01 : .0025);
+    const point = clientPoint(ev);
+    cameraAt(zoom * Math.exp(Math.max(-1, Math.min(1, exponent))), signPoint(point), point);
+    if (pointers.size) startGesture();
+  }, {passive: false});
+  // Desktop Safari trackpads deliver GestureEvents. Direct touches already use
+  // Pointer Events; consume Safari's duplicate events without applying them twice.
+  function safariPoint(ev) {
+    const rect = canvas.getBoundingClientRect();
+    if (ev.clientX >= rect.left && ev.clientX <= rect.right && ev.clientY >= rect.top && ev.clientY <= rect.bottom) return clientPoint(ev);
+    return {x: rect.left + rect.width/2, y: rect.top + rect.height/2};
+  }
+  canvas.addEventListener('gesturestart', ev => {
+    if (!frame) return;
+    ev.preventDefault();
+    if (!pointers.size) nativePinch = {anchor: signPoint(safariPoint(ev)), zoom};
+  }, {passive: false});
+  canvas.addEventListener('gesturechange', ev => {
+    if (!frame) return;
+    ev.preventDefault();
+    if (nativePinch && Number.isFinite(ev.scale) && ev.scale > 0) {
+      cameraAt(nativePinch.zoom * ev.scale, nativePinch.anchor, safariPoint(ev));
+    }
+  }, {passive: false});
+  canvas.addEventListener('gestureend', ev => { ev.preventDefault(); nativePinch = null; }, {passive: false});
+  window.addEventListener('blur', () => { pointers.clear(); gesture = nativePinch = null; });
   canvas.addEventListener('keydown', ev => {
     if ((!wallURL && zoom <= 1) || !frame) return;
     const step = frame.width / (zoom * (ev.shiftKey ? 15 : 75));

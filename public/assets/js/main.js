@@ -1,4 +1,30 @@
 (() => {
+  if (!document.documentElement.hasAttribute('data-public-page')) return;
+
+  // Run after the drawing's own handlers. Trackpad pinches arrive as Ctrl+wheel
+  // in Chromium/Firefox and as gesture events in Safari.
+  function preventViewportZoom(event) {
+    if (event.cancelable && !event.defaultPrevented) event.preventDefault();
+  }
+  document.addEventListener('wheel', event => {
+    if (event.ctrlKey || event.metaKey) preventViewportZoom(event);
+  }, {passive: false});
+  document.addEventListener('gesturestart', preventViewportZoom, {passive: false});
+  document.addEventListener('gesturechange', preventViewportZoom, {passive: false});
+
+  if (navigator.maxTouchPoints > 0 || 'ontouchstart' in window) {
+    function preventPagePinch(event) {
+      if (event.touches.length < 2) return;
+      const canvas = event.touches[0].target.closest?.('[data-neon-canvas]');
+      if (canvas && Array.from(event.touches).every(touch => canvas.contains(touch.target))) return;
+      preventViewportZoom(event);
+    }
+    document.addEventListener('touchstart', preventPagePinch, {capture: true, passive: false});
+    document.addEventListener('touchmove', preventPagePinch, {capture: true, passive: false});
+  }
+})();
+
+(() => {
   const preloader = document.getElementById('preloader');
   try { sessionStorage.setItem('adot_seen', '1'); } catch (e) {}
   if (!preloader) return;

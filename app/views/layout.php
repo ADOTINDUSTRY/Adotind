@@ -5,14 +5,15 @@ $cssPath = __DIR__ . '/../../public/assets/css/main.css';
 $jsPath = __DIR__ . '/../../public/assets/js/main.js';
 $cssVersion = is_file($cssPath) ? (string)filemtime($cssPath) : '1';
 $jsVersion = is_file($jsPath) ? (string)filemtime($jsPath) : '1';
-$trackingEnabled = is_writable('/var/www/site-tracking') && ($page['view'] ?? '') !== 'dashboard';
+$isPublicPage = ($page['view'] ?? '') !== 'dashboard';
+$trackingEnabled = is_writable('/var/www/site-tracking') && $isPublicPage;
 ?>
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en"<?= $isPublicPage ? ' data-public-page' : '' ?>>
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" href="/favicon.ico?v=2" sizes="16x16 32x32 48x48 64x64" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0<?= $isPublicPage ? ', maximum-scale=1' : '' ?>" />
     <title><?= e($page['title']) ?></title>
     <meta
       name="description"
