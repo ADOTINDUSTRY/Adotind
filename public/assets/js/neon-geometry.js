@@ -739,53 +739,44 @@
     return null;
   }
 
-  // Sample the upper and lower silhouette across the lettering. Interpolate
-  // through gaps to keep one connected sheet, including on multiline signs.
+  function contourPanels(art) {
+    const clipper = typeof module === 'object' && module.exports
+      ? require('./neon-clipper.js') : globalThis.ClipperLib;
+    const scale=100;
+    const offset=new clipper.ClipperOffset(2, 0.05*scale);
+    for (const run of art.runs) {
+      const path=run.map(([x,y])=>({X:Math.round(x*scale),Y:Math.round(y*scale)}));
+      offset.AddPath(path,clipper.JoinType.jtRound,clipper.EndType.etOpenRound);
+    }
+    const result=[];
+    // Offset the centreline by the tube radius plus the acrylic clearance.
+    offset.Execute(result,33*scale);
+    const outlines=[], holes=[];
+    for(const path of result.filter(clipper.Clipper.Orientation)) {
+      outlines.push(path.map(({X,Y})=>[X/scale,Y/scale]));
+      const inset=new clipper.ClipperOffset(2,0.05*scale);
+      inset.AddPath(path,clipper.JoinType.jtRound,clipper.EndType.etClosedPolygon);
+      const mountArea=[];
+      inset.Execute(mountArea,-15*scale);
+      const candidates=mountArea.flat().filter(({X,Y})=>art.runs.every(run=>run.every(([x,y],i)=>{
+        const [ax,ay]=run[i-1] || run[i], dx=x-ax, dy=y-ay;
+        const t=Math.max(0,Math.min(1,((X/scale-ax)*dx+(Y/scale-ay)*dy)/(dx*dx+dy*dy || 1)));
+        return Math.hypot(X/scale-ax-t*dx,Y/scale-ay-t*dy)>=11;
+      })));
+      if (candidates.length) {
+        const first=candidates.reduce((a,b)=>a.X+a.Y<b.X+b.Y?a:b);
+        const last=candidates.reduce((a,b)=>Math.hypot(a.X-first.X,a.Y-first.Y)>Math.hypot(b.X-first.X,b.Y-first.Y)?a:b);
+        holes.push([first.X/scale,first.Y/scale]);
+        if (Math.hypot(last.X-first.X,last.Y-first.Y)>=20*scale) holes.push([last.X/scale,last.Y/scale]);
+      }
+    }
+    return {outline:outlines[0] || [],outlines,holes,wall:true,pad:30};
+  }
+
   function backboard(art, spec) {
     if (!spec.backing || spec.backing === 'none') return null;
-    const contour = spec.boardShape === 'contour';
-    const w = art.widthMm, h = art.heightMm, pad = contour ? 30 : 22;
-    const n = Math.ceil(w / 8), dx = w / n;
-    const top = Array(n+1).fill(Infinity), bottom = Array(n+1).fill(-Infinity);
-    if (spec.boardShape === 'contour') {
-      for (const run of art.runs) for (let i=0; i<run.length; i++) {
-        const [x,y] = run[i], [px,py] = run[i-1] || run[i];
-        const steps = Math.max(1, Math.ceil(Math.abs(x-px)/dx*2));
-        for (let j=0; j<=steps; j++) {
-          const k = Math.max(0,Math.min(n,Math.round((px+(x-px)*j/steps)/dx)));
-          const v = py+(y-py)*j/steps;
-          top[k]=Math.min(top[k],v); bottom[k]=Math.max(bottom[k],v);
-        }
-      }
-      let prev=-1;
-      for (let i=0; i<=n; i++) if (Number.isFinite(top[i])) {
-        for (let j=prev+1;j<i;j++) for (const edge of [top,bottom])
-          edge[j]=prev<0 ? edge[i] : edge[prev]+(edge[i]-edge[prev])*(j-prev)/(i-prev);
-        prev=i;
-      }
-      for (let j=prev+1;j<=n;j++) {top[j]=prev<0?0:top[prev]; bottom[j]=prev<0?h:bottom[prev];}
-    } else {top.fill(0);bottom.fill(h);}
-    function edgePoints(edge, upper) {
-      const radius = Math.ceil(30/dx);
-      const envelope = edge.map((_,i)=>{
-        const near=edge.slice(Math.max(0,i-radius*2),Math.min(n+1,i+radius*2+1));
-        return upper ? Math.min(...near)-pad : Math.max(...near)+pad;
-      });
-      // Average a widened envelope so smoothing keeps clearance at peaks.
-      const pts=envelope.map((_,i)=>{
-        const near=envelope.slice(Math.max(0,i-radius),Math.min(n+1,i+radius+1));
-        return [i*dx,near.reduce((sum,y)=>sum+y,0)/near.length];
-      });
-      return [[-pad,pts[0][1]],...pts,[w+pad,pts[n][1]]].flatMap((p,i,points)=>{
-        if (!i) return [p];
-        const [x,y]=points[i-1];
-        return Array.from({length:8},(_,j)=>{
-          const t=(j+1)/8;
-          return [x+(p[0]-x)*t,y+(p[1]-y)*t];
-        });
-      });
-    }
-    const hi=edgePoints(top,true), lo=edgePoints(bottom,false);
+    if (spec.boardShape === 'contour') return contourPanels(art);
+    const w = art.widthMm, h = art.heightMm, pad = 22;
     const radius=20;
     const corners=[[-pad+radius,-pad+radius],[w+pad-radius,-pad+radius],
       [w+pad-radius,h+pad-radius],[-pad+radius,h+pad-radius]];
@@ -795,22 +786,14 @@
         return [x+radius*Math.cos(angle),y+radius*Math.sin(angle)];
       });
     }
-    const last=hi.length-1;
-    const outline=contour ? [
-      ...corner([-pad+radius,hi[0][1]+radius],0), ...hi.slice(9,-8),
-      ...corner([w+pad-radius,hi[last][1]+radius],1),
-      ...corner([w+pad-radius,lo[last][1]-radius],2), ...lo.slice(9,-8).reverse(),
-      ...corner([-pad+radius,lo[0][1]-radius],3),
-    ] : corners.flatMap(corner);
+    const outline=corners.flatMap(corner);
     const wall=spec.mount==='wall', holes=[];
     if (wall) {
-      for (const [x,i] of [[-pad+15,0],[w+pad-15,hi.length-1]]) {
-        for (const y of [hi[i][1]+15,lo[i][1]-15]) holes.push([x,y]);
-      }
+      for (const x of [-pad+15,w+pad-15]) for (const y of [-pad+15,h+pad-15]) holes.push([x,y]);
     } else if (spec.mount==='suspended') {
-      for (const i of [Math.round(n*.16),Math.round(n*.84)]) holes.push([i*dx,hi[(i+1)*8][1]+15]);
+      for (const x of [w*.16,w*.84]) holes.push([x,-pad+15]);
     }
-    return {outline,holes,wall,pad};
+    return {outline,outlines:[outline],holes,wall,pad};
   }
 
   function svg(design, spec = {}) {
@@ -826,8 +809,8 @@
     const board = backboard(design,spec);
     const pad = board?.pad ?? 0;
     const w = number(design.widthMm+2*pad), h = number(design.heightMm+2*pad);
-    const boardSvg = board ? '<g fill="none" stroke="#718398" stroke-width="0.4"><polygon id="ACRYLIC_OUTLINE" points="' +
-      board.outline.map(([x,y])=>number(x)+','+number(y)).join(' ')+'"/><g id="MOUNT_HOLES">'+
+    const boardSvg = board ? '<g id="ACRYLIC_OUTLINE" fill="none" stroke="#718398" stroke-width="0.4">' +
+      board.outlines.map(outline=>'<polygon points="'+outline.map(([x,y])=>number(x)+','+number(y)).join(' ')+'"/>').join('')+'<g id="MOUNT_HOLES">'+
       board.holes.map(([x,y])=>'<circle cx="'+number(x)+'" cy="'+number(y)+'" r="'+(board.wall?5.5:2.5)+'"/>').join('')+'</g></g>' : '';
     // A CSS backdrop makes white LEDs and silicone visible in standalone proofs
     // without adding an object that a cutting program could interpret as a path.
@@ -858,9 +841,12 @@
       const layers=['ACRYLIC_OUTLINE', ...(board.holes.length ? ['MOUNT_HOLES'] : [])];
       groups[groups.indexOf('AcDbSymbolTable')+2]=1+layers.length;
       groups.splice(layerEnd,0,...layers.flatMap((name,i)=>[0,'LAYER',5,(50+i).toString(16),330,'2',100,'AcDbSymbolTableRecord',100,'AcDbLayerTableRecord',2,name,70,0,62,i+3,6,'CONTINUOUS']));
-      const handle=0x100+design.runs.length;
-      groups.push(0,'LWPOLYLINE',5,handle.toString(16),100,'AcDbEntity',8,layers[0],100,'AcDbPolyline',90,board.outline.length,70,1);
-      for(const [x,y] of board.outline) groups.push(10,number(x),20,number(design.heightMm-y));
+      let handle=0x100+design.runs.length;
+      for (const outline of board.outlines) {
+        groups.push(0,'LWPOLYLINE',5,handle.toString(16),100,'AcDbEntity',8,layers[0],100,'AcDbPolyline',90,outline.length,70,1);
+        for(const [x,y] of outline) groups.push(10,number(x),20,number(design.heightMm-y));
+        handle++;
+      }
       board.holes.forEach(([x,y],i)=>groups.push(0,'CIRCLE',5,(handle+1+i).toString(16),100,'AcDbEntity',8,layers[1],100,'AcDbCircle',10,number(x),20,number(design.heightMm-y),40,board.wall?5.5:2.5));
     }
     groups.push(0,'ENDSEC',0,'EOF');

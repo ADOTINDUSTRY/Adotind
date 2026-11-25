@@ -69,23 +69,7 @@ $neonIcon = static function (string $key) use ($neonIcons): string {
         <div><dt>12 V strip · rated load (7.2 W/m, 120 LEDs/m)</dt><dd data-neon-output="electrical">—</dd></div>
         <div><dt>Tube length</dt><dd data-neon-output="length">—</dd></div>
       </dl>
-      <section class="neon-cut-check" data-neon-cut-check aria-labelledby="neon-cut-heading" hidden>
-        <div class="neon-cut-heading">
-          <h3 id="neon-cut-heading">Strip cut check</h3>
-          <span data-neon-output="cut-summary" role="status"></span>
-        </div>
-        <p data-neon-output="cut-help"></p>
-        <button class="neon-cut-resize" type="button" data-neon-action="use-cut-width" hidden></button>
-        <details data-neon-cut-details>
-          <summary>View individual pieces</summary>
-          <div class="neon-cut-scroll" tabindex="0" role="region" aria-label="Lengths of individual strip pieces">
-            <table>
-              <thead><tr><th scope="col">Piece</th><th scope="col">Drawn length</th><th scope="col">Strip cut</th></tr></thead>
-              <tbody data-neon-cut-pieces></tbody>
-            </table>
-          </div>
-        </details>
-      </section>
+      <button class="neon-cut-resize" type="button" data-neon-action="use-cut-width" hidden></button>
       <p class="neon-warning" data-neon-output="warnings" role="status"></p>
       <div class="neon-proof-actions">
         <label class="neon-wall-picker"><?= $neonIcon('open') ?> Try your wall

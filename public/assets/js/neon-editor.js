@@ -20,8 +20,6 @@
   const fileInput = root.querySelector('[data-neon-import]');
   const spec = root.querySelector('[data-neon-spec]');
   const requestIntent = root.querySelector('input[name="intent"]');
-  const cutCheck = root.querySelector('[data-neon-cut-check]');
-  const cutRows = root.querySelector('[data-neon-cut-pieces]');
   const resizeButton = root.querySelector('[data-neon-action="use-cut-width"]');
   const submit = root.querySelector('[data-neon-submit]');
   const outputs = new Map();
@@ -82,6 +80,8 @@
   let design = {...defaults};
   let geometry;
   let geometryKey;
+  let paintedBoardKey;
+  let paintedBoard;
   let fitWidth;
   let currentSampleKey;
   let compatibleFonts = fonts;
@@ -281,7 +281,12 @@
     const technical = !wallURL && design.scene === 'drawing';
     const lit = design.power && !technical;
     const color = design.color;
-    const board = engine.backboard(geometry, design);
+    const boardKey = JSON.stringify([geometryKey, design.backing, design.boardShape, design.mount]);
+    if (boardKey !== paintedBoardKey) {
+      paintedBoard = engine.backboard(geometry, design);
+      paintedBoardKey = boardKey;
+    }
+    const board = paintedBoard;
     const padding = board?.pad ?? 22;
     const bw = w + padding * 2, bh = h + padding * 2;
     const chartSize = Math.max(w / 52, h / 33, 6);
@@ -303,7 +308,7 @@
     canvas.append(defs);
     const fixture = technical ? '#72808d' : '#c1cdd7';
     if (design.backing !== 'none') {
-      canvas.append(svg('polygon', {points:board.outline.map(p=>p.join(',')).join(' '), fill: technical ? 'none' : design.backing === 'black' ? '#0d1017' : '#cee1f7',
+      for (const outline of board.outlines) canvas.append(svg('polygon', {points:outline.map(p=>p.join(',')).join(' '), fill: technical ? 'none' : design.backing === 'black' ? '#0d1017' : '#cee1f7',
         'fill-opacity': design.backing === 'clear' ? .08 : .94, stroke:fixture, 'stroke-width':1.2}));
       for (const [x,y] of board.holes) {
         if (!board.wall) canvas.append(svg('line',{x1:x,x2:x,y1:-padding-mountTop,y2:y,stroke:fixture,'stroke-width':1.4}));
@@ -362,63 +367,10 @@
     buttonState('zoom-out', zoom <= minZoom());
   }
   const clampZoom = value => Math.min(maxZoom, Math.max(minZoom(), value));
-  function renderCutPlan(plan, requiredWidth) {
-    fitWidth = null;
-    cutCheck.hidden = !plan?.pieces.length;
-    if (cutCheck.hidden) return;
-    const pieces = plan.pieces;
-    const failed = pieces.filter(piece => !piece.ready).length;
-    const count = failed || pieces.length;
-    cutCheck.dataset.ready = String(plan.ready);
-    output('cut-summary', count + (count === 1 ? ' piece' : ' pieces') + (plan.ready ? ' ready to cut' : ' to review'));
-    let help = 'Every separate stroke or dot needs at least 25 mm (2.5 cm) of strip, in whole 25 mm sections.';
-    if (plan.ready && pieces.some(piece => piece.lengthMm - piece.cutMm > .001)) {
-      help += ' The preview includes a small trim at a free straight end to reach a cut mark.';
-    }
-    const undersized = design.widthMm < requiredWidth;
-    let verified = true;
-    if (undersized && requiredWidth <= maxWidth) {
-      const candidate = engine.cutLayout({...design, widthMm:requiredWidth}, {minWidth:requiredWidth, maxWidth});
-      fitWidth = candidate.cutPlan?.ready ? requiredWidth : candidate.cutPlan?.suggestedWidthMm;
-      verified = Number.isFinite(fitWidth);
-      if (!verified) fitWidth = requiredWidth;
-    } else if (!undersized && !plan.ready) {
-      fitWidth = plan.suggestedWidthMm;
-    }
-    const suggestion = fitWidth;
-    resizeButton.hidden = !Number.isFinite(suggestion);
-    if (undersized) {
-      cutCheck.dataset.ready = 'false';
-      output('cut-summary', 'Lettering needs more width');
-    }
-    if (!resizeButton.hidden) {
-      resizeButton.textContent = 'Fit at ' + (Number.isInteger(suggestion) ? '' : '≈ ') + cutMeasure.format(suggestion) + ' mm wide';
-      help += verified ? ' This size fits the cut marks and keeps the letter shapes.'
-        : ' This size fits the lettering allowance. The strip cuts still need shop review.';
-    } else if (!plan.ready) {
-      help += ' Try a different style or send this design to the shop for review.';
-    }
-    output('cut-help', help);
-    const rows = document.createDocumentFragment();
-    for (const piece of pieces) {
-      const row = document.createElement('tr');
-      row.dataset.fit = String(piece.ready);
-      const title = document.createElement('th');
-      title.scope = 'row';
-      title.textContent = '#' + (piece.index + 1) + ' · “' + piece.character + '”';
-      const location = document.createElement('small');
-      location.textContent = (geometry.lineCount > 1 ? 'Line ' + (piece.line + 1) + ' · ' : '') +
-        'Char ' + (piece.charIndex + 1) + ' · Stroke ' + (piece.runIndex + 1);
-      title.append(location);
-      const measured = document.createElement('td');
-      measured.textContent = cutMeasure.format(piece.lengthMm) + ' mm';
-      const cut = document.createElement('td');
-      cut.textContent = piece.ready ? piece.cutMm + ' mm (' + piece.modules + ' × 25)' :
-        piece.reason === 'too-short' ? 'Under 25 mm' : 'Between cut marks';
-      row.append(title, measured, cut);
-      rows.append(row);
-    }
-    cutRows.replaceChildren(rows);
+  function renderCutPlan(plan) {
+    fitWidth = plan?.suggestedWidthMm;
+    resizeButton.hidden = !Number.isFinite(fitWidth);
+    if (!resizeButton.hidden) resizeButton.textContent = 'Fit at ' + cutMeasure.format(fitWidth) + ' mm wide';
   }
   function render() {
     const longestLine = Math.max(0,...design.text.normalize('NFC').split('\n').map(line=>Array.from(line.replace(/\s/gu,'')).length));
@@ -435,7 +387,7 @@
     if (nextKey !== geometryKey) {
       geometry = engine.cutLayout(design, {minWidth:requiredWidth, maxWidth});
       geometryKey = nextKey;
-      renderCutPlan(geometry.cutPlan, requiredWidth);
+      renderCutPlan(geometry.cutPlan);
       renderFontSummary();
     }
     root.dataset.scene = design.scene;
@@ -481,7 +433,8 @@
     const reviewable = !structuralError && Boolean(plan?.pieces.length) && geometry.paths.length > 0 &&
       fields.every(field => field.type !== 'number' || (field.value !== '' && field.validity.valid));
     const ready = reviewable && geometry.valid && plan.ready;
-    const warningText = warnings.join(' ');
+    const warningText = [...warnings, ...(!structuralError && plan?.pieces.length && !plan.ready
+      ? ['This size needs shop review before cutting.'] : [])].join(' ');
     output('warnings', warningText);
     output('warning', warningText);
     root.dataset.neonValid = String(ready);
