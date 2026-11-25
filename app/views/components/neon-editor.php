@@ -55,6 +55,7 @@ $neonIcon = static function (string $key) use ($neonIcons): string {
             <output data-neon-output="zoom" aria-label="Zoom level">100%</output>
             <button type="button" data-neon-action="zoom-in" aria-label="Zoom in" title="Zoom in">+</button>
             <button type="button" data-neon-action="fit" aria-label="Fit sign in preview" title="Fit sign in preview"><?= $neonIcon('fit') ?></button>
+            <button type="button" data-neon-action="detach" title="Open a live preview in another window">Pop out</button>
             <button type="button" data-neon-action="expand" aria-label="Expand preview" title="Expand preview" aria-haspopup="dialog" aria-controls="neon-expanded-proof" aria-expanded="false"><?= $neonIcon('expand') ?></button>
           </div>
           <div class="neon-history">
@@ -69,6 +70,7 @@ $neonIcon = static function (string $key) use ($neonIcons): string {
         <div><dt>Tube width</dt><dd>6 mm</dd></div>
         <div><dt>12 V strip · rated load (7.2 W/m, 120 LEDs/m)</dt><dd data-neon-output="electrical">—</dd></div>
         <div><dt>Separate strokes</dt><dd data-neon-output="strokes">—</dd></div>
+        <div><dt>Wall spacers</dt><dd data-neon-output="spacers">—</dd></div>
         <div><dt>Sharp bends</dt><dd data-neon-output="bends">—</dd></div>
         <div><dt>Tube length</dt><dd data-neon-output="length">—</dd></div>
       </dl>

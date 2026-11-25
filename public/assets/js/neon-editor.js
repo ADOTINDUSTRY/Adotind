@@ -369,6 +369,58 @@
       svg('text',{...type,transform:'translate('+(axisX+chartSize*1.2)+' '+((size.top+size.bottom)/2)+') rotate(-90)'},axisLabel+mm(size.heightMm)));
 
   }
+  let previewWindow, previewPanel;
+  function syncDetachedPreview() {
+    if (!previewWindow || previewWindow.closed || !previewPanel) return;
+    const host=previewPanel.parentElement;
+    host.dataset.scene=root.dataset.scene;
+    host.dataset.wallPhoto=root.dataset.wallPhoto || 'false';
+    host.style.setProperty('--neon-wall-image',root.style.getPropertyValue('--neon-wall-image'));
+    const copy=canvas.cloneNode(true);
+    copy.removeAttribute('tabindex');
+    copy.style.cursor='';
+    previewPanel.replaceChildren(copy);
+  }
+  const previewObserver=new MutationObserver(syncDetachedPreview);
+  function detachPreview() {
+    if (previewWindow && !previewWindow.closed) {
+      previewWindow.focus();
+      return;
+    }
+    previewWindow=window.open('','adotNeonPreview','popup,width=1100,height=760');
+    if (!previewWindow) {
+      output('status','Allow pop-ups for this site to open the live preview.');
+      return;
+    }
+    const doc=previewWindow.document;
+    doc.title='Neon sign · Live preview';
+    const meta=doc.createElement('meta');
+    meta.name='viewport'; meta.content='width=device-width, initial-scale=1';
+    const stylesheet=doc.createElement('link');
+    stylesheet.rel='stylesheet';
+    stylesheet.href=[...document.querySelectorAll('link[rel="stylesheet"]')].find(link=>link.href.includes('/neon-editor.css'))?.href
+      || new URL('/public/assets/css/neon-editor.css',location.origin).href;
+    const styles=doc.createElement('style');
+    styles.textContent='body{margin:0;background:#181a20}.neon-studio.neon-detached{max-width:none;padding:0;margin:0}.neon-detached .neon-view{height:100dvh;border:0;border-radius:0;grid-template-rows:minmax(0,1fr)}.neon-detached svg{width:100%;height:100%;display:block}';
+    doc.head.replaceChildren(meta,stylesheet,styles);
+    const host=doc.createElement('main');
+    host.className='neon-studio neon-detached';
+    previewPanel=doc.createElement('div');
+    previewPanel.className='neon-view neon-drawing-area';
+    host.append(previewPanel);
+    doc.body.replaceChildren(host);
+    previewObserver.observe(canvas,{attributes:true,childList:true,subtree:true});
+    syncDetachedPreview();
+    previewWindow.addEventListener('pagehide',()=>{
+      previewObserver.disconnect();
+      previewPanel=null;
+    },{once:true});
+  }
+  window.addEventListener('pagehide',()=>{
+    previewObserver.disconnect();
+    if (previewWindow && !previewWindow.closed) previewWindow.close();
+  });
+
   function camera() {
     if (!frame) return;
     const cx = frame.x + frame.width / 2, cy = frame.y + frame.height / 2;
@@ -479,6 +531,8 @@
     output('runs', String(geometry.paths.length));
     output('strokes', String(geometry.paths.length));
     output('bends', String(geometry.bendCount));
+    const spacerCount = board?.wall ? board.holes.length : 0;
+    output('spacers',String(spacerCount));
     if (spec) spec.value = ready ? JSON.stringify(design) : '';
     const intent = 'production';
     if (requestIntent) requestIntent.value = intent;
@@ -488,7 +542,7 @@
     buttonState('redo', !future.length);
     paint();
     root.dispatchEvent(new CustomEvent('neon:design', {bubbles: true,
-      detail: {spec: ready ? {...design} : null, intent, finished, strokeCount:geometry.paths.length, bendCount:geometry.bendCount, lengthMm: geometry.lengthMm}}));
+      detail: {spec: ready ? {...design} : null, intent, finished, strokeCount:geometry.paths.length, bendCount:geometry.bendCount, spacerCount, lengthMm: geometry.lengthMm}}));
   }
   function edit(key, input, group) {
     if (!(key in defaults) || key === 'version') return;
@@ -610,6 +664,7 @@
       canvas.focus({preventScroll: true});
       stage.scrollIntoView({block: 'center', behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth'});
     }
+    if (action === 'detach') detachPreview();
     if (action === 'expand') {
       if (expandedProof.open) {
         expandedProof.close();

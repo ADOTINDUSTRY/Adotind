@@ -50,7 +50,7 @@
   const delivery = form.querySelector('[data-neon-delivery]');
   let designDetails;
   function updateEstimate() {
-    const {spec, lengthMm, finished, strokeCount, bendCount} = designDetails;
+    const {spec, lengthMm, finished, strokeCount, bendCount, spacerCount} = designDetails;
     valid = Boolean(spec && finished?.withinLimit && Number.isFinite(lengthMm) && lengthMm > 0);
     requestLabel.textContent = 'Request a shop quote';
     submit.textContent = 'Send design for quote';
@@ -66,7 +66,7 @@
       if ([rates.base,rates.perMetre,rates[spec.mount],acrylicRate,deliveryFee].every(value=>Number.isSafeInteger(value) && value>=0)) {
         const cents = rates.base + Math.round(Math.round(lengthMm)*rates.perMetre/1000)
           + Math.round(finished.areaMm2*acrylicRate/1_000_000) + rates[spec.mount] + deliveryFee
-          + strokeCount*(rates.perStroke ?? 0) + bendCount*(rates.perBend ?? 0);
+          + strokeCount*(rates.perStroke ?? 0) + bendCount*(rates.perBend ?? 0) + spacerCount*(rates.perSpacer ?? 0);
         label = 'Estimated price '+money.format(cents/100);
       }
     }

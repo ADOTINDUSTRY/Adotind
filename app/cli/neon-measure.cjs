@@ -57,11 +57,12 @@ function measure(input, intent = 'production') {
   }
   const proof = geometry.layout(design);
   if (!proof.valid) return {error: proof.errors[0] || 'Check the lettering before sending.'};
-  const finished = geometry.finishedSize(proof,geometry.backboard(proof,design),design);
+  const board = geometry.backboard(proof,design);
+  const finished = geometry.finishedSize(proof,board,design);
   if (!finished.withinLimit) return {error:'The finished sign must fit within 3,000 × 2,000 mm.'};
   return {
     finished, reviewOnly: false, design, widthMm: proof.widthMm, heightMm: proof.heightMm, lengthMm: proof.lengthMm,
-    strokeCount:proof.paths.length, bendCount:proof.bendCount,
+    strokeCount:proof.paths.length, bendCount:proof.bendCount, spacerCount:board?.wall ? board.holes.length : 0,
     warnings: proof.warnings, svg: geometry.svg(proof, design), dxf: geometry.dxf(proof, design),
   };
 }
