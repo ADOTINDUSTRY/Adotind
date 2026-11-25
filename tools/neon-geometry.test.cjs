@@ -97,6 +97,47 @@ test('spacing, alignment, profiles and curves use the physical path geometry', (
   assert.ok(!geometry.svg(base, {color:'" onload="alert(1)'}).includes('onload'));
 });
 
+test('fitted round letters have tangent-continuous curves while display corners and pen lifts survive', () => {
+  const lettering = (font,text) => geometry.layout({...design,font,text});
+  const round = lettering('deco','O').paths[0].d;
+  const commands = Array.from(round.matchAll(/([MLC])([^MLC]+)/g), match => ({
+    type:match[1], coords:match[2].trim().split(/\s+/).map(Number)
+  }));
+  assert.equal(commands[0].type,'M');
+  assert.ok(commands.length > 3 && commands.slice(1).every(c => c.type === 'C'));
+  let at = commands[0].coords, lastControl;
+  for (const {coords} of commands.slice(1)) {
+    if (lastControl) {
+      const incoming = [at[0]-lastControl[0],at[1]-lastControl[1]];
+      const outgoing = [coords[0]-at[0],coords[1]-at[1]];
+      const cosine = (incoming[0]*outgoing[0] + incoming[1]*outgoing[1]) /
+        (Math.hypot(...incoming)*Math.hypot(...outgoing));
+      assert.ok(cosine > 0.99999, 'smooth join');
+    }
+    lastControl=coords.slice(2,4);
+    at=coords.slice(4);
+  }
+  assert.equal(lettering('deco','V').paths[0].d.match(/[MLC]/g).join(''),'MLL');
+  assert.equal(lettering('aegean','Λ').paths[0].d.match(/[MLC]/g).join(''),'MLL');
+  assert.doesNotMatch(lettering('orbit','O').paths[0].d,/C/);
+  const accented=lettering('signature','é').paths;
+  assert.equal(accented.length,2);
+  assert.ok(accented[0].d.includes('C') && accented[1].d.includes('L'));
+});
+
+test('the expanded font catalogue contains distinct, selectable shop proofs and picker categories', () => {
+  const examples=new Set();
+  for (const font of geometry.fonts) {
+    assert.ok(font.category && font.label);
+    const proof=measure({...design,text:font.sample || 'Good Vibes',font:font.id});
+    assert.equal(proof.design.font,font.id);
+    assert.ok(proof.svg.includes('stroke-width="6"') && proof.dxf.includes('TUBE_CENTERLINE_6MM'));
+    examples.add(proof.svg);
+  }
+  assert.ok(geometry.fonts.length >= 19);
+  assert.equal(examples.size,geometry.fonts.length);
+});
+
 test('invalid values and unsupported glyphs never generate a submission or partial export', () => {
   const invalid = geometry.layout({...design,text:'Hello 🦩'});
   assert.equal(invalid.valid, false);

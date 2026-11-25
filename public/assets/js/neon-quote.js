@@ -84,6 +84,7 @@
     requestField.value = attempt.id;
     data.set('request_id', attempt.id);
     data.set('revision', String(shop.revision));
+    data.set('edition', shop.edition);
     active = true;
     refreshButton();
     message('Sending your design…', 'pending', signature);

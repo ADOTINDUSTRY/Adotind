@@ -5,11 +5,17 @@
   const root = document.querySelector('[data-neon-editor]');
   if (!root) return;
   const canvas = root.querySelector('[data-neon-canvas]');
+  const stage = root.querySelector('.neon-view');
+  const expandedProof = root.querySelector('.neon-expanded-proof');
   const engine = window.NeonGeometry;
   const NS = 'http://www.w3.org/2000/svg';
   const MAX_FILE_BYTES = 16384;
   const fields = Array.from(root.querySelectorAll('[data-neon-field]'));
   const choices = root.querySelector('[data-neon-fonts]');
+  const fontDialog = root.querySelector('.neon-font-dialog');
+  const fontSearch = root.querySelector('[data-neon-font-search]');
+  const fontCategory = root.querySelector('[data-neon-font-category]');
+  const fontCards = new Map();
   const fileInput = root.querySelector('[data-neon-import]');
   const spec = root.querySelector('[data-neon-spec]');
   const submit = root.querySelector('[data-neon-submit]');
@@ -62,6 +68,11 @@
   const limits = {widthMm: [minWidth, maxWidth], letterSpacing: [0, 0.3], lineSpacing: [1, 2], brightness: [10, 100]};
   let design = {...defaults};
   let geometry;
+  let geometryKey;
+  let currentSampleKey;
+  let compatibleFonts = fonts;
+  let pendingImport;
+  let returnFocus;
   let zoom = 1;
   let pan = {x: 0, y: 0};
   let frame;
@@ -110,26 +121,130 @@
     }
     return '';
   }
-  function renderFontButtons() {
-    if (!choices) return;
+  function previewText(font, text) {
+    const line = text.split('\n').map(row => row.trim()).find(Boolean);
+    const word = Array.from(line || font.sample || 'Neon').slice(0, 18).join('');
+    return word.normalize('NFC');
+  }
+  function drawSpecimen(container, font, text) {
+    const sample = engine.layout({...defaults, text, font: font.id, widthMm: 600});
+    container.replaceChildren();
+    if (!sample.valid) return;
+    const icon = svg('svg', {viewBox: [-4, -4, sample.widthMm + 8, sample.heightMm + 8].join(' '), 'aria-hidden': true});
+    icon.append(svg('path', {d: sample.paths.map(p => p.d).join(' '), fill: 'none', stroke: 'currentColor',
+      'stroke-width': 1.6, 'vector-effect': 'non-scaling-stroke', 'stroke-linecap': 'round', 'stroke-linejoin': 'round'}));
+    container.append(icon);
+  }
+  function initFontBrowser() {
+    const categories = new Set();
     for (const font of fonts) {
       const btn = document.createElement('button');
       btn.type = 'button';
       btn.dataset.neonChoice = 'font';
       btn.dataset.value = font.id;
       btn.setAttribute('aria-label', font.label);
-      const sample = engine.layout({...defaults, text: font.id === 'aegean' ? 'Αα' : 'Aa', font: font.id, widthMm: 200});
-      if (sample.valid && sample.paths.length) {
-        const icon = svg('svg', {viewBox: '0 0 ' + sample.widthMm + ' ' + sample.heightMm, width: 45, height: 22, 'aria-hidden': true});
-        icon.append(svg('path', {d: sample.paths.map(p => p.d).join(' '), fill: 'none', stroke: 'currentColor',
-          'stroke-width': 6, 'stroke-linecap': 'round', 'stroke-linejoin': 'round'}));
-        btn.append(icon);
-      }
+      const specimen = document.createElement('span');
+      specimen.className = 'neon-type-specimen';
       const label = document.createElement('span');
       label.textContent = font.label;
-      btn.append(label);
+      label.className = 'neon-type-name';
+      const meta = document.createElement('span');
+      meta.className = 'neon-type-meta';
+      btn.append(specimen, label, meta);
       choices.append(btn);
+      fontCards.set(font.id, {btn, specimen, meta});
+      if (font.category) categories.add(font.category);
     }
+    for (const name of Array.from(categories).sort()) fontCategory.add(new Option(name, name));
+    fontCategory.closest('label').hidden = categories.size < 2;
+    fontSearch.addEventListener('input', filterFontCards);
+    fontCategory.addEventListener('change', filterFontCards);
+    fontDialog.addEventListener('close', () => {
+      if (fontDialog.open) return;
+      pendingImport = null;
+      if (document.activeElement === document.body || fontDialog.contains(document.activeElement)) {
+        returnFocus?.focus({preventScroll: true});
+      }
+    });
+    fontDialog.addEventListener('click', event => {
+      if (event.target !== fontDialog) return;
+      const rect = fontDialog.getBoundingClientRect();
+      if (event.clientX < rect.left || event.clientX > rect.right || event.clientY < rect.top || event.clientY > rect.bottom) fontDialog.close();
+    });
+  }
+  function compatibleStyles(text) {
+    const letters = [...new Set(text.normalize('NFC').replace(/\n/g, ''))];
+    return fonts.filter(font => letters.every(ch => Object.hasOwn(window.NeonStrokeFonts[font.id].glyphs, ch)));
+  }
+  function filterFontCards() {
+    const query = fontSearch.value.trim().toLowerCase();
+    const target = pendingImport || design;
+    const compatible = pendingImport ? compatibleStyles(target.text) : compatibleFonts;
+    let matches = 0;
+    for (const font of fonts) {
+      const card = fontCards.get(font.id);
+      const {btn, specimen, meta} = card;
+      const visible = (!fontCategory.value || font.category === fontCategory.value) &&
+        (font.label + ' ' + (font.category || '') + ' ' + (font.sample || '')).toLowerCase().includes(query);
+      btn.hidden = !visible;
+      if (!visible) continue;
+      ++matches;
+      const fits = compatible.includes(font);
+      btn.disabled = !fits;
+      btn.style.order = fits ? 0 : 1;
+      const text = fits ? previewText(font, target.text) : font.sample || 'Neon';
+      if (card.sample !== text) {
+        drawSpecimen(specimen, font, text);
+        card.sample = text;
+      }
+      meta.textContent = fits ? font.category || '' : 'Missing letters in your text';
+      btn.setAttribute('aria-pressed', String(target.font === font.id));
+    }
+    const noun = matches === 1 ? 'style' : 'styles';
+    const count = root.querySelector('[data-neon-font-count]');
+    count.textContent = matches ? matches + ' ' + noun : 'No matching styles. Try another search or category.';
+  }
+  function renderFontSummary() {
+    const active = fonts.find(font => font.id === design.font);
+    compatibleFonts = compatibleStyles(design.text);
+    const matches = compatibleFonts.includes(active);
+    const sample = matches ? previewText(active, design.text) : active.sample || 'Neon';
+    const key = active.id + '/' + sample;
+    if (key !== currentSampleKey) {
+      drawSpecimen(root.querySelector('[data-neon-current-sample]'), active, sample);
+      currentSampleKey = key;
+    }
+    root.querySelector('[data-neon-browse-label]').textContent = 'Browse ' + fonts.length + (fonts.length === 1 ? ' style' : ' styles');
+    const hint = root.querySelector('[data-neon-action="match-font"]');
+    hint.hidden = matches || !compatibleFonts.length;
+    if (!hint.hidden) hint.textContent = 'Use ' + compatibleFonts[0].label + ' for this text';
+    for (const action of ['previous-font', 'next-font']) buttonState(action, compatibleFonts.length <= (matches ? 1 : 0));
+    if (fontDialog.open) filterFontCards();
+  }
+  function browseFonts(replacement) {
+    pendingImport = replacement;
+    const notice = root.querySelector('[data-neon-font-replacement]');
+    notice.hidden = !replacement;
+    const title = fontDialog.querySelector('h3');
+    if (replacement) {
+      const original = engine.fonts.find(font => font.id === replacement.font);
+      notice.textContent = original.label + ' is no longer offered. Choose a replacement to open this design with its saved wording and settings.';
+      title.textContent = 'Choose a replacement style';
+    } else {
+      title.textContent = 'Choose a letter style';
+    }
+    returnFocus = root.querySelector('[data-neon-action="' + (replacement ? 'import-project' : 'browse-fonts') + '"]');
+    fontSearch.value = '';
+    fontCategory.value = '';
+    filterFontCards();
+    fontDialog.showModal();
+    fontDialog.querySelector('.neon-font-list').scrollTop = 0;
+  }
+  function cycleFont(direction) {
+    if (!compatibleFonts.length) return;
+    const index = compatibleFonts.findIndex(font => font.id === design.font);
+    const next = index < 0 ? 0 : (index + direction + compatibleFonts.length) % compatibleFonts.length;
+    changed('font', compatibleFonts[next].id, false);
   }
   // Reuse one vector path for the shadow, halo, and physical 6 mm tube.
   function paint() {
@@ -213,7 +328,12 @@
     buttonState('zoom-out', zoom <= (wallURL ? .25 : .65));
   }
   function render() {
-    geometry = engine.layout(design);
+    const nextKey = JSON.stringify([design.text, design.font, design.widthMm, design.align, design.letterSpacing, design.lineSpacing]);
+    if (nextKey !== geometryKey) {
+      geometry = engine.layout(design);
+      geometryKey = nextKey;
+      renderFontSummary();
+    }
     root.dataset.scene = design.scene;
     root.dataset.power = design.power ? 'on' : 'off';
     root.dataset.backing = design.backing;
@@ -349,14 +469,42 @@
     const btn = ev.target.closest('[data-neon-choice],[data-neon-action]');
     if (!btn || btn.disabled) return;
     if (btn.hasAttribute('data-neon-choice')) {
+      if (btn.dataset.neonChoice === 'font' && pendingImport) {
+        const imported = {...pendingImport, font: btn.dataset.value};
+        pendingImport = null;
+        fontDialog.close();
+        openDesign(imported);
+        return;
+      }
       if (wallURL && btn.dataset.neonChoice === 'scene') {
         clearWall();
         render();
       }
       edit(btn.dataset.neonChoice, btn.dataset.value, false);
+      if (btn.dataset.neonChoice === 'font' && fontDialog.open) fontDialog.close();
       return;
     }
     const action = btn.dataset.neonAction;
+    if (action === 'view-sign') {
+      canvas.focus({preventScroll: true});
+      stage.scrollIntoView({block: 'center', behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth'});
+    }
+    if (action === 'expand') {
+      if (expandedProof.open) {
+        expandedProof.close();
+      } else {
+        expandedProof.append(stage);
+        expandedProof.showModal();
+        btn.setAttribute('aria-expanded', 'true');
+        btn.title = 'Close expanded preview';
+        btn.setAttribute('aria-label', btn.title);
+        btn.focus({preventScroll: true});
+      }
+    }
+    if (action === 'browse-fonts') browseFonts();
+    if (action === 'close-fonts') fontDialog.close();
+    if (action === 'previous-font' || action === 'next-font') cycleFont(action === 'previous-font' ? -1 : 1);
+    if (action === 'match-font' && compatibleFonts.length) changed('font', compatibleFonts[0].id, false);
     if (action === 'clear-wall') { clearWall(); render(); }
     if (action === 'undo' || action === 'redo') history(action);
     if (action === 'zoom-in' || action === 'zoom-out' || action === 'fit') {
@@ -381,6 +529,16 @@
     }
     if (action === 'import-project' || action === 'load') fileInput?.click();
   });
+  function openDesign(imported) {
+    past.push(design);
+    if (past.length > 100) past.shift();
+    future.length = 0;
+    sequence = undefined;
+    design = Object.fromEntries(Object.keys(defaults).map(key => [key, imported[key]]));
+    clearWall();
+    render();
+    output('status', 'Design opened.');
+  }
   fileInput?.addEventListener('change', async () => {
     const file = fileInput.files[0];
     fileInput.value = '';
@@ -389,16 +547,17 @@
       if (file.size > MAX_FILE_BYTES) throw Error('This file is too large for a neon project.');
       const imported = JSON.parse(await file.text());
       if (!imported || imported.version !== 1) throw Error('Choose a .neon.json design exported by this editor.');
+      const disabledFont = !options.font.includes(imported.font) && engine.fonts.some(f => f.id === imported.font);
+      if (disabledFont) {
+        const error = projectError({...imported, font: fonts[0].id});
+        if (error) throw Error(error);
+        if (!compatibleStyles(imported.text).length) throw Error('The original style is unavailable and the offered styles do not contain all the letters in this design.');
+        browseFonts(imported);
+        return;
+      }
       const error = projectError(imported);
       if (error) throw Error(error);
-      past.push(design);
-      if (past.length > 100) past.shift();
-      future.length = 0;
-      sequence = undefined;
-      design = Object.fromEntries(Object.keys(defaults).map(key => [key, imported[key]]));
-      clearWall();
-      render();
-      output('status', 'Design opened.');
+      openDesign(imported);
     } catch (err) {
       output('status', err instanceof SyntaxError ? 'Choose a valid .neon.json design file.' : err.message);
     }
@@ -440,6 +599,14 @@
     render();
     if (!spec?.value) ev.preventDefault();
   });
-  renderFontButtons();
+  const expand = root.querySelector('[data-neon-action="expand"]');
+  expandedProof.addEventListener('close', () => {
+    root.querySelector('.neon-proof').prepend(stage);
+    expand.setAttribute('aria-expanded', 'false');
+    expand.title = 'Expand preview';
+    expand.setAttribute('aria-label', expand.title);
+    expand.focus({preventScroll: true});
+  });
+  initFontBrowser();
   render();
 })();

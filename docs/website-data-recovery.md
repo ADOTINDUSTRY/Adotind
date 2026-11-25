@@ -6,6 +6,8 @@ The shared mount at `/var/www/site-tracking` holds `tracking.sqlite` for Site Tr
 
 ## Migration and verification
 
+The public image generates font specimens from its centreline engine. At startup it publishes its font library to the shared database, where **Public Website → Neon fonts** controls which styles are offered. On a PHP installation outside Docker, run `php app/cli/publish-neon-library.php` as the web user after deploying a changed font library. Existing selections and submitted proofs are preserved.
+
 Deploy the database-aware ERP reader and the public site before running `php app/cli/migrate-storage.php` as the public site's PHP user. The importer holds the website storage lock, checks imported totals, checks both databases and then activates SQL storage. It can also run against copies using `php app/cli/migrate-storage.php /path/to/media-copy /path/to/tracking-copy`. Keep pre-migration files as a recovery copy. After activation they stop receiving new entries.
 
 ## Back up and restore

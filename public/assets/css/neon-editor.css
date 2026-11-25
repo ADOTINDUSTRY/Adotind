@@ -80,6 +80,11 @@ body:has(.neon-studio:not([hidden])) .quote-hero { display: none; }
   position: relative; z-index: 1; display: flex; justify-content: space-between; align-items: center;
   gap: .45rem; padding: clamp(.65rem, 1.5vw, 1.1rem); min-width: 0;
 }
+.neon-expanded-proof[open] {
+  position: fixed; inset: 0; display: grid; margin: 0; padding: 0; border: 0;
+  width: 100%; height: 100dvh; max-width: none; max-height: none; overflow: hidden; background: #171923;
+}
+.neon-expanded-proof[open] .neon-view { width: 100%; height: 100%; border: 0; border-radius: 0; box-sizing: border-box; }
 .neon-scenes, .neon-power span, .neon-history, .neon-zoom {
   display: inline-flex; align-items: center; gap: .1rem; padding: 3px;
   background: rgb(15 19 27 / 91%); color: #fff; border: 1px solid #69707e; border-radius: 9px;
@@ -99,7 +104,8 @@ body:has(.neon-studio:not([hidden])) .quote-hero { display: none; }
 .neon-drawing-area > svg { display: block; width: 100%; height: 100%; overflow: hidden; }
 .neon-zoom output { min-width: 3rem; text-align: center; font: 600 .78rem/1.2 ui-monospace, monospace; }
 .neon-zoom button { font-size: 1.12rem; }
-.neon-zoom button:last-child { border-inline-start: 1px solid #515968; border-radius: 0 4px 4px 0; }
+.neon-zoom [data-neon-action="fit"] { border-inline-start: 1px solid #515968; border-radius: 0 4px 4px 0; }
+.neon-zoom button[hidden], .neon-type-nav button.neon-jump-preview { display: none; }
 .neon-measurements {
   display: grid; grid-template-columns: 1.5fr 1fr 1fr; margin: 0; padding: .85rem 0;
   background: #fff; border: 1px solid var(--studio-line); border-top: 0; border-radius: 0 0 var(--studio-radius) var(--studio-radius);
@@ -145,16 +151,67 @@ body:has(.neon-studio:not([hidden])) .quote-hero { display: none; }
 }
 .neon-controls textarea { min-height: 4.25rem; resize: vertical; }
 .neon-controls input[type="range"] { width: 100%; min-height: 24px; margin: 0; accent-color: #283953; cursor: pointer; }
-.neon-fonts {
-  display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .5rem;
-  margin-top: .4rem;
+.neon-type-current {
+  display: grid; grid-template-columns: minmax(0, 1fr) minmax(5rem, 1fr) auto; align-items: center;
+  gap: .75rem; width: 100%; min-height: 72px; margin-top: .3rem; padding: .65rem .8rem;
+  border: 1px solid #acbbce; border-radius: 9px; text-align: left; background: #f5f8fc; color: var(--studio-ink);
 }
+.neon-type-current:hover { border-color: #546e90; background: #eef3fa; }
+.neon-type-current-sample { display: block; height: 40px; padding-inline-end: .75rem; border-inline-end: 1px solid var(--studio-line); color: #183452; }
+.neon-type-current-detail { display: grid; gap: .15rem; line-height: 1.22; }
+.neon-type-current-detail strong { font-size: .92rem; }
+.neon-type-current-detail > span { font-size: .75rem; color: #425e80; }
+.neon-type-current-sample svg, .neon-type-specimen svg { width: 100%; height: 100%; }
+.neon-type-nav { display: flex; justify-content: space-between; gap: .5rem; }
+.neon-type-nav button, .neon-type-match {
+  display: inline-flex; align-items: center; gap: .25rem; min-height: 36px; padding: .15rem 0;
+  border: 0; background: transparent; color: #304e73; font-size: .8rem; font-weight: 650;
+}
+.neon-type-nav button:hover:not(:disabled), .neon-type-match:hover { text-decoration: underline; }
+.neon-type-match { min-height: 40px; color: #164f80; }
+.neon-type-match[hidden], .neon-fonts button[hidden] { display: none; }
+.neon-font-dialog {
+  position: fixed; inset: 0; margin: auto; width: min(720px, calc(100% - 2rem)); max-width: none;
+  height: fit-content; max-height: min(78dvh, 760px); padding: 0; overflow: hidden; box-sizing: border-box;
+  color: var(--studio-ink); border: 1px solid #d2dce7; border-radius: 17px; background: #fcfdff;
+  box-shadow: 0 16px 58px #08152b3d;
+}
+.neon-font-dialog[open] { display: flex; flex-direction: column; }
+.neon-font-dialog::backdrop { background: rgb(13 24 42 / 62%); }
+body:has(.neon-studio dialog[open]) { overflow: hidden; }
+.neon-font-dialog-head { display: flex; align-items: center; justify-content: space-between; gap: .75rem; padding: 1rem 1.25rem .8rem; }
+.neon-font-dialog-head h3 { margin: 0; font-size: clamp(1.2rem, 3vw, 1.6rem); line-height: 1.2; color: var(--studio-ink); letter-spacing: -.035em; }
+.neon-font-dialog-head h3:focus { outline: none; }
+.neon-studio .neon-font-replacement { margin: 0 1.25rem .8rem; padding: .5rem .7rem; color: #614619; background: #fff6df; border-radius: 7px; font-size: .85rem; }
+.neon-font-close { display: grid; place-items: center; width: 40px; height: 40px; border: 1px solid #c7d0dd; border-radius: 50%; background: white; color: #243955; }
+.neon-font-filters { display: grid; grid-template-columns: minmax(0, 1fr) minmax(7rem, auto); gap: .55rem; padding-inline: 1.25rem; }
+.neon-font-search { position: relative; min-width: 0; }
+.neon-font-search .neon-icon { position: absolute; top: 50%; left: .75rem; transform: translateY(-50%); color: #65748a; pointer-events: none; }
+.neon-font-dialog :is(input,select) {
+  display: block; width: 100%; height: 42px; min-height: 0; box-sizing: border-box; padding: .4rem .7rem;
+  border: 1px solid #afbacb; border-radius: 7px; background-color: white; color: #223552; font: inherit; font-size: .87rem;
+}
+.neon-font-dialog input[type="search"] { padding-left: 2.35rem; }
+.neon-font-dialog select[hidden] { display: none; }
+.neon-font-filters:has(label[hidden]) { grid-template-columns: minmax(0,1fr); }
+.neon-studio .neon-font-count { padding: 0 1.25rem; margin: .72rem 0 .45rem; color: var(--studio-muted); font-size: .8rem; }
+.neon-font-list { overflow-y: auto; overscroll-behavior: contain; padding: .2rem 1.25rem 1.25rem; }
+.neon-fonts { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: .6rem; }
 .neon-fonts button {
-  min-width: 0; min-height: 44px; padding: .35rem .5rem; border: 1px solid #c5ceda;
-  background: #fbfcfd; border-radius: 7px; color: var(--studio-ink); font-size: .84rem;
+  position: relative; display: grid; grid-template-rows: 48px auto auto; align-content: center; gap: .16rem;
+  min-width: 0; padding: .75rem .7rem .52rem; border: 1px solid #c9d3df; background: white; border-radius: 8px;
+  color: var(--studio-ink); text-align: left;
 }
-.neon-fonts button svg { display: block; width: 100%; height: 30px; margin: auto; }
-.neon-fonts button[aria-pressed="true"] { border: 2px solid #263a59; background: #edf3fa; }
+.neon-fonts button:disabled { opacity: .63; }
+.neon-fonts button:hover:not(:disabled) { border-color: #537299; background: #f4f8fd; }
+.neon-fonts button[aria-pressed="true"] { border-color: #1b406b; box-shadow: inset 0 0 0 1px #1b406b; background: #edf4fc; }
+.neon-fonts button[aria-pressed="true"]::after {
+  content: "✓"; position: absolute; top: .3rem; right: .35rem; width: 1rem; height: 1rem;
+  border-radius: 50%; background: #25456b; color: white; font: 700 .72rem/1rem system-ui; text-align: center;
+}
+.neon-type-specimen { display: block; height: 40px; margin: .15rem .2rem .4rem; color: #1d3552; }
+.neon-type-name { font-size: .87rem; font-weight: 700; }
+.neon-type-meta { font-size: .71rem; line-height: 1.25; color: #495b72; }
 .neon-segment { display: inline-flex; padding: 2px; gap: 2px; border: 1px solid #c5ceda; border-radius: 7px; }
 .neon-segment button { display: grid; place-items: center; width: 35px; height: 32px; border: 0; border-radius: 4px; background: #fff; color: #58677b; }
 .neon-segment button[aria-pressed="true"] { background: #243652; color: #fff; }
@@ -192,6 +249,7 @@ body:has(.neon-studio:not([hidden])) .quote-hero { display: none; }
   .neon-view { height: clamp(265px, 46svh, 460px); }
   .neon-controls { grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: start; }
   .neon-swatch { width: 30px; }
+  .neon-type-nav button.neon-jump-preview { display: inline-flex; }
 }
 @media (max-width: 580px) {
   .neon-heading { gap: .55rem; }
@@ -207,4 +265,11 @@ body:has(.neon-studio:not([hidden])) .quote-hero { display: none; }
   .neon-measurements { grid-template-columns: 1.5fr 1fr 1fr; padding-block: .6rem; }
   .neon-measurements dt { font-size: .68rem; }
   .neon-measurements dd { font-size: .88rem; }
+  .neon-font-dialog { margin-bottom: 0; max-height: 85dvh; width: 100%; border-radius: 16px 16px 0 0; }
+  .neon-font-dialog-head { padding: .75rem .9rem .6rem; }
+  .neon-font-filters, .neon-studio .neon-font-count { padding-inline: .9rem; }
+  .neon-font-list { padding-inline: .9rem; padding-bottom: max(1rem, env(safe-area-inset-bottom)); }
+  .neon-fonts { grid-template-columns: repeat(2, minmax(0,1fr)); gap: .45rem; }
+  .neon-font-dialog :is(input,select) { font-size: 16px; }
+  .neon-type-nav button { min-height: 42px; }
 }

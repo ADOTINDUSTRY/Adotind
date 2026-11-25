@@ -10,6 +10,11 @@ $neonIcons = [
     'save' => 'M12 3v12m-5-5 5 5 5-5 M4 16v4h16v-4',
     'power' => 'M12 3v8 M7 5.3a8 8 0 1 0 10 0',
     'fit' => 'M4 9V4h5 M15 4h5v5 M20 15v5h-5 M9 20H4v-5',
+    'search' => 'M16 16l5 5 M18 10a8 8 0 1 1-16 0a8 8 0 0 1 16 0',
+    'close' => 'M6 6l12 12 M18 6 6 18',
+    'next' => 'm9 5 7 7-7 7',
+    'previous' => 'm15 5-7 7 7 7',
+    'expand' => 'M8 3H3v5 M3 3l6 6 M16 3h5v5 M21 3l-6 6 M3 16v5h5 M3 21l6-6 M16 21h5v-5 M21 21l-6-6',
     'left' => 'M3 6h18 M3 12h11 M3 18h15',
     'center' => 'M3 6h18 M7 12h10 M5 18h14',
     'right' => 'M3 6h18 M10 12h11 M6 18h15',
@@ -49,6 +54,7 @@ $neonIcon = static function (string $key) use ($neonIcons): string {
             <output data-neon-output="zoom" aria-label="Zoom level">100%</output>
             <button type="button" data-neon-action="zoom-in" aria-label="Zoom in" title="Zoom in">+</button>
             <button type="button" data-neon-action="fit" aria-label="Fit sign in preview" title="Fit sign in preview"><?= $neonIcon('fit') ?></button>
+            <button type="button" data-neon-action="expand" aria-label="Expand preview" title="Expand preview" aria-haspopup="dialog" aria-controls="neon-expanded-proof" aria-expanded="false"><?= $neonIcon('expand') ?></button>
           </div>
           <div class="neon-history">
             <button type="button" data-neon-action="undo" aria-label="Undo" title="Undo"><?= $neonIcon('undo') ?></button>
@@ -78,8 +84,20 @@ $neonIcon = static function (string $key) use ($neonIcons): string {
         <summary>Lettering</summary>
         <div class="neon-group-body">
           <div class="neon-label-pair"><label for="neon-message">Sign text</label><output data-neon-output="chars">5 / 80</output></div>
-          <textarea id="neon-message" data-neon-field="text" data-private rows="2" placeholder="Enter your sign text" spellcheck="false">Hello</textarea>
-          <fieldset><legend>Letter style</legend><div class="neon-fonts" data-neon-fonts></div></fieldset>
+          <textarea id="neon-message" data-neon-field="text" data-private rows="2" maxlength="160" placeholder="Enter your sign text" spellcheck="false">Hello</textarea>
+          <fieldset class="neon-type"><legend>Letter style</legend>
+            <button class="neon-type-current" type="button" data-neon-action="browse-fonts" aria-haspopup="dialog" aria-controls="neon-font-dialog" aria-label="Browse letter styles">
+              <span class="neon-type-current-sample" data-neon-current-sample aria-hidden="true"></span>
+              <span class="neon-type-current-detail"><strong data-neon-output="font"></strong><span data-neon-browse-label>Browse styles</span></span>
+              <?= $neonIcon('next') ?>
+            </button>
+            <div class="neon-type-nav">
+              <button type="button" data-neon-action="previous-font" aria-label="Preview previous compatible style"><?= $neonIcon('previous') ?> Previous</button>
+              <button class="neon-jump-preview" type="button" data-neon-action="view-sign">View sign ↑</button>
+              <button type="button" data-neon-action="next-font" aria-label="Preview next compatible style">Next style <?= $neonIcon('next') ?></button>
+            </div>
+            <button class="neon-type-match" type="button" data-neon-action="match-font" hidden></button>
+          </fieldset>
           <div class="neon-align-row"><span id="neon-align-label">Alignment</span>
             <div class="neon-segment" role="group" aria-labelledby="neon-align-label">
               <?php foreach (['left','center','right'] as $alignment): ?>
@@ -139,4 +157,22 @@ $neonIcon = static function (string $key) use ($neonIcons): string {
       </div>
     </div>
   </div>
+  <dialog class="neon-font-dialog" id="neon-font-dialog" aria-labelledby="neon-font-title" data-private>
+    <div class="neon-font-dialog-head">
+      <h3 id="neon-font-title" tabindex="-1" autofocus>Choose a letter style</h3>
+      <button type="button" class="neon-font-close" data-neon-action="close-fonts" aria-label="Close letter styles"><?= $neonIcon('close') ?></button>
+    </div>
+    <p class="neon-font-replacement" data-neon-font-replacement hidden></p>
+    <div class="neon-font-filters">
+      <label class="neon-font-search"><?= $neonIcon('search') ?><span class="neon-visually-hidden">Search letter styles</span>
+        <input type="search" placeholder="Search styles" data-neon-font-search autocomplete="off">
+      </label>
+      <label><span class="neon-visually-hidden">Style category</span>
+        <select data-neon-font-category><option value="">All categories</option></select>
+      </label>
+    </div>
+    <p class="neon-font-count" role="status" data-neon-font-count></p>
+    <div class="neon-font-list"><div class="neon-fonts" data-neon-fonts></div></div>
+  </dialog>
+  <dialog class="neon-expanded-proof" id="neon-expanded-proof" aria-label="Expanded sign preview"></dialog>
 </section>

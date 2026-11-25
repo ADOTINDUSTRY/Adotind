@@ -1,6 +1,31 @@
 <?php
 declare(strict_types=1);
 
+function neon_font_library(): array
+{
+    static $library;
+    return $library ??= json_decode(file_get_contents(dirname(__DIR__) . '/data/neon-library.json'), true, 16, JSON_THROW_ON_ERROR);
+}
+
+// Publish the same specimens and identifiers used by the deployed editor into
+// the ERP's shared store. Already-submitted requests keep their original proofs.
+function neon_publish_library(PDO $db): void
+{
+    $library = neon_font_library();
+    $db->exec('BEGIN IMMEDIATE');
+    try {
+        $db->exec('CREATE TABLE IF NOT EXISTS font_library (id INTEGER PRIMARY KEY CHECK(id=1), edition TEXT NOT NULL, catalog TEXT NOT NULL)');
+        $put = $db->prepare('INSERT INTO font_library(id,edition,catalog) VALUES(1,?,?)
+            ON CONFLICT(id) DO UPDATE SET edition=excluded.edition,catalog=excluded.catalog WHERE edition<>excluded.edition');
+        $put->execute([$library['edition'], json_encode($library['fonts'], JSON_THROW_ON_ERROR)]);
+        if ($put->rowCount()) $db->exec('UPDATE shop SET revision=revision+1 WHERE id=1');
+        $db->exec('COMMIT');
+    } catch (Throwable $e) {
+        $db->exec('ROLLBACK');
+        throw $e;
+    }
+}
+
 function neon_db(): PDO
 {
     static $db;
@@ -36,9 +61,12 @@ function neon_settings(PDO $db): array
     $row = $db->query('SELECT revision,settings FROM shop WHERE id=1')->fetch();
     $values = json_decode($row['settings'], true, 16, JSON_THROW_ON_ERROR);
     unset($values['rateDraft']);
-    return ['revision'=>(int)$row['revision']] + $values + [
+    $library = neon_font_library();
+    $available = array_column($library['fonts'], 'id');
+    $enabled = array_values(array_intersect($values['fonts'] ?? $available, $available));
+    return ['revision'=>(int)$row['revision'], 'edition'=>$library['edition'], 'fonts'=>$enabled] + $values + [
         'colors'=>['#ff488d','#ff6248','#ffb149','#ffedcc','#caff63','#58ebcc','#68c7ff','#bc8bff'],
-        'fonts'=>['signature','studio','capitol','hand','deco','orbit','aegean'], 'minWidth'=>200, 'maxWidth'=>3000, 'rates'=>null,
+        'minWidth'=>200, 'maxWidth'=>3000, 'rates'=>null,
     ];
 }
 
@@ -109,7 +137,7 @@ function neon_handle_request(): never
         $spec = $proof['design'];
         $db->exec('BEGIN IMMEDIATE');
         $shop = neon_settings($db);
-        if ((string)$shop['revision'] !== ($_POST['revision'] ?? '') ||
+        if ($shop['edition'] !== ($_POST['edition'] ?? '') || (string)$shop['revision'] !== ($_POST['revision'] ?? '') ||
             !in_array($spec['font'], $shop['fonts'], true) || !in_array($spec['color'], $shop['colors'], true)
             || $spec['widthMm'] < $shop['minWidth'] || $spec['widthMm'] > $shop['maxWidth']) {
             $db->exec('ROLLBACK');

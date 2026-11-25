@@ -9,8 +9,62 @@
   const results = [...workspace.querySelectorAll('.quote-result-card, .quote-booking-card')];
   const projects = [...start.querySelectorAll('[data-keywords]')];
   const panels = [...workspace.querySelectorAll('[data-project-panel]')];
-  const history = [];
+  const trail = [];
+  const neon = panels.find(panel => panel.dataset.projectPanel === 'neon');
+  const loaded = new Map();
+  let neonReady = false, loadingNeon, notice, status, retry;
   let active;
+
+  function loadAsset(url, style = false) {
+    if (loaded.has(url)) return loaded.get(url);
+    const pending = new Promise((resolve, reject) => {
+      const asset = document.createElement(style ? 'link' : 'script');
+      if (style) { asset.rel='stylesheet'; asset.href=url; } else { asset.src=url; }
+      asset.onload = resolve;
+      asset.onerror = () => { asset.remove(); loaded.delete(url); reject(new Error('Neon designer asset unavailable')); };
+      document.head.appendChild(asset);
+    });
+    loaded.set(url,pending);
+    return pending;
+  }
+
+  function openNeon(focus) {
+    if (!notice) {
+      notice=document.createElement('section');
+      notice.className='quote-card';
+      status=document.createElement('p');
+      status.setAttribute('role','status');
+      status.tabIndex=-1;
+      retry=document.createElement('button');
+      retry.className='btn';
+      retry.type='button';
+      retry.textContent='Try again';
+      retry.addEventListener('click',() => openNeon(true));
+      notice.append(status,retry);
+      neon.before(notice);
+    }
+    notice.hidden=false;
+    status.textContent='Loading neon designer…';
+    retry.hidden=true;
+    if (focus) status.focus();
+    if (!loadingNeon) {
+      // Keep the font/geometry/quote/editor execution order on a slow connection.
+      // A retry keeps resources which already loaded, including their listeners.
+      async function loadDesigner() {
+        const assets=JSON.parse(document.getElementById('neon-assets').textContent);
+        const scripts = async () => { for (const url of assets.scripts) await loadAsset(url); };
+        await Promise.all([loadAsset(assets.style,true),scripts()]);
+      }
+      loadingNeon=loadDesigner().then(() => {
+        neonReady=true;
+        if (active==='neon') show('neon',notice.contains(document.activeElement));
+      }).catch(() => {
+        loadingNeon=null;
+        status.textContent='The neon designer could not load. Check your connection and try again.';
+        retry.hidden=false;
+      });
+    }
+  }
 
   function show(name, focus = true) {
     active = name;
@@ -21,8 +75,10 @@
     back.hidden = name === 'start';
     back.textContent = name === 'result' ? 'Start another project' : '← Back';
     stages.forEach(stage => { stage.hidden = stage.dataset.stage !== name; });
-    panels.forEach(panel => { panel.hidden = panel.dataset.projectPanel !== name; });
+    panels.forEach(panel => { panel.hidden = panel.dataset.projectPanel !== name || (panel === neon && !neonReady); });
     results.forEach(card => { card.hidden = name !== 'result'; });
+    if (notice) notice.hidden=true;
+    if (name === 'neon' && !neonReady) { openNeon(focus); return; }
     if (focus) {
       const panel = [start, picture, ...panels, ...stages, ...results].find(el => !el.hidden);
       const heading = panel?.querySelector('h2, h3');
@@ -34,13 +90,27 @@
   }
 
   function go(name) {
-    history.push(active);
+    if (name === 'neon') {
+      const url = new URL(location.href);
+      url.searchParams.set('project','neon');
+      window.history.pushState({...window.history.state, neonTrail:[...trail,active]},'',url);
+    }
+    trail.push(active);
     show(name);
   }
   start.querySelectorAll('[data-quote-path]').forEach(button => {
     button.addEventListener('click', () => go(button.dataset.quotePath));
   });
-  back.addEventListener('click', () => show(history.pop() || 'start'));
+  back.addEventListener('click', () => {
+    if (active === 'neon') {
+      if (Array.isArray(window.history.state?.neonTrail)) { window.history.back(); return; }
+      const url = new URL(location.href);
+      if (url.searchParams.get('project') === 'neon') url.searchParams.delete('project');
+      if (url.hash === '#neon') url.hash='';
+      window.history.replaceState(window.history.state,'',url);
+    }
+    show(trail.pop() || 'start');
+  });
   const search = start.querySelector('#project-search');
   search.addEventListener('input', () => {
     const terms = search.value.trim().toLowerCase().split(/\s+/);
@@ -95,6 +165,15 @@
   form.addEventListener('submit', event => {
     if (!advance()) event.preventDefault();
   });
-  const openNeon = location.hash === '#neon' || new URLSearchParams(location.search).get('project') === 'neon';
-  show(openNeon ? 'neon' : workspace.querySelector('.alert-error') ? 'drawing' : results.length ? 'result' : 'start', openNeon);
+  const neonUrl = () => location.hash === '#neon' || new URLSearchParams(location.search).get('project') === 'neon';
+  function restoreNeonTrail() {
+    trail.length=0;
+    if (Array.isArray(window.history.state?.neonTrail)) trail.push(...window.history.state.neonTrail);
+  }
+  window.addEventListener('popstate', () => {
+    if (neonUrl()) { restoreNeonTrail(); show('neon'); }
+    else if (active === 'neon') show(trail.pop() || 'start');
+  });
+  if (neonUrl()) restoreNeonTrail();
+  show(neonUrl() ? 'neon' : workspace.querySelector('.alert-error') ? 'drawing' : results.length ? 'result' : 'start', neonUrl());
 })();

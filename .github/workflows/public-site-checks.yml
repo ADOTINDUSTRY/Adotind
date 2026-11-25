@@ -19,6 +19,9 @@ jobs:
         with:
           node-version: 24
       - name: Check designer geometry and exports
-        run: node --test tools/neon-geometry.test.cjs
+        run: |
+          node --test tools/neon-geometry.test.cjs
+          node app/cli/neon-library.cjs
+          git diff --exit-code -- app/data/neon-library.json
       - name: Validate the production PHP image
         run: docker build --tag adotind-site-check .

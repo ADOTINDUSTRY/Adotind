@@ -63,10 +63,6 @@ $trackingEnabled = is_writable('/var/www/site-tracking') && ($page['view'] ?? ''
     <?php endif; ?>
     <link rel="preload" as="style" href="/public/assets/css/main.css?v=<?= e($cssVersion) ?>" fetchpriority="high" />
     <link rel="stylesheet" href="/public/assets/css/main.css?v=<?= e($cssVersion) ?>" />
-    <?php $showNeonEditor = ($page['view'] ?? '') === 'online-quote' && !empty($page['quote_unlocked']); ?>
-    <?php if ($showNeonEditor): ?>
-      <link rel="stylesheet" href="/public/assets/css/neon-editor.css?v=<?= filemtime(__DIR__ . '/../../public/assets/css/neon-editor.css') ?>" />
-    <?php endif; ?>
     <script type="application/ld+json">
       {
         "@context": "https://schema.org",
@@ -118,9 +114,15 @@ $trackingEnabled = is_writable('/var/www/site-tracking') && ($page['view'] ?? ''
     <script src="/public/assets/js/artwork-proof.js?v=<?= e((string)filemtime(__DIR__ . '/../../public/assets/js/artwork-proof.js')) ?>" defer></script>
     <script src="/public/assets/js/quote-steps.js?v=<?= e((string)filemtime(__DIR__ . '/../../public/assets/js/quote-steps.js')) ?>" defer></script>
     <script type="application/json" id="neon-retail-rates"><?= json_encode(neon_public_rates(), JSON_THROW_ON_ERROR | JSON_HEX_TAG) ?></script>
-    <?php foreach (['neon-fonts','neon-geometry','neon-quote','neon-editor'] as $asset): ?>
-      <script src="/public/assets/js/<?= $asset ?>.js?v=<?= filemtime(__DIR__ . '/../../public/assets/js/' . $asset . '.js') ?>" defer></script>
-    <?php endforeach; ?>
+    <?php
+      $neonAsset = static fn(string $path): string => $path . '?v=' . filemtime(__DIR__ . '/../..' . $path);
+      $neonFiles = [
+          'style' => $neonAsset('/public/assets/css/neon-editor.css'),
+          'scripts' => array_map(static fn($name) => $neonAsset('/public/assets/js/' . $name . '.js'),
+              ['neon-fonts','neon-geometry','neon-quote','neon-editor']),
+      ];
+    ?>
+    <script type="application/json" id="neon-assets"><?= json_encode($neonFiles, JSON_THROW_ON_ERROR | JSON_HEX_TAG) ?></script>
     <?php endif; ?>
     <?php if ($trackingEnabled): ?>
     <?php $trackingPageSlug = $page['service']['slug'] ?? $page['project']['slug'] ?? ''; ?>

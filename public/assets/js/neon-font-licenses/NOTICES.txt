@@ -69,7 +69,124 @@ https://github.com/golanlevin/p5-single-line-font-resources/tree/3b3082d3269548a
 https://github.com/isdat-type/Relief-SingleLine/tree/01dfc5779ec1e9e4b288d96c6c96c23bfccbaf9d
 
 The web edition stores the source pen paths, Unicode glyphs, advances and kerning groups.
-During layout the editor interpolates shallow turns in the Signature, Capitol Script
-and Handwritten pen paths into cubic curves through the original sampled points.
+The designer fits smooth Bézier spans to the sampled pen paths of the EMS and NewStroke faces. Authored Bézier curves, pen lifts, straight stems and sharp corners are retained.
 In Studio Sans, tiny cross-ticks centred on pen endpoints are removed when computing
 the tube runs.
+
+Expanded lettering library
+
+atelier — Mistral SingleLine
+Copyright 2025 The Mistral-SingleLine Project Authors (https://github.com/isdat-type/Mistral-SingleLine)
+Design: François Chastanet, Élisa Garzelli, Anais Alves, Morgane Autin
+Open-curve UFO source and kerning; adjoining contours joined only at coincident endpoints.
+https://github.com/isdat-type/Mistral-SingleLine/tree/fc23517bfea2f84a8c73d08c1ce5cb717c39e870
+
+velvet — EMSBrush
+Font name:               EMS Brush
+License:                 SIL Open Font License http://scripts.sil.org/OFL
+Created by:              Sheldon B. Michaels
+SVG font conversion by:  Windell H. Oskay
+A derivative of:         Alex Brush
+Designer:                Rob Leuschke, TypeSETit
+Link:                    http://www.typesetit.com
+Google font page:        https://fonts.google.com/specimen/Alex+Brush
+
+gala — EMSDecorousScript
+Font name:               EMS Decorous Script
+License:                 SIL Open Font License http://scripts.sil.org/OFL
+Created by:              Sheldon B. Michaels
+SVG font conversion by:  Windell H. Oskay
+A derivative of:         Petit Formal Script
+Designer:                Impallari Type
+Google font page:        https://fonts.google.com/specimen/Petit+Formal+Script
+
+invitation — EMSInvite
+Font name:               EMS Invite
+License:                 SIL Open Font License http://scripts.sil.org/OFL
+Created by:              Sheldon B. Michaels
+SVG font conversion by:  Windell H. Oskay
+A derivative of:         Tangerine
+Designer:                Toshi Omagari
+Link:                    http://tosche.net/about
+Google font page:        https://fonts.google.com/specimen/Tangerine
+
+flourish — EMSQwandry
+Font name:               EMS Qwandry
+License:                 SIL Open Font License http://scripts.sil.org/OFL
+Created by:              Sheldon B. Michaels
+SVG font conversion by:  Windell H. Oskay
+A derivative of:         Qwigley
+Designer:                Rob Leuschke, TypeSETit
+Link:                    http://www.typesetit.com
+Google font page:        https://fonts.google.com/specimen/Qwigley
+
+terrace — EMSDelight
+Font name:               EMS Delight
+License:                 SIL Open Font License http://scripts.sil.org/OFL
+Created by:              Sheldon B. Michaels
+SVG font conversion by:  Windell H. Oskay
+A derivative of:         Delius
+Designer:                Natalia Raices
+Google font page:        https://fonts.google.com/specimen/Delius
+
+notebook — EMSCasualHand
+Font name:               EMS Casual Hand
+License:                 SIL Open Font License http://scripts.sil.org/OFL
+Created by:              Sheldon B. Michaels
+SVG font conversion by:  Windell H. Oskay
+A derivative of:         Covered By Your Grace
+Designer:                Kimberly Geswein, Kimberly Geswein Fonts
+Link:                    http://www.kimberlygeswein.com/
+Google font page:        https://fonts.google.com/specimen/Covered+By+Your+Grace
+
+slab — EMSNixish
+Font name:               EMS Nixish
+License:                 SIL Open Font License http://scripts.sil.org/OFL
+Created by:              Sheldon B. Michaels
+SVG font conversion by:  Windell H. Oskay
+A derivative of:         Nixie One
+Designer:                Jovanny Lemonad
+Link:                    http://jovanny.ru
+Google font page:        https://fonts.google.com/specimen/Nixie+One
+
+architect — EMSTech
+Font name:               EMS Tech
+License:                 SIL Open Font License http://scripts.sil.org/OFL
+Created by:              Sheldon B. Michaels
+SVG font conversion by:  Windell H. Oskay
+A derivative of:         Architects Daughter
+Designer:                Kimberly Geswein, Kimberly Geswein Fonts
+Link:                    http://www.kimberlygeswein.com/
+Google font page:        https://fonts.google.com/specimen/Architects+Daughter
+
+festival — EMSLittlePrincess
+Font name:               EMS Little Princess
+License:                 SIL Open Font License http://scripts.sil.org/OFL
+Created by:              Sheldon B. Michaels
+SVG font conversion by:  Windell H. Oskay
+A derivative of:         Princess Sofia
+Designer:                Crystal Kluge, Tart Workshop
+Link:                    http://www.tartworkshop.com
+Google font page:        https://fonts.google.com/specimen/Princess+Sofia
+
+parlour — EMSFelix
+Font name:               EMS Felix
+License:                 SIL Open Font License http://scripts.sil.org/OFL
+Created by:              Sheldon B. Michaels
+SVG font conversion by:  Windell H. Oskay
+A derivative of:         Felipa
+Designer:                Fontstage
+Link:                    https://twitter.com/fontstage
+Google font page:        https://fonts.google.com/specimen/Felipa
+
+boardwalk — EMSPancakes
+Font name:               EMS Pancakes
+License:                 SIL Open Font License http://scripts.sil.org/OFL
+Created by:              Sheldon B. Michaels
+SVG font conversion by:  Windell H. Oskay
+A derivative of:         Short Stack
+Designer:                James Grieshaber, Typeco
+Link:                    http://www.typeco.com
+Google font page:        https://fonts.google.com/specimen/Short+Stack
+
+The additional EMS resources originate from the same pinned SVG distribution above. Original copyright notices and license texts are in Additional-OFL.txt.

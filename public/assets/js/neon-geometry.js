@@ -4,10 +4,25 @@
 
   const TUBE = 6;
   const fonts = [
-    {id:'signature', label:'Signature'}, {id:'studio', label:'Studio Sans'},
-    {id:'capitol', label:'Capitol Script'}, {id:'hand', label:'Handwritten'},
-    {id:'deco', label:'Art Deco'}, {id:'orbit', label:'Orbit'},
-    {id:'aegean', label:'Aegean Greek'}
+    {id:'signature', label:'Signature', category:'Script'},
+    {id:'atelier', label:'Atelier Brush', category:'Script'},
+    {id:'velvet', label:'Velvet Script', category:'Script'},
+    {id:'gala', label:'Gala Script', category:'Script'},
+    {id:'invitation', label:'Invitation', category:'Script'},
+    {id:'flourish', label:'Flourish', category:'Script'},
+    {id:'capitol', label:'Capitol Script', category:'Script'},
+    {id:'hand', label:'Handwritten', category:'Handwritten'},
+    {id:'terrace', label:'Terrace Hand', category:'Handwritten'},
+    {id:'notebook', label:'Notebook', category:'Handwritten'},
+    {id:'architect', label:'Architect', category:'Handwritten'},
+    {id:'boardwalk', label:'Boardwalk', category:'Handwritten'},
+    {id:'festival', label:'Festival', category:'Display'},
+    {id:'parlour', label:'Parlour', category:'Display'},
+    {id:'deco', label:'Art Deco', category:'Display'},
+    {id:'orbit', label:'Orbit', category:'Display'},
+    {id:'slab', label:'Marquee Slab', category:'Serif'},
+    {id:'studio', label:'Studio Sans', category:'Sans'},
+    {id:'aegean', label:'Aegean Greek', category:'Sans', sample:'Καλημέρα'}
   ];
   const parsed = new Map();
   const kernMaps = new Map();
@@ -76,47 +91,115 @@
     box.bottom = Math.min(box.bottom, y); box.top = Math.max(box.top, y);
   }
 
-  // The plotted script faces sample pen curves as short chords. Interpolate
-  // their shallow turns through the original points. Keep deliberate corners,
-  // pen lifts and stroke endpoints, and limit handles beside short segments.
-  function interpolatedScript(commands) {
+  // Sampled centreline fonts use chords between pen positions. Fit a cubic
+  // through each smooth span in font coordinates. Tangents agree at internal
+  // splits; genuine corners end the span and keep their own incoming/outgoing
+  // direction. The original endpoints and pen lifts remain authoritative.
+  function smoothPenPaths(commands, em) {
     const result = [];
-    let points = [];
-    function finish() {
-      if (!points.length) return;
-      result.push(['M', ...points[0]]);
-      const last = points.length - 1;
-      const closed = last > 2 && distance(points[0], points[last]) < 1e-7;
-      function handle(i, neighbour) {
-        const p = points[i], edge = points[neighbour];
-        const before = i > 0 ? points[i-1] : closed ? points[last-1] : null;
-        const after = i < last ? points[i+1] : closed ? points[1] : null;
-        const straight = [p[0] + (edge[0]-p[0])/3, p[1] + (edge[1]-p[1])/3];
-        if (!before || !after) return straight;
-        const a = distance(before, p), b = distance(p, after);
-        const inX = (p[0]-before[0])/a, inY = (p[1]-before[1])/a;
-        const outX = (after[0]-p[0])/b, outY = (after[1]-p[1])/b;
-        const cosine = inX*outX + inY*outY;
-        if (cosine < 0.26 || cosine > 0.99999) return straight;
-        const tx = inX+outX, ty = inY+outY;
-        const reach = Math.min(distance(p,edge), 2*Math.min(a,b)) / (3*Math.hypot(tx,ty));
-        const k = neighbour > i ? reach : -reach;
-        return [p[0]+tx*k, p[1]+ty*k];
+    const tolerance = em * 0.003;
+    const direction = (p, q) => {
+      const length = distance(p, q);
+      return length ? [(q[0] - p[0]) / length, (q[1] - p[1]) / length] : [0, 0];
+    };
+    const dot = (a, b) => a[0]*b[0] + a[1]*b[1];
+    const moved = (p, v, k) => [p[0] + v[0]*k, p[1] + v[1]*k];
+    function fit(points) {
+      if (points.length < 2) return;
+      const end = points.length - 1;
+      const closed = end > 2 && distance(points[0], points[end]) < 1e-7;
+      const edges = [], cumulative = [0];
+      for (let i = 0; i < end; i++) {
+        edges.push(direction(points[i], points[i+1]));
+        cumulative.push(cumulative[i] + distance(points[i], points[i+1]));
       }
-      for (let i = 1; i <= last; i++) {
-        const p = points[i-1], q = points[i];
-        const a = handle(i-1, i), b = handle(i, i-1);
-        const cross = r => (q[0]-p[0])*(r[1]-p[1]) - (q[1]-p[1])*(r[0]-p[0]);
-        if (Math.abs(cross(a)) + Math.abs(cross(b)) < 1e-7) result.push(['L', ...q]);
-        else result.push(['C', ...a, ...b, ...q]);
+      function incoming(i) { return edges[i > 0 ? i-1 : end-1]; }
+      function outgoing(i) { return edges[i < end ? i : 0]; }
+      function corner(i) {
+        if (!closed && (i === 0 || i === end)) return true;
+        const a = incoming(i), b = outgoing(i), turn = dot(a,b);
+        if (turn < 0.04) return true;
+        // Protect V, W, diagonals and right-angled display lettering. A gentle
+        // arc may cross the angle threshold at coarse, widely spaced samples.
+        const pre = i > 1 ? edges[i-2] : closed ? edges[(i-2+end)%end] : null;
+        const post = i+1 < end ? edges[i+1] : closed ? edges[(i+1)%end] : null;
+        const longA = distance(points[i],points[i === 0 ? end-1 : i-1]) > em*.055;
+        const longB = distance(points[i],points[i === end ? 1 : i+1]) > em*.055;
+        return turn < 0.78 && (longA || longB) && (!pre || dot(pre,a)>.987) && (!post || dot(b,post)>.987);
       }
-      points = [];
+      function tangent(i) {
+        const a = incoming(i), b = outgoing(i);
+        return direction([0,0],[a[0]+b[0],a[1]+b[1]]);
+      }
+      function segment(first, last, startTangent, endTangent) {
+        const p = points[first], q = points[last], baseline = distance(p,q);
+        if (!baseline && last-first>1) {
+          const mid = (first+last)>>1;
+          const join = tangent(mid);
+          segment(first,mid,startTangent,join);
+          segment(mid,last,join,endTangent);
+          return;
+        }
+        const chord = direction(p,q);
+        const exactLine = dot(startTangent,chord)>.99999 && dot(endTangent,chord)>.99999 &&
+          points.slice(first+1,last).every(v => Math.abs((v[1]-p[1])*chord[0] - (v[0]-p[0])*chord[1])<.01);
+        if (exactLine) { result.push(['L', ...q]); return; }
+        const span = cumulative[last] - cumulative[first];
+        const tAt = i => (cumulative[i]-cumulative[first])/span;
+        let aa=0, ab=0, bb=0, ar=0, br=0;
+        for (let i=first+1;i<last;i++) {
+          const t=tAt(i), u=1-t, b1=3*u*u*t, b2=3*u*t*t;
+          const a=moved([0,0],startTangent,b1), b=moved([0,0],endTangent,-b2);
+          const residual = [
+            points[i][0] - ((u*u*u+b1)*p[0] + (t*t*t+b2)*q[0]),
+            points[i][1] - ((u*u*u+b1)*p[1] + (t*t*t+b2)*q[1])
+          ];
+          aa+=dot(a,a); ab+=dot(a,b); bb+=dot(b,b); ar+=dot(a,residual); br+=dot(b,residual);
+        }
+        const det=aa*bb-ab*ab;
+        let left=span/3, right=span/3;
+        if (det>1e-10) {
+          const l=(ar*bb-br*ab)/det, r=(aa*br-ab*ar)/det;
+          if (l>0 && r>0 && l<span*.85 && r<span*.85) { left=l; right=r; }
+        }
+        const a=moved(p,startTangent,left), b=moved(q,endTangent,-right);
+        let worst=tolerance, split=-1;
+        for (let i=first+1;i<last;i++) {
+          const t=tAt(i);
+          const error=distance(points[i],[cubicAt(p[0],a[0],b[0],q[0],t),cubicAt(p[1],a[1],b[1],q[1],t)]);
+          if (error>worst) { worst=error; split=i; }
+        }
+        if (split>=0) {
+          const join=tangent(split);
+          segment(first,split,startTangent,join);
+          segment(split,last,join,endTangent);
+        } else {
+          result.push(['C',...a,...b,...q]);
+        }
+      }
+      let first=0;
+      for (let i=1;i<=end;i++) {
+        if (i<end && !corner(i)) continue;
+        segment(first,i,corner(first) ? outgoing(first) : tangent(first),corner(i) ? incoming(i) : tangent(i));
+        first=i;
+      }
     }
-    // Curves supplied by the type designer take precedence over interpolation.
-    if (commands.some(c => c[0] === 'C')) return commands;
-    for (const [op, x, y] of commands) {
-      if (op === 'M') finish();
-      if (!points.length || distance(points.at(-1), [x,y]) > 1e-7) points.push([x,y]);
+    let run = [];
+    function finish() {
+      if (!run.length) return;
+      // Preserve native Béziers exactly, including their straight tangents.
+      // An accent with authored curves should not prevent smoothing the base.
+      if (run.some(c => c[0] === 'C')) { result.push(...run); return; }
+      result.push(run[0]);
+      const points=[];
+      for (const [,x,y] of run) {
+        if (!points.length || distance(points.at(-1),[x,y])>1e-7) points.push([x,y]);
+      }
+      fit(points);
+    }
+    for (const command of commands) {
+      if (command[0]==='M') { finish(); run=[]; }
+      run.push(command);
     }
     finish();
     return result;
@@ -144,7 +227,7 @@
     if (parsed.has(cacheKey)) return parsed.get(cacheKey);
     let commands = readPath(glyph[1]);
     if (fontId === 'studio') commands = cleanStudioTerminals(commands);
-    if (['signature','capitol','hand'].includes(fontId)) commands = interpolatedScript(commands);
+    if (fontId !== 'studio' && fontId !== 'atelier' && fontId !== 'orbit') commands = smoothPenPaths(commands, globalThis.NeonStrokeFonts[fontId].em);
     const box = emptyBounds();
     let x = 0, y = 0;
     for (const c of commands) {
