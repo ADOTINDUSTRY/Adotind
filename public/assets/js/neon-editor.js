@@ -325,9 +325,6 @@
       canvas.append(useTube({stroke: color, opacity: brightness * .9, filter: 'url(#neon-bloom)'}));
     }
     canvas.append(useTube({stroke: design.power ? color : design.cover, opacity: lit ? .46 + design.brightness / 185 : 1}));
-    // Highlight sits within the silicone tube. It is excluded from production SVGs.
-    if (lit) canvas.append(svg('path', {d, fill: 'none', stroke: '#fff7f6', 'stroke-width': 1.5,
-      'stroke-linecap': 'round', 'stroke-linejoin': 'round', opacity: design.brightness / 150}));
     const measure = svg('g', {stroke: technical ? '#526371' : '#d2dadf', 'stroke-width': Math.max(.5, chartSize * .065), fill: 'none', opacity: .85});
     const offset = dimOffset + mountBottom, tick = chartSize * .33, side = w + dimOffset;
     measure.append(svg('path', {d: 'M0 ' + offset + 'h' + w + ' M0 ' + (offset - tick) + 'v' + (2 * tick) +
