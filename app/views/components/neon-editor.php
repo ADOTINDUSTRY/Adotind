@@ -69,7 +69,6 @@ $neonIcon = static function (string $key) use ($neonIcons): string {
         <div><dt>12 V strip · rated load (7.2 W/m, 120 LEDs/m)</dt><dd data-neon-output="electrical">—</dd></div>
         <div><dt>Tube length</dt><dd data-neon-output="length">—</dd></div>
       </dl>
-      <button class="neon-cut-resize" type="button" data-neon-action="use-cut-width" hidden></button>
       <p class="neon-warning" data-neon-output="warnings" role="status"></p>
       <div class="neon-proof-actions">
         <label class="neon-wall-picker"><?= $neonIcon('open') ?> Try your wall
@@ -160,7 +159,7 @@ $neonIcon = static function (string $key) use ($neonIcons): string {
             <label>Your name<input name="customer_name" autocomplete="name" required maxlength="120"></label>
             <label>Email<input name="email" type="email" autocomplete="email" required maxlength="254"></label>
             <label>Project notes (optional)<textarea name="message" rows="2" maxlength="2000"></textarea></label>
-            <button type="submit" data-neon-submit disabled>Request a shop review</button>
+            <button type="submit" data-neon-submit disabled>Request a shop quote</button>
             <p role="status" data-neon-response></p>
           </form>
         </details>

@@ -20,7 +20,6 @@
   const fileInput = root.querySelector('[data-neon-import]');
   const spec = root.querySelector('[data-neon-spec]');
   const requestIntent = root.querySelector('input[name="intent"]');
-  const resizeButton = root.querySelector('[data-neon-action="use-cut-width"]');
   const submit = root.querySelector('[data-neon-submit]');
   const outputs = new Map();
   for (const node of root.querySelectorAll('[data-neon-output]')) {
@@ -44,7 +43,7 @@
   }
   const minWidth = Number.isFinite(shop.minWidth) ? Math.max(100, shop.minWidth) : 100;
   const maxWidth = Number.isFinite(shop.maxWidth) ? Math.min(3000, shop.maxWidth) : 3000;
-  if (!canvas || typeof engine?.cutLayout !== 'function' || !engine.fonts.length) {
+  if (!canvas || typeof engine?.layout !== 'function' || !engine.fonts.length) {
     output('warnings', 'The lettering engine could not load. Refresh the page to try again.');
     if (submit) submit.disabled = true;
     return;
@@ -82,7 +81,6 @@
   let geometryKey;
   let paintedBoardKey;
   let paintedBoard;
-  let fitWidth;
   let currentSampleKey;
   let compatibleFonts = fonts;
   let pendingImport;
@@ -367,11 +365,6 @@
     buttonState('zoom-out', zoom <= minZoom());
   }
   const clampZoom = value => Math.min(maxZoom, Math.max(minZoom(), value));
-  function renderCutPlan(plan) {
-    fitWidth = plan?.suggestedWidthMm;
-    resizeButton.hidden = !Number.isFinite(fitWidth);
-    if (!resizeButton.hidden) resizeButton.textContent = 'Fit at ' + cutMeasure.format(fitWidth) + ' mm wide';
-  }
   function render() {
     const longestLine = Math.max(0,...design.text.normalize('NFC').split('\n').map(line=>Array.from(line.replace(/\s/gu,'')).length));
     const requiredWidth = Math.max(minWidth, longestLine*(shop.mmPerCharacter ?? 100));
@@ -385,9 +378,8 @@
     }
     const nextKey = JSON.stringify([design.text, design.font, design.widthMm, design.align, design.letterSpacing, design.lineSpacing]);
     if (nextKey !== geometryKey) {
-      geometry = engine.cutLayout(design, {minWidth:requiredWidth, maxWidth});
+      geometry = engine.layout(design);
       geometryKey = nextKey;
-      renderCutPlan(geometry.cutPlan);
       renderFontSummary();
     }
     root.dataset.scene = design.scene;
@@ -430,16 +422,9 @@
     output('letterSpacing', design.letterSpacing.toFixed(2) + ' em');
     output('lineSpacing', design.lineSpacing.toFixed(2) + '×');
     const structuralError = sizeError || projectError(design);
-    const plan = geometry.cutPlan;
-    const warnings = [...new Set([structuralError, ...(geometry.errors || []), ...(geometry.warnings || [])]
-      .filter(message => message && (!plan?.pieces.length || message !== plan.error)))];
-    const reviewable = !structuralError && Boolean(plan?.pieces.length) && geometry.paths.length > 0 &&
-      fields.every(field => field.type !== 'number' || (field.value !== '' && field.validity.valid));
-    const ready = reviewable && geometry.valid && plan.ready;
-    const cutMessage = ready && plan.pieces.some(piece=>piece.adjusted)
-      ? 'Strokes fitted to 25 mm cut marks. The preview shows the corrected paths.'
-      : !structuralError && plan?.pieces.length && !plan.ready ? 'This size needs shop review before cutting.' : '';
-    const warningText = [...warnings, cutMessage].filter(Boolean).join(' ');
+    const ready = !structuralError && geometry.valid && fields.every(field =>
+      field.type !== 'number' || field.disabled || (field.value !== '' && field.validity.valid));
+    const warningText = [...new Set([structuralError, ...geometry.errors, ...geometry.warnings].filter(Boolean))].join(' ');
     output('warnings', warningText);
     output('warning', warningText);
     root.dataset.neonValid = String(ready);
@@ -448,21 +433,21 @@
     output('width', hasPaths ? mm(w) : '—');
     output('height', hasPaths ? mm(h) : '—');
     output('size', hasPaths ? mm(w) + ' × ' + mm(h) : '—');
-    const metres = (ready ? plan.totalCutMm : geometry.lengthMm) / 1000;
-    output('electrical', hasPaths ? (ready?'':'≈ ') + (metres*7.2).toFixed(1)+' W · '+(metres*.6).toFixed(2)+' A · '+Math.round(metres*120)+' LEDs' : '—');
-    output('length', hasPaths ? mm(ready ? plan.totalCutMm : geometry.lengthMm) : '—');
+    const metres = (geometry.lengthMm) / 1000;
+    output('electrical', hasPaths ? '≈ ' + (metres*7.2).toFixed(1)+' W · '+(metres*.6).toFixed(2)+' A · '+Math.round(metres*120)+' LEDs' : '—');
+    output('length', hasPaths ? mm(geometry.lengthMm) : '—');
     output('runs', String(geometry.paths.length));
     output('strokes', String(geometry.paths.length));
-    if (spec) spec.value = reviewable ? JSON.stringify(design) : '';
-    const intent = ready ? 'production' : 'review';
+    if (spec) spec.value = ready ? JSON.stringify(design) : '';
+    const intent = 'production';
     if (requestIntent) requestIntent.value = intent;
-    if (submit) submit.disabled = !reviewable;
+    if (submit) submit.disabled = !ready;
     for (const action of ['export', 'export-svg', 'export-dxf']) buttonState(action, !ready);
     buttonState('undo', !past.length);
     buttonState('redo', !future.length);
     paint();
     root.dispatchEvent(new CustomEvent('neon:design', {bubbles: true,
-      detail: {spec: reviewable ? {...design} : null, intent, lengthMm: ready ? plan.totalCutMm : geometry.lengthMm}}));
+      detail: {spec: ready ? {...design} : null, intent, lengthMm: geometry.lengthMm}}));
   }
   function edit(key, input, group) {
     if (!(key in defaults) || key === 'version') return;
@@ -581,10 +566,6 @@
       }
     }
     if (action === 'browse-fonts') browseFonts();
-    if (action === 'use-cut-width' && Number.isFinite(fitWidth)) {
-      changed('widthMm', fitWidth, false);
-      root.querySelector('#neon-width').focus({preventScroll: true});
-    }
     if (action === 'close-fonts') fontDialog.close();
     if (action === 'previous-font' || action === 'next-font') cycleFont(action === 'previous-font' ? -1 : 1);
     if (action === 'match-font' && compatibleFonts.length) changed('font', compatibleFonts[0].id, false);

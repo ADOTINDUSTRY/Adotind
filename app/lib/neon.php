@@ -147,7 +147,7 @@ function neon_handle_request(): never
     try {
         $shop = neon_settings($db);
         if ($shop['edition'] !== ($_POST['edition'] ?? '') || (string)$shop['revision'] !== ($_POST['revision'] ?? '')) {
-            neon_reply(409, ['error'=>'The designer or shop settings changed. Save your design, reload and check the strip cuts before sending.']);
+            neon_reply(409, ['error'=>'The designer or shop settings changed. Save your design, reload and review it before sending.']);
         }
         $proof = neon_measure($design, $intent);
         if (isset($proof['error'])) neon_reply(422, ['error'=>$proof['error']]);
@@ -180,10 +180,6 @@ function neon_handle_request(): never
         $saved = $existing->fetch();
         $existing->closeCursor();
         $id = (int)$saved['id'];
-        if ($fresh) {
-            $cut = $db->prepare('INSERT INTO request_cut_plans(request_id,cut_ready,plan) VALUES(?,?,?)');
-            $cut->execute([$id,(int)$proof['cutPlan']['ready'],json_encode($proof['cutPlan'], JSON_THROW_ON_ERROR)]);
-        }
         $reviewOnly = $fresh ? $proof['reviewOnly'] : (string)$saved['cut_ready'] === '0';
         $db->exec('COMMIT');
     } catch (Throwable $e) {

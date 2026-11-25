@@ -52,7 +52,7 @@
     const production = intent === 'production';
     valid = Boolean(spec) && (intent === 'review' || (production && Number.isFinite(lengthMm) && lengthMm > 0));
     requestLabel.textContent = production ? 'Request a shop quote' : 'Request a shop review';
-    submit.textContent = production ? 'Send cut-ready design' : 'Request a shop review';
+    submit.textContent = production ? 'Send design for quote' : 'Request a shop review';
     const rates = shop.rates;
     let label = valid ? (production ? 'Shop quote on request' : 'Price after shop review') : 'Complete your lettering to request a quote';
     if (valid && production && rates && [rates.base, rates.perMetre, rates[spec.backing], rates[spec.mount]].every(value => Number.isSafeInteger(value) && value >= 0)) {

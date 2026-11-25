@@ -50,28 +50,11 @@ function measure(input, intent = 'production') {
     if (!Number.isFinite(value) || value < min || value > max) return {error: 'Choose a value within the control limits.'};
     design[key] = value;
   }
-  const proof = geometry.cutLayout(design, {suggestions: false});
-  if (!proof.cutPlan) return {error: proof.errors[0] || 'Check the lettering before sending.'};
-  const cutPlan = proof.cutPlan;
-  if (!cutPlan.ready && intent === 'production') {
-    return {error: 'Each separate LED strip must fit a whole number of 25 mm sections. Change the design or request a shop review.'};
-  }
-  if (cutPlan.ready && intent === 'review') {
-    return {error: 'This design fits the strip cuts. Review the current design and submit it from the editor.'};
-  }
-  if (!cutPlan.ready) {
-    const artwork = proof.paths.length ? Object.assign(proof, {valid:true}) : geometry.layout(design);
-    if (!artwork.valid) return {error: artwork.errors[0]};
-    // Shop enquiries keep a visual reference. Only a verified production plan
-    // receives a machine file or a cutting layer.
-    const svg = geometry.svg(artwork, {...design, reviewOnly: true});
-    return {reviewOnly: true, cutPlan, design, widthMm: artwork.widthMm, heightMm: artwork.heightMm,
-      lengthMm: artwork.lengthMm, warnings: artwork.warnings, svg, dxf: ''};
-  }
-  if (!proof.valid) return {error: proof.errors[0] || 'The cutting geometry could not be verified.'};
+  const proof = geometry.layout(design);
+  if (!proof.valid) return {error: proof.errors[0] || 'Check the lettering before sending.'};
   return {
-    reviewOnly: false, cutPlan, design, widthMm: proof.widthMm, heightMm: proof.heightMm, lengthMm: cutPlan.totalCutMm,
-    warnings: proof.warnings, svg: geometry.svg(proof, design), dxf: geometry.dxf(proof,design),
+    reviewOnly: false, design, widthMm: proof.widthMm, heightMm: proof.heightMm, lengthMm: proof.lengthMm,
+    warnings: proof.warnings, svg: geometry.svg(proof, design), dxf: geometry.dxf(proof, design),
   };
 }
 
