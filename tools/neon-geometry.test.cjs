@@ -412,3 +412,11 @@ test('Hello across two lines exports original strokes at non-multiple lengths', 
   assert.equal(proof.dxf,geometry.dxf(drawing,spec));
   assert.ok(Math.abs(proof.lengthMm/25-Math.round(proof.lengthMm/25))>.001);
 });
+
+test('dot marks export as open strokes throughout the neon font catalogue', () => {
+  for (const font of geometry.fonts) {
+    const sign=geometry.layout({...design,font:font.id,text:'I. : ! ? i j I',widthMm:1400});
+    assert.ok(sign.valid,font.id);
+    assert.ok(polylines(geometry.dxf(sign)).every(path=>!path.closed),font.id);
+  }
+});

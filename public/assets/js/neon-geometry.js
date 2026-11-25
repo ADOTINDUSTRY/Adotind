@@ -361,11 +361,44 @@
     return output;
   }
 
+  function simplifyDots(commands, character, em) {
+    const parts = [];
+    for (const command of commands) {
+      if (command[0] === 'M') parts.push([]);
+      parts.at(-1).push(command);
+    }
+    const decomposed = character.normalize('NFD');
+    const letterDot = /^[ij]$/u.test(character) || /[\u0307\u0308]/u.test(decomposed);
+    const punctuation = /^[.!?:;…]$/u.test(character);
+    if (!letterDot && !punctuation) return commands;
+    const bounds = parts.map(part => {
+      const box = emptyBounds();
+      for (const command of part) {
+        for (let i=1;i<command.length;i+=2) include(box,command[i],command[i+1]);
+      }
+      return box;
+    });
+    const base = Math.min(...bounds.map(box=>box.bottom));
+    const crown = Math.max(...bounds.map(box=>box.top));
+    return parts.flatMap((part,index)=>{
+      const {left,right,bottom,top}=bounds[index];
+      const width=right-left,height=top-bottom;
+      if (part.length<3 || Math.max(width,height)>em*.19 || Math.max(width,height)===0) return part;
+      if (letterDot && (parts.length<2 || bottom<base+(crown-base)*.58)) return part;
+      if (/[!?;]/u.test(character) && (parts.length<2 || top>base+(crown-base)*.34)) return part;
+      const x=(left+right)/2,y=(bottom+top)/2;
+      // Retain the dot's original vertical extent and give the tool a single open stroke.
+      if (height>=width*.65) return [['M',x,bottom],['L',x,top]];
+      return [['M',left,y],['L',right,y]];
+    });
+  }
+
   function glyphGeometry(fontId, ch, glyph) {
     const cacheKey = fontId + ch;
     if (parsed.has(cacheKey)) return parsed.get(cacheKey);
     let commands = readPath(glyph[1]);
     if (fontId === 'studio') commands = cleanStudioTerminals(commands);
+    commands = simplifyDots(commands, ch, globalThis.NeonStrokeFonts[fontId].em);
     if (fontId !== 'orbit') commands = smoothPenPaths(commands, globalThis.NeonStrokeFonts[fontId].em);
     const box = emptyBounds();
     let x = 0, y = 0;
