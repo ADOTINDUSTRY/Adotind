@@ -429,3 +429,15 @@ test('a two-colour neon proof saves both colours and retains the same cutting ge
   assert.equal(mixed.dxf,measure(draft).dxf);
   assert.ok(measure({...draft,cover:'#ff488d',lineColors:['#68c7ff']}).error);
 });
+test('finished acrylic controls pricing tiers and the 3 by 2 metre limit', () => {
+  const spec={...design,text:'Hello',boardShape:'rectangle'};
+  for (const [width,tier] of [[1156,120],[1157,240],[2356,240],[2357,300],[2956,300]]) {
+    const proof=measure({...spec,widthMm:width});
+    assert.equal(proof.finished.widthMm,width+44);
+    assert.equal(proof.finished.tier,tier);
+    assert.ok(proof.finished.areaMm2>0);
+  }
+  assert.match(measure({...spec,widthMm:2957}).error,/3,000 × 2,000/);
+  const high=geometry.finishedSize({widthMm:1000,heightMm:2001},null,spec);
+  assert.equal(high.withinLimit,false);
+});

@@ -286,6 +286,14 @@
     const next = index < 0 ? 0 : (index + direction + compatibleFonts.length) % compatibleFonts.length;
     changed('font', compatibleFonts[next].id, false);
   }
+  function currentBoard() {
+    const boardKey = JSON.stringify([geometryKey, design.backing, design.boardShape, design.boardGap, design.mount]);
+    if (boardKey !== paintedBoardKey) {
+      paintedBoard = engine.backboard(geometry, design);
+      paintedBoardKey = boardKey;
+    }
+    return paintedBoard;
+  }
   // Reuse one vector path for the shadow, halo, and physical 6 mm tube.
   function paint() {
     const w = geometry.widthMm, h = geometry.heightMm;
@@ -297,14 +305,8 @@
     const technical = !wallURL && design.scene === 'drawing';
     const lit = design.power && !technical;
     const color = design.color;
-    const boardKey = JSON.stringify([geometryKey, design.backing, design.boardShape, design.boardGap, design.mount]);
-    if (boardKey !== paintedBoardKey) {
-      paintedBoard = engine.backboard(geometry, design);
-      paintedBoardKey = boardKey;
-    }
-    const board = paintedBoard;
+    const board = currentBoard();
     const padding = board?.pad ?? 22;
-    const bw = w + padding * 2, bh = h + padding * 2;
     const chartSize = Math.max(w / 52, h / 33, 6);
     const dimOffset = padding + chartSize * 2.4;
     const mountTop = design.backing !== 'none' && design.mount === 'suspended' ? Math.max(45, h * .21) : 0;
@@ -355,14 +357,16 @@
       } else canvas.append(path());
     }
     const measure = svg('g', {stroke: technical ? '#526371' : '#d2dadf', 'stroke-width': Math.max(.5, chartSize * .065), fill: 'none', opacity: .85});
-    const offset = dimOffset + mountBottom, tick = chartSize * .33, side = w + dimOffset;
-    measure.append(svg('path', {d: 'M0 ' + offset + 'h' + w + ' M0 ' + (offset - tick) + 'v' + (2 * tick) +
-      ' M' + w + ' ' + (offset - tick) + 'v' + (2 * tick), transform: 'translate(0 ' + h + ')'}));
-    measure.append(svg('path', {d: 'M' + side + ' 0v' + h + ' M' + (side - tick) + ' 0h' + (2 * tick) +
-      ' M' + (side - tick) + ' ' + h + 'h' + (2 * tick)}));
-    const type = {fill: technical ? '#364958' : '#e2e7ea', 'text-anchor': 'middle', 'font-family': 'system-ui,sans-serif', 'font-size': chartSize};
-    canvas.append(measure, svg('text', {...type, x: w / 2, y: h + offset + chartSize * 1.2}, mm(w)),
-      svg('text', {...type, transform: 'translate(' + (side + chartSize * 1.2) + ' ' + (h / 2) + ') rotate(-90)'}, mm(h)));
+    const size = engine.finishedSize(geometry,board,design);
+    const axisLabel=board ? 'Acrylic ' : '';
+    const tick=chartSize*.33, axisY=h+dimOffset+mountBottom, axisX=w+dimOffset;
+    measure.append(svg('path',{d:'M'+size.left+' '+axisY+'H'+size.right+' M'+axisX+' '+size.top+'V'+size.bottom}));
+    for (const x of [size.left,size.right]) measure.append(svg('path',{d:'M'+x+' '+(axisY-tick)+'v'+(2*tick)}));
+    for (const y of [size.top,size.bottom]) measure.append(svg('path',{d:'M'+(axisX-tick)+' '+y+'h'+(2*tick)}));
+    const type={fill:technical?'#364958':'#e2e7ea','text-anchor':'middle','font-family':'system-ui,sans-serif','font-size':chartSize};
+    canvas.append(measure,svg('text',{...type,x:(size.left+size.right)/2,y:axisY+chartSize*1.2},axisLabel+mm(size.widthMm)),
+      svg('text',{...type,transform:'translate('+(axisX+chartSize*1.2)+' '+((size.top+size.bottom)/2)+') rotate(-90)'},axisLabel+mm(size.heightMm)));
+
   }
   function camera() {
     if (!frame) return;
@@ -447,7 +451,11 @@
     output('spacing', design.letterSpacing.toFixed(2) + ' em');
     output('letterSpacing', design.letterSpacing.toFixed(2) + ' em');
     output('lineSpacing', design.lineSpacing.toFixed(2) + '×');
-    const structuralError = sizeError || projectError(design);
+    const board = geometry.valid ? currentBoard() : null;
+    const finished = geometry.valid ? engine.finishedSize(geometry,board,design) : null;
+    const limitError = finished && !finished.withinLimit ? 'The finished sign must fit within 3,000 × 2,000 mm. Reduce the lettering size or acrylic gap.' : '';
+    const structuralError = sizeError || limitError || projectError(design);
+    output('acrylic-size',board ? mm(finished.widthMm)+' × '+mm(finished.heightMm) : '—');
     const ready = !structuralError && geometry.valid && fields.every(field =>
       field.type !== 'number' || field.disabled || (field.value !== '' && field.validity.valid));
     const warningText = [...new Set([structuralError, ...geometry.errors, ...geometry.warnings].filter(Boolean))].join(' ');
@@ -473,7 +481,7 @@
     buttonState('redo', !future.length);
     paint();
     root.dispatchEvent(new CustomEvent('neon:design', {bubbles: true,
-      detail: {spec: ready ? {...design} : null, intent, lengthMm: geometry.lengthMm}}));
+      detail: {spec: ready ? {...design} : null, intent, finished, lengthMm: geometry.lengthMm}}));
   }
   function edit(key, input, group) {
     if (!(key in defaults) || key === 'version') return;

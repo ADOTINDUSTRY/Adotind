@@ -65,6 +65,7 @@ $neonIcon = static function (string $key) use ($neonIcons): string {
       </div>
       <dl class="neon-measurements">
         <div><dt>Lettering size</dt><dd data-neon-output="size">—</dd></div>
+        <div><dt>Finished acrylic size</dt><dd data-neon-output="acrylic-size">—</dd></div>
         <div><dt>Tube width</dt><dd>6 mm</dd></div>
         <div><dt>12 V strip · rated load (7.2 W/m, 120 LEDs/m)</dt><dd data-neon-output="electrical">—</dd></div>
         <div><dt>Tube length</dt><dd data-neon-output="length">—</dd></div>
@@ -166,6 +167,10 @@ $neonIcon = static function (string $key) use ($neonIcons): string {
           <form method="post" action="/online-quote/neon-request" data-neon-quote-form data-private>
             <input type="hidden" name="csrf_token" value="<?= e(csrf_token()) ?>">
             <input type="hidden" name="request_id" value="<?= bin2hex(random_bytes(16)) ?>">
+            <label>Fulfilment<select name="delivery" data-neon-delivery>
+              <option value="pickup">Pickup</option>
+              <option value="delivery" hidden disabled>Delivery</option>
+            </select></label>
             <input type="hidden" name="design" data-neon-spec>
             <input type="hidden" name="intent" value="review">
             <label>Your name<input name="customer_name" autocomplete="name" required maxlength="120"></label>

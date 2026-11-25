@@ -126,6 +126,8 @@ function neon_handle_request(): never
     $design = $_POST['design'];
     $intent = $_POST['intent'] ?? 'production';
     if (!in_array($intent, ['production','review'], true)) neon_reply(422, ['error'=>'Choose a valid request type.']);
+    $delivery = $_POST['delivery'] ?? 'pickup';
+    if (!in_array($delivery, ['pickup','delivery'], true)) neon_reply(422, ['error'=>'Choose pickup or the delivery option.']);
     $name = trim($_POST['customer_name']);
     $email = trim($_POST['email']);
     $message = trim($_POST['message']);
@@ -164,13 +166,24 @@ function neon_handle_request(): never
             $db->exec('ROLLBACK');
             neon_reply(409, ['error'=>'Shop options or pricing changed. Download your design, then reload and review it before sending.']);
         }
+        $finished = $proof['finished'];
+        $tier = $finished['tier'];
         $rates = $shop['rates'];
-        $breakdown = ($proof['reviewOnly'] || $rates === null) ? null : [
-            'perMetre'=>$rates['perMetre'], 'base'=>$rates['base'],
-            'tube'=>(int)round(round($proof['lengthMm']) * $rates['perMetre'] / 1000),
-            'backing'=>$rates[$spec['backing']], 'mount'=>$rates[$spec['mount']],
-        ];
-        $estimate = $breakdown === null ? null : $breakdown['base'] + $breakdown['tube'] + $breakdown['backing'] + $breakdown['mount'];
+        $area = $finished['areaMm2'];
+        $acrylicRate = $area > 0 ? ($rates['acrylic'.$tier] ?? null) : 0;
+        $deliveryFee = $delivery === 'delivery' ? ($rates['delivery'.$tier] ?? null) : 0;
+        $breakdown = null;
+        if ($rates !== null && $acrylicRate !== null && $deliveryFee !== null) {
+            $breakdown = [
+                'perMetre'=>$rates['perMetre'], 'base'=>$rates['base'],
+                'tube'=>(int)round(round($proof['lengthMm']) * $rates['perMetre'] / 1000),
+                'backing'=>(int)round($area*$acrylicRate/1000000), 'mount'=>$rates[$spec['mount']],
+                'delivery'=>$deliveryFee, 'acrylicRate'=>$acrylicRate,
+            ];
+        }
+        $estimate = $breakdown === null ? null : $breakdown['base'] + $breakdown['tube'] + $breakdown['backing'] + $breakdown['mount'] + $breakdown['delivery'];
+        $spec['finished'] = $finished;
+        $spec['delivery'] = $delivery === 'delivery' ? 'delivery'.$tier : 'pickup';
         $insert = $db->prepare('INSERT INTO requests(request_key,name,email,message,design,width_mm,height_mm,tube_length_mm,warnings,estimated_cents,retail_breakdown,settings_revision,svg,dxf)
             VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(request_key) DO NOTHING');
         $insert->execute([$key,$name,$email,$message,json_encode($spec, JSON_THROW_ON_ERROR),$proof['widthMm'],$proof['heightMm'],

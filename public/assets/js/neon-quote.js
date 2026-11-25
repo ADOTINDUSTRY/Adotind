@@ -47,22 +47,37 @@
     else form.removeAttribute('aria-busy');
   }
 
-  root.addEventListener('neon:design', event => {
-    const {spec, lengthMm, intent} = event.detail;
-    const production = intent === 'production';
-    valid = Boolean(spec) && (intent === 'review' || (production && Number.isFinite(lengthMm) && lengthMm > 0));
-    requestLabel.textContent = production ? 'Request a shop quote' : 'Request a shop review';
-    submit.textContent = production ? 'Send design for quote' : 'Request a shop review';
+  const delivery = form.querySelector('[data-neon-delivery]');
+  let designDetails;
+  function updateEstimate() {
+    const {spec, lengthMm, finished} = designDetails;
+    valid = Boolean(spec && finished?.withinLimit && Number.isFinite(lengthMm) && lengthMm > 0);
+    requestLabel.textContent = 'Request a shop quote';
+    submit.textContent = 'Send design for quote';
+    const deliveryOption = delivery.options[1];
+    deliveryOption.hidden = deliveryOption.disabled = !valid;
+    if (!valid) delivery.value = 'pickup';
+    if (valid) deliveryOption.textContent = ({120:'Standard delivery',240:'Large-sign delivery',300:'Oversize delivery'})[finished.tier];
     const rates = shop.rates;
-    let label = valid ? (production ? 'Shop quote on request' : 'Price after shop review') : 'Complete your lettering to request a quote';
-    if (valid && production && rates && [rates.base, rates.perMetre, rates[spec.backing], rates[spec.mount]].every(value => Number.isSafeInteger(value) && value >= 0)) {
-      const cents = rates.base + Math.round(Math.round(lengthMm) * rates.perMetre / 1000) + rates[spec.backing] + rates[spec.mount];
-      label = `Estimated price ${money.format(cents / 100)}`;
+    let label = valid ? 'Shop quote on request' : 'Complete your lettering to request a quote';
+    if (valid && rates) {
+      const acrylicRate = finished.areaMm2 ? rates['acrylic'+finished.tier] : 0;
+      const deliveryFee = delivery.value==='delivery' ? rates['delivery'+finished.tier] : 0;
+      if ([rates.base,rates.perMetre,rates[spec.mount],acrylicRate,deliveryFee].every(value=>Number.isSafeInteger(value) && value>=0)) {
+        const cents = rates.base + Math.round(Math.round(lengthMm)*rates.perMetre/1000)
+          + Math.round(finished.areaMm2*acrylicRate/1_000_000) + rates[spec.mount] + deliveryFee;
+        label = 'Estimated price '+money.format(cents/100);
+      }
     }
     if (price.textContent !== label) price.textContent = label;
     refreshButton();
     clearOldMessage();
+  }
+  root.addEventListener('neon:design', event => {
+    designDetails = event.detail;
+    updateEstimate();
   });
+  delivery.addEventListener('change',()=>{if (designDetails) updateEstimate();});
 
   form.addEventListener('input', clearOldMessage);
   form.addEventListener('submit', async event => {

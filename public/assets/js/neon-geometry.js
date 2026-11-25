@@ -638,6 +638,28 @@
     return {outline,outlines:[outline],holes,wall,pad};
   }
 
+  function finishedSize(art, board, spec) {
+    let left=0, top=0, right=art.widthMm, bottom=art.heightMm, areaMm2=0;
+    if (board) {
+      left=Infinity; top=Infinity; right=-Infinity; bottom=-Infinity;
+      for (const outline of board.outlines) {
+        let signedArea=0;
+        for (const [index,[x,y]] of outline.entries()) {
+          const [nextX,nextY]=outline[(index+1)%outline.length];
+          signedArea+=x*nextY-nextX*y;
+          left=Math.min(left,x); top=Math.min(top,y);
+          right=Math.max(right,x); bottom=Math.max(bottom,y);
+        }
+        areaMm2+=Math.abs(signedArea)/2;
+      }
+    }
+    const widthMm=right-left, heightMm=bottom-top;
+    const finishedHeight=heightMm+(board && spec.mount==='freestanding' ? 13 : 0);
+    const withinLimit=widthMm<=3000.00001 && finishedHeight<=2000.00001;
+    const tier=widthMm<=1200.00001 ? 120 : widthMm<=2400.00001 ? 240 : 300;
+    return {left,top,right,bottom,widthMm,heightMm,finishedHeight,areaMm2,withinLimit,tier};
+  }
+
   function svg(design, spec = {}) {
     let {color = '#262626', cover, power = true} = spec;
     if (!design.valid) throw new Error('Complete the design before exporting it.');
@@ -699,5 +721,5 @@
     return groups.join('\r\n')+'\r\n';
   }
 
-  globalThis.NeonGeometry = {fonts, layout, svg, dxf, backboard};
+  globalThis.NeonGeometry = {fonts, layout, svg, dxf, backboard, finishedSize};
 })();
