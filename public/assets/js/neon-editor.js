@@ -382,6 +382,12 @@
     previewPanel.replaceChildren(copy,root.querySelector('[data-neon-preview-price]').cloneNode(true));
   }
   const previewObserver=new MutationObserver(syncDetachedPreview);
+  function restorePreview() {
+    previewObserver.disconnect();
+    previewPanel=null;
+    delete stage.dataset.previewPopped;
+    stage.querySelector('.neon-preview-away').hidden=true;
+  }
   function detachPreview() {
     if (previewWindow && !previewWindow.closed) {
       previewWindow.focus();
@@ -401,7 +407,7 @@
     stylesheet.href=[...document.querySelectorAll('link[rel="stylesheet"]')].find(link=>link.href.includes('/neon-editor.css'))?.href
       || new URL('/public/assets/css/neon-editor.css',location.origin).href;
     const styles=doc.createElement('style');
-    styles.textContent='body{margin:0;background:#181a20}.neon-studio.neon-detached{max-width:none;padding:0;margin:0}.neon-detached .neon-view{height:100dvh;border:0;border-radius:0;grid-template-rows:minmax(0,1fr)}.neon-detached svg{width:100%;height:100%;display:block}';
+    styles.textContent='body{margin:0;background:#181a20}.neon-studio.neon-detached{max-width:none;padding:0;margin:0}.neon-detached .neon-view{height:100dvh;border:0;border-radius:0;grid-template-rows:minmax(0,1fr)}.neon-detached svg{width:100%;height:100%;display:block}@media(max-width:600px){.neon-detached .neon-view:has(.neon-preview-price:not([hidden])){grid-template-rows:minmax(0,1fr) auto}}';
     doc.head.replaceChildren(meta,stylesheet,styles);
     const host=doc.createElement('main');
     host.className='neon-studio neon-detached';
@@ -412,10 +418,9 @@
     previewObserver.observe(canvas,{attributes:true,childList:true,subtree:true});
     previewObserver.observe(root.querySelector('[data-neon-preview-price]'),{attributes:true,childList:true});
     syncDetachedPreview();
-    previewWindow.addEventListener('pagehide',()=>{
-      previewObserver.disconnect();
-      previewPanel=null;
-    },{once:true});
+    stage.dataset.previewPopped='';
+    stage.querySelector('.neon-preview-away').hidden=false;
+    previewWindow.addEventListener('pagehide',restorePreview,{once:true});
   }
   window.addEventListener('pagehide',()=>{
     previewObserver.disconnect();
@@ -666,6 +671,10 @@
       stage.scrollIntoView({block: 'center', behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth'});
     }
     if (action === 'detach') detachPreview();
+    if (action === 'restore-preview') {
+      if (previewWindow && !previewWindow.closed) previewWindow.close();
+      restorePreview();
+    }
     if (action === 'expand') {
       if (expandedProof.open) {
         expandedProof.close();
