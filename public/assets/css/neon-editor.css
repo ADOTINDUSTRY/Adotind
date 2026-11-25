@@ -114,6 +114,28 @@ body:has(.neon-studio:not([hidden])) .quote-hero { display: none; }
 .neon-measurements div + div { border-inline-start: 1px solid var(--studio-line); }
 .neon-measurements dt { font-size: .74rem; color: var(--studio-muted); }
 .neon-measurements dd { margin: .12rem 0 0; color: var(--studio-ink); font-weight: 700; font-size: clamp(.88rem, 1.4vw, 1.22rem); font-variant-numeric: tabular-nums; }
+.neon-cut-check {
+  margin-top: .75rem; padding: .75rem 1rem; border: 1px solid #d6dfe9;
+  border-radius: 10px; background: #f6f8fa; color: var(--studio-ink);
+}
+.neon-cut-heading { display: flex; flex-wrap: wrap; align-items: baseline; gap: .25rem .75rem; }
+.neon-cut-heading h3 { color: var(--studio-ink); font-size: .98rem; margin: 0; }
+.neon-cut-heading span { font-size: .84rem; font-weight: 700; color: #82500e; }
+.neon-cut-check[data-ready="true"] .neon-cut-heading span { color: #226147; }
+.neon-studio .neon-cut-check p { margin: .3rem 0 0; color: #45536a; font-size: .85rem; }
+.neon-cut-resize {
+  border: 1px solid #657b9c; background: #fff; color: #234774; border-radius: 7px;
+  font-size: .85rem; font-weight: 700; padding: .4rem .7rem; margin-top: .6rem;
+}
+.neon-cut-check summary { cursor: pointer; margin-top: .55rem; color: #344d6d; font-weight: 650; font-size: .82rem; }
+.neon-cut-scroll { overflow: auto; max-height: 13rem; margin-top: .35rem; }
+.neon-cut-scroll table { width: 100%; font-size: .8rem; font-variant-numeric: tabular-nums; border-collapse: collapse; }
+.neon-cut-scroll th, .neon-cut-scroll td { padding: .36rem .3rem; border-bottom: 1px solid #d8dfe8; text-align: start; line-height: 1.35; }
+.neon-cut-scroll thead th { position: sticky; top: 0; background: #f6f8fa; }
+.neon-cut-scroll tbody th { font-weight: 550; }
+.neon-cut-scroll tbody small { display: block; color: var(--studio-muted); font-weight: 400; }
+.neon-cut-scroll tr[data-fit="false"] td:last-child { color: #82500e; }
+.neon-proof:has([data-neon-cut-details][open]) { position: static; }
 .neon-studio .neon-warning:not(:empty) { margin: .75rem 0; padding: .6rem .8rem; border-inline-start: 3px solid #b27704; background: #fff6db; color: #654505; font-size: .86rem; }
 .neon-studio .neon-warning:empty { display: none; }
 .neon-proof-actions { margin-top: .65rem; }
@@ -234,7 +256,7 @@ body:has(.neon-studio dialog[open]) { overflow: hidden; }
   border: 0; border-radius: 7px; padding: .65rem .9rem; background: #fde613; color: #15233b; font-weight: 750;
 }
 .neon-quote details[open] > summary { background: #293d58; color: #fff; }
-.neon-quote details[open] > summary span { transform: rotate(-90deg); }
+.neon-quote details[open] > summary span[aria-hidden] { transform: rotate(-90deg); }
 .neon-quote form { display: grid; gap: .75rem; margin-top: .8rem; }
 .neon-quote button { justify-content: center; }
 .neon-studio .neon-quote form p { color: white; margin: 0; font-size: .86rem; }

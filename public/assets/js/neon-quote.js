@@ -19,6 +19,7 @@
   const submit = form.querySelector('[data-neon-submit]');
   const response = form.querySelector('[data-neon-response]');
   const requestField = form.elements.namedItem('request_id');
+  const requestLabel = root.querySelector('[data-neon-request-label]');
   const money = new Intl.NumberFormat('en-CY', {style: 'currency', currency: 'EUR'});
   const attempts = new Map();
   let active = false;
@@ -33,7 +34,7 @@
   }
 
   function signatureOf(data) {
-    return JSON.stringify(['design', 'customer_name', 'email', 'message'].map(key => String(data.get(key) || '').trim()));
+    return JSON.stringify(['design', 'intent', 'customer_name', 'email', 'message'].map(key => String(data.get(key) || '').trim()));
   }
 
   function clearOldMessage() {
@@ -47,11 +48,14 @@
   }
 
   root.addEventListener('neon:design', event => {
-    const {spec, lengthMm} = event.detail;
-    valid = Boolean(spec) && Number.isFinite(lengthMm) && lengthMm > 0;
+    const {spec, lengthMm, intent} = event.detail;
+    const production = intent === 'production';
+    valid = Boolean(spec) && (intent === 'review' || (production && Number.isFinite(lengthMm) && lengthMm > 0));
+    requestLabel.textContent = production ? 'Request a shop quote' : 'Request a shop review';
+    submit.textContent = production ? 'Send cut-ready design' : 'Request a shop review';
     const rates = shop.rates;
-    let label = 'Shop quote on request';
-    if (valid && rates && [rates.base, rates.perMetre, rates[spec.backing], rates[spec.mount]].every(value => Number.isSafeInteger(value) && value >= 0)) {
+    let label = valid ? (production ? 'Shop quote on request' : 'Price after shop review') : 'Complete your lettering to request a quote';
+    if (valid && production && rates && [rates.base, rates.perMetre, rates[spec.backing], rates[spec.mount]].every(value => Number.isSafeInteger(value) && value >= 0)) {
       const cents = rates.base + Math.round(Math.round(lengthMm) * rates.perMetre / 1000) + rates[spec.backing] + rates[spec.mount];
       label = `Estimated price ${money.format(cents / 100)}`;
     }
@@ -66,6 +70,7 @@
     if (active || !valid || settingsChanged || !form.reportValidity()) return;
     const data = new FormData(form);
     const signature = signatureOf(data);
+    const review = data.get('intent') === 'review';
     if (!Number.isSafeInteger(shop.revision)) {
       message('Shop settings are unavailable. Download your design and try again later.', 'error', signature);
       return;
@@ -78,7 +83,7 @@
       attempts.set(signature, attempt);
     }
     if (attempt.reference) {
-      message(`Already sent for review. Your reference is ${attempt.reference}.`, 'success', signature);
+      message((review ? 'Shop review already requested.' : 'Cut-ready design already sent.') + ' Your reference is ' + attempt.reference + '.', 'success', signature);
       return;
     }
     requestField.value = attempt.id;
@@ -101,7 +106,7 @@
       attempt.reference = result.reference;
       const current = signatureOf(new FormData(form));
       const edited = current !== signature ? ' Your latest edits are still in the editor.' : '';
-      message(`Sent for review. Your reference is ${attempt.reference}.${edited}`, 'success', current);
+      message((review ? 'Shop review requested.' : 'Cut-ready design sent.') + ' Your reference is ' + attempt.reference + '.' + edited, 'success', current);
     } catch {
       message('Receipt could not be confirmed. Try again with the same design to check your request.', 'error', signature);
     } finally {

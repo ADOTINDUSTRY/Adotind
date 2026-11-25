@@ -93,7 +93,7 @@ test('spacing, alignment, profiles and curves use the physical path geometry', (
   assert.equal(crowded.valid, true);
   assert.ok(crowded.warnings.some(w => w.includes('12 mm')));
   assert.equal(geometry.layout({...design,text:'Hi',font:'studio'}).paths.length,5);
-  assert.equal(measure({...design,text:'Cafe\u0301'}).design.text, 'Café');
+  assert.equal(measure({...design,text:'Cafe\u0301'},'review').design.text, 'Café');
   assert.ok(!geometry.svg(base, {color:'" onload="alert(1)'}).includes('onload'));
 });
 
@@ -129,10 +129,9 @@ test('the expanded font catalogue contains distinct, selectable shop proofs and 
   const examples=new Set();
   for (const font of geometry.fonts) {
     assert.ok(font.category && font.label);
-    const proof=measure({...design,text:font.sample || 'Good Vibes',font:font.id});
-    assert.equal(proof.design.font,font.id);
-    assert.ok(proof.svg.includes('stroke-width="6"') && proof.dxf.includes('TUBE_CENTERLINE_6MM'));
-    examples.add(proof.svg);
+    const artwork=geometry.layout({...design,text:font.sample || 'Good Vibes',font:font.id});
+    assert.ok(artwork.valid, font.id);
+    examples.add(geometry.svg(artwork));
   }
   assert.ok(geometry.fonts.length >= 19);
   assert.equal(examples.size,geometry.fonts.length);
@@ -157,6 +156,142 @@ function svgSamples(d) {
   }
   return points;
 }
+
+// Integrate the exported SVG's speed directly, independently of the engine's
+// arc-length calculation and the DXF polyline subdivision.
+function measuredSvgLength(d) {
+  let start, length=0;
+  for (const [,type,args] of d.matchAll(/([MLC])([^MLC]+)/g)) {
+    const values=args.trim().split(/\s+/).map(Number), end=values.slice(-2);
+    if (type==='L') length+=Math.hypot(end[0]-start[0],end[1]-start[1]);
+    if (type==='C') {
+      const intervals=384;
+      for (let i=0;i<=intervals;i++) {
+        const t=i/intervals, u=1-t, weight=(i===0 || i===intervals) ? 1 : i%2 ? 4 : 2;
+        const velocity=start.map((v,k)=>3*(u*u*(values[k]-v) +
+          2*u*t*(values[k+2]-values[k]) + t*t*(end[k]-values[k+2])));
+        length+=weight*Math.hypot(...velocity)/(3*intervals);
+      }
+    }
+    start=end;
+  }
+  return length;
+}
+
+function cutSpec(font,text,pieceMm,index=0) {
+  const sample={...design,font,text,widthMm:600};
+  const reference=geometry.layout(sample);
+  const centrelineSpan=reference.widthMm-reference.tubeMm;
+  return {...sample,widthMm:reference.tubeMm+centrelineSpan*pieceMm/measuredSvgLength(reference.paths[index].d)};
+}
+
+test('manufacturing sums whole 25 mm modules only when every separate CAD and SVG run physically fits', () => {
+  for (const [font,text,pieceMm] of [['studio','-',200],['studio','-----',25],['deco','ll',1000],['deco','O',1800]]) {
+    const spec=cutSpec(font,text,pieceMm);
+    const production=geometry.cutLayout(spec), plan=production.cutPlan;
+    assert.ok(production.valid && plan.ready, font+' '+text+' at '+spec.widthMm);
+    const svg=geometry.svg(production);
+    const paths=Array.from(svg.matchAll(/<path d="([^"]+)"/g), match=>match[1]);
+    const cad=polylines(geometry.dxf(production));
+    assert.equal(plan.stepMm,25);
+    assert.equal(plan.pieces.length,Array.from(text).length);
+    assert.equal(paths.length,plan.pieces.length);
+    assert.equal(cad.length,plan.pieces.length);
+    for (const [i,piece] of plan.pieces.entries()) {
+      assert.ok(piece.ready);
+      assert.equal(piece.character,text[i]);
+      assert.equal(piece.modules,pieceMm/25);
+      assert.equal(piece.cutMm,pieceMm);
+      near(measuredSvgLength(paths[i]),piece.cutMm,0.012);
+      const points=cad[i].closed ? [...cad[i].points,cad[i].points[0]] : cad[i].points;
+      const length=points.slice(1).reduce((sum,p,j)=>sum+
+        Math.hypot(p[0]-points[j][0],p[1]-points[j][1]),0);
+      near(length,piece.cutMm,0.012);
+      assert.equal(cad[i].closed,text==='O');
+    }
+    assert.equal(plan.totalCutMm,plan.pieces.length*pieceMm);
+    assert.equal(production.lengthMm,plan.totalCutMm);
+    assert.equal(production.tubeMm,6);
+    const server=measure(spec);
+    assert.equal(server.reviewOnly,false);
+    assert.equal(server.cutPlan.totalCutMm,plan.totalCutMm);
+    assert.equal(server.lengthMm,plan.totalCutMm);
+    assert.equal(server.dxf,geometry.dxf(production));
+  }
+});
+
+test('a divisible total cannot hide incompatible pieces, and a small dot survives in review', () => {
+  const halfUnits=cutSpec('studio','--',112.5);
+  const twoStrokes=geometry.layout(halfUnits);
+  near(twoStrokes.lengthMm,225,0.001);
+  for (const spec of [halfUnits,{...design,font:'signature',text:'iiiiiii',widthMm:200}]) {
+    const raw=geometry.layout(spec), result=geometry.cutLayout(spec), plan=result.cutPlan;
+    assert.ok(!result.valid && !plan.ready);
+    assert.deepEqual(result.paths.map(p=>p.d),raw.paths.map(p=>p.d));
+    assert.equal(plan.pieces.length,raw.paths.length);
+    assert.throws(()=>geometry.svg(result));
+    assert.throws(()=>geometry.dxf(result));
+    if (spec===halfUnits) assert.ok(plan.pieces.every(p=>!p.ready && p.cutMm===null));
+    else assert.equal(plan.pieces.filter(p=>p.lengthMm<25 && !p.ready && p.modules===null).length,7);
+    assert.ok(measure(spec).error);
+    const review=measure(spec,'review');
+    assert.ok(review.reviewOnly && !review.cutPlan.ready);
+    assert.equal(review.dxf,'');
+    assert.match(review.svg,/VISUAL_REVIEW_ONLY/);
+    assert.doesNotMatch(review.svg,/TUBE_CENTERLINE_6MM/);
+    assert.equal((review.svg.match(/<path /g)||[]).length,raw.paths.length);
+  }
+});
+
+test('a proposed new width fits complete loops without opening or reshaping their outline', () => {
+  const original={...design,font:'deco',text:'O',widthMm:600};
+  const raw=geometry.layout(original);
+  const options={minWidth:590,maxWidth:610};
+  const suggested=geometry.cutLayout(original,options).cutPlan.suggestedWidthMm;
+  assert.ok(Number.isFinite(suggested) && suggested>=options.minWidth && suggested<=options.maxWidth);
+  const accepted=geometry.cutLayout({...original,widthMm:suggested},options);
+  assert.ok(accepted.cutPlan.ready);
+  const path=accepted.paths[0].d;
+  const scale=(suggested-6)/(original.widthMm-6);
+  const oldPoints=svgSamples(raw.paths[0].d), newPoints=svgSamples(path);
+  assert.equal(newPoints.length,oldPoints.length);
+  for (const [i,p] of newPoints.entries()) {
+    near(p[0]-3,(oldPoints[i][0]-3)*scale,0.002);
+    near(p[1]-3,(oldPoints[i][1]-3)*scale,0.002);
+  }
+  assert.ok(polylines(geometry.dxf(accepted))[0].closed);
+  assert.equal(geometry.cutLayout(original,{minWidth:600,maxWidth:600}).cutPlan.suggestedWidthMm,null);
+});
+
+test('a free straight tip can shorten while the boundary and separate closed dot stay intact', () => {
+  const spec=cutSpec('terrace','!',850,1);
+  const raw=geometry.layout(spec), adjusted=geometry.cutLayout(spec);
+  assert.ok(adjusted.cutPlan.ready);
+  const [stem,dot]=adjusted.cutPlan.pieces;
+  assert.ok(stem.lengthMm>stem.cutMm+2 && stem.lengthMm<stem.cutMm+3);
+  const oldTip=svgSamples(raw.paths[0].d), newTip=svgSamples(adjusted.paths[0].d);
+  for (const coordinate of [0,1]) near(oldTip[0][coordinate],newTip[0][coordinate],.001);
+  near(oldTip[1][0],newTip[1][0],.001);
+  near(measuredSvgLength(adjusted.paths[0].d),stem.cutMm,.001);
+  assert.equal(dot.cutMm,850);
+  const expected=svgSamples(raw.paths[1].d), actual=svgSamples(adjusted.paths[1].d);
+  assert.equal(expected.length,actual.length);
+  for (const [i,point] of actual.entries()) {
+    near(point[0],expected[i][0],.001);
+    near(point[1],expected[i][1],.001);
+  }
+  assert.ok(polylines(geometry.dxf(adjusted))[1].closed);
+});
+
+test('a zero-length isolated font stroke is reported even though it has no drawable centreline', () => {
+  const spec={...design,font:'invitation',text:'M',widthMm:600};
+  const plan=geometry.cutLayout(spec).cutPlan;
+  assert.ok(!plan.ready);
+  const point=plan.pieces.find(p=>p.lengthMm===0);
+  assert.ok(point && !point.ready && point.modules===null && point.character==='M');
+  assert.equal(plan.suggestedWidthMm,null);
+  assert.ok(measure(spec).error);
+});
 
 function liesOnPolyline([x,y], vertices, tolerance) {
   for (let i=1; i<vertices.length; i++) {
@@ -303,21 +438,27 @@ test('invalid values and unsupported glyphs never generate a submission or parti
     {font:'__proto__'}, {text:'🦩'}, {widthMm:'700'}, {widthMm:3001}, {widthMm:199},
     {color:'red'}, {align:'top'}, {letterSpacing:-0.1}, {lineSpacing:2.1}, {brightness:101},
     {scene:'foo'}, {power:1}, {backing:'wood'}, {mount:'no'}, {svg:'trusted client path'}, {lengthMm:1},
+    {cutPlan:{ready:true,totalCutMm:25}}, {intent:'review'},
   ]) assert.deepEqual(Object.keys(measure({...design, ...patch})), ['error'], JSON.stringify(patch));
-  const proof = measure(design);
+  const accepted={...design,text:'-',font:'studio',widthMm:206};
+  const proof = measure(accepted);
   assert.equal(proof.design.color, '#ff488d');
-  assert.equal(proof.widthMm, 700);
-  assert.deepEqual(proof.warnings, geometry.layout(design).warnings);
+  assert.equal(proof.widthMm, 206);
+  assert.equal(proof.cutPlan.ready, true);
+  assert.ok(measure(accepted,'review').error);
+  assert.ok(measure(accepted,'unexpected').error);
+  assert.ok(measure({...design,text:'🦩'},'review').error);
 });
 
 test('Aegean Greek uses distinct native Greek strokes, final sigma and composed Greek accents', () => {
   const alphabet = 'ΑΒΓΔΕΖΗΘΙΚΛΜΝΞΟΠΡΣΤΥΦΧΨΩ\nαβγδεζηθικλμνξοπρστυφχψως\nΆΈΉΊΌΎΏΪΫάέήίόύώϊϋΐΰ';
   assert.equal(geometry.layout({...design,text:alphabet,font:'aegean'}).valid,true);
   const text = 'Καλημέρα Κύπρος · Café';
-  const proof = measure({...design,text,font:'aegean'});
-  const decomposed = measure({...design,text:text.normalize('NFD'),font:'aegean'});
+  const proof = measure({...design,text,font:'aegean'},'review');
+  const decomposed = measure({...design,text:text.normalize('NFD'),font:'aegean'},'review');
   assert.equal(proof.design.text,text);
-  assert.equal(proof.dxf,decomposed.dxf);
+  assert.ok(proof.svg.includes('<path'));
+  assert.equal(proof.svg,decomposed.svg);
   const letters = char => geometry.layout({...design,text:char,font:'aegean'}).paths.map(p => p.d);
   assert.notDeepEqual(letters('ς'),letters('σ'));
   assert.ok(letters('ά').length > letters('α').length);
@@ -326,11 +467,13 @@ test('Aegean Greek uses distinct native Greek strokes, final sigma and composed 
 
 test('HTTP helper can send UTF-8 JSON to the bounded stdin CLI', () => {
   const cli = require.resolve('../app/cli/neon-measure.cjs');
-  for (const [input, valid] of [[JSON.stringify(design),true], ['{bad',false], [' '.repeat(8193),false]]) {
+  const accepted={...design,text:'-',font:'studio',widthMm:206};
+  for (const [input, valid] of [[JSON.stringify(accepted),true], [JSON.stringify(design),false],
+    ['{bad',false], [' '.repeat(8193),false]]) {
     const run = spawnSync(process.execPath,[cli], {input, encoding:'utf8'});
     assert.equal(run.status, 0);
     const proof = JSON.parse(run.stdout);
     assert.equal(Boolean(proof.error), !valid);
-    if (valid) assert.equal(proof.design.text, design.text);
+    if (valid) assert.equal(proof.design.text, accepted.text);
   }
 });

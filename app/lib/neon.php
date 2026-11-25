@@ -34,8 +34,8 @@ function neon_db(): PDO
         PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION, PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
     ]);
     $db->exec('PRAGMA busy_timeout=5000');
-    if (!(int)$db->query('PRAGMA user_version')->fetchColumn()) {
-        $db->beginTransaction();
+    if ((int)$db->query('PRAGMA user_version')->fetchColumn() < 2) {
+        $db->exec('BEGIN IMMEDIATE');
         try {
             $db->exec("CREATE TABLE IF NOT EXISTS shop (id INTEGER PRIMARY KEY, revision INTEGER NOT NULL, settings TEXT NOT NULL);
                 INSERT OR IGNORE INTO shop VALUES (1,1,'{}');
@@ -46,10 +46,14 @@ function neon_db(): PDO
                     design TEXT NOT NULL, width_mm REAL NOT NULL, height_mm REAL NOT NULL, tube_length_mm REAL NOT NULL,
                     warnings TEXT NOT NULL, estimated_cents INTEGER, retail_breakdown TEXT, settings_revision INTEGER NOT NULL,
                     svg TEXT NOT NULL, dxf TEXT NOT NULL);
-                PRAGMA user_version=1");
-            $db->commit();
+                CREATE TABLE IF NOT EXISTS request_cut_plans (
+                    request_id INTEGER PRIMARY KEY REFERENCES requests(id),
+                    cut_ready INTEGER NOT NULL CHECK(cut_ready IN(0,1)),
+                    plan TEXT NOT NULL);
+                PRAGMA user_version=2");
+            $db->exec('COMMIT');
         } catch (Throwable $e) {
-            $db->rollBack();
+            $db->exec('ROLLBACK');
             throw $e;
         }
     }
@@ -90,9 +94,9 @@ function neon_reply(int $status, array $data): never
     exit;
 }
 
-function neon_measure(string $design): array
+function neon_measure(string $design, string $intent = 'production'): array
 {
-    $command = ['/usr/bin/timeout','8','/usr/local/bin/node','--max-old-space-size=96',dirname(__DIR__) . '/cli/neon-measure.cjs'];
+    $command = ['/usr/bin/timeout','8','/usr/local/bin/node','--max-old-space-size=96',dirname(__DIR__) . '/cli/neon-measure.cjs',$intent];
     $proc = proc_open($command, [0=>['pipe','r'],1=>['pipe','w'],2=>['file','/dev/null','a']], $pipes);
     if (!is_resource($proc)) throw new RuntimeException('Geometry service unavailable');
     fwrite($pipes[0], $design);
@@ -113,6 +117,8 @@ function neon_handle_request(): never
         if (!is_string($_POST[$field] ?? null)) neon_reply(422, ['error'=>'Complete the design and contact form.']);
     }
     $design = $_POST['design'];
+    $intent = $_POST['intent'] ?? 'production';
+    if (!in_array($intent, ['production','review'], true)) neon_reply(422, ['error'=>'Choose a valid request type.']);
     $name = trim($_POST['customer_name']);
     $email = trim($_POST['email']);
     $message = trim($_POST['message']);
@@ -126,13 +132,17 @@ function neon_handle_request(): never
     } catch (Throwable $e) {
         neon_reply(503, ['error'=>'Design requests are temporarily unavailable. Save your design and try again.']);
     }
-    $existing = $db->prepare('SELECT id FROM requests WHERE request_key=?');
+    $existing = $db->prepare('SELECT r.id, p.cut_ready FROM requests r LEFT JOIN request_cut_plans p ON p.request_id=r.id WHERE r.request_key=?');
     $existing->execute([$key]);
-    $id = $existing->fetchColumn();
+    $saved = $existing->fetch();
     $existing->closeCursor();
-    if ($id) neon_reply(200, ['reference'=>'N-' . $id]);
+    if ($saved) neon_reply(200, ['reference'=>'N-' . $saved['id'], 'reviewOnly'=>(string)$saved['cut_ready'] === '0']);
     try {
-        $proof = neon_measure($design);
+        $shop = neon_settings($db);
+        if ($shop['edition'] !== ($_POST['edition'] ?? '') || (string)$shop['revision'] !== ($_POST['revision'] ?? '')) {
+            neon_reply(409, ['error'=>'The designer or shop settings changed. Save your design, reload and check the strip cuts before sending.']);
+        }
+        $proof = neon_measure($design, $intent);
         if (isset($proof['error'])) neon_reply(422, ['error'=>$proof['error']]);
         $spec = $proof['design'];
         $db->exec('BEGIN IMMEDIATE');
@@ -144,7 +154,7 @@ function neon_handle_request(): never
             neon_reply(409, ['error'=>'Shop options or pricing changed. Download your design, then reload and review it before sending.']);
         }
         $rates = $shop['rates'];
-        $breakdown = $rates === null ? null : [
+        $breakdown = ($proof['reviewOnly'] || $rates === null) ? null : [
             'perMetre'=>$rates['perMetre'], 'base'=>$rates['base'],
             'tube'=>(int)round(round($proof['lengthMm']) * $rates['perMetre'] / 1000),
             'backing'=>$rates[$spec['backing']], 'mount'=>$rates[$spec['mount']],
@@ -157,8 +167,14 @@ function neon_handle_request(): never
             $breakdown === null ? null : json_encode($breakdown, JSON_THROW_ON_ERROR),$shop['revision'],$proof['svg'],$proof['dxf']]);
         $fresh = $insert->rowCount();
         $existing->execute([$key]);
-        $id = $existing->fetchColumn();
+        $saved = $existing->fetch();
         $existing->closeCursor();
+        $id = (int)$saved['id'];
+        if ($fresh) {
+            $cut = $db->prepare('INSERT INTO request_cut_plans(request_id,cut_ready,plan) VALUES(?,?,?)');
+            $cut->execute([$id,(int)$proof['cutPlan']['ready'],json_encode($proof['cutPlan'], JSON_THROW_ON_ERROR)]);
+        }
+        $reviewOnly = $fresh ? $proof['reviewOnly'] : (string)$saved['cut_ready'] === '0';
         $db->exec('COMMIT');
     } catch (Throwable $e) {
         // The connection is released at the end of the request. SQLite rolls back any open transaction.
@@ -166,5 +182,5 @@ function neon_handle_request(): never
         neon_reply(503, ['error'=>'We could not save your request. Your design is still here. Please try again.']);
     }
     if ($fresh) site_daily_count('inquiry');
-    neon_reply(200, ['reference'=>'N-' . $id]);
+    neon_reply(200, ['reference'=>'N-' . $id, 'reviewOnly'=>$reviewOnly]);
 }

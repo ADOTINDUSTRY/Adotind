@@ -413,7 +413,7 @@
     flattenCubic(out, mid, r, bq, q, depth+1,tolerance);
   }
 
-  function layout(options = {}) {
+  function layout(options = {}, cutStrokes = null) {
     const text = String(options.text ?? '').replace(/\r\n?/g,'\n').normalize('NFC');
     const fontId = options.font ?? fonts[0].id;
     const font = Object.hasOwn(globalThis.NeonStrokeFonts, fontId) ? globalThis.NeonStrokeFonts[fontId] : null;
@@ -437,7 +437,7 @@
     const lines = rows.map(row => {
       const glyphs = [], box = emptyBounds();
       let x = 0, previous = '';
-      for (const ch of row) {
+      for (const [charIndex,ch] of Array.from(row).entries()) {
         const raw = font.glyphs[ch];
         if (!raw) {
           if (!unsupported.includes(ch)) unsupported.push(ch);
@@ -446,7 +446,7 @@
         if (previous) x += tracking * font.em - (kern.get(previous + ch) || 0);
         const g = glyphGeometry(fontId, ch, raw);
         if (Number.isFinite(g.box.left)) {
-          glyphs.push({x, g, ch});
+          glyphs.push({x, g, ch, charIndex});
           include(box, x+g.box.left, g.box.bottom); include(box, x+g.box.right, g.box.top);
         }
         x += g.advance;
@@ -489,9 +489,13 @@
     }
     const runs = [];
     for (const [index, line] of lines.entries()) {
-      for (const {x, g} of line.glyphs) {
-        let run = null, d = '';
+      for (const {x, g, ch, charIndex} of line.glyphs) {
+        let run = null, d = '', commands, runIndex=0;
         function finish() {
+          if (cutStrokes && run) {
+            cutStrokes.push({line:index, character:ch, charIndex, runIndex:runIndex++,
+              commands, run, pathIndex:run.length>=2 ? runs.length : null});
+          }
           if (run && run.length >= 2) {
             runs.push(run);
             result.paths.push({line:index, d});
@@ -502,7 +506,8 @@
           for (let j = 1; j < cmd.length; j += 2) {
             coords.push((line.x+x+cmd[j])*scale+TUBE/2, (bounds.top-line.y-cmd[j+1])*scale+TUBE/2);
           }
-          if (type === 'M') { finish(); run = [coords]; d = ''; }
+          if (type === 'M') { finish(); run = [coords]; d = ''; if(cutStrokes) commands=[]; }
+          if (cutStrokes) commands.push([type,...coords]);
           if (type === 'L' && distance(run.at(-1),coords) > 1e-8) run.push(coords);
           if (type === 'C') flattenCubic(run, run.at(-1), coords.slice(0,2), coords.slice(2,4), coords.slice(4,6));
           d += type + coords.map(number).join(' ');
@@ -526,6 +531,214 @@
     return result;
   }
 
+  const CUT_STEP = 25;
+  const CUT_EPS = 0.0001; // Numerical tolerance in mm, never an allowance for rounding a cut.
+  const MAX_TRIM = 3;
+
+  function interpolate(a,b,t) {
+    return [a[0]+(b[0]-a[0])*t,a[1]+(b[1]-a[1])*t];
+  }
+
+  // Gauss-Legendre integration of cubic speed. An identical curve measured at
+  // another sign size must scale uniformly; reusing the coarser preview chords
+  // here can put a closed loop on the wrong side of a cut mark.
+  function arcLength(p,a,b,q) {
+    function integrate(lo,hi) {
+      const mid=(hi+lo)/2, half=(hi-lo)/2;
+      function speed(t) {
+        const u=1-t;
+        return 3*Math.hypot(u*u*(a[0]-p[0])+2*u*t*(b[0]-a[0])+t*t*(q[0]-b[0]),
+          u*u*(a[1]-p[1])+2*u*t*(b[1]-a[1])+t*t*(q[1]-b[1]));
+      }
+      const k1=.5384693101056831*half, k2=.9061798459386640*half;
+      return half*(.5688888888888889*speed(mid)+
+        .4786286704993665*(speed(mid-k1)+speed(mid+k1))+
+        .2369268850561891*(speed(mid-k2)+speed(mid+k2)));
+    }
+    function refine(lo,hi,whole,depth) {
+      const mid=(lo+hi)/2, left=integrate(lo,mid), right=integrate(mid,hi);
+      if (depth>=14 || Math.abs(left+right-whole)<1e-9*(hi-lo)+1e-11*(left+right)) return left+right;
+      return refine(lo,mid,left,depth+1)+refine(mid,hi,right,depth+1);
+    }
+    return refine(0,1,integrate(0,1),0);
+  }
+
+  function strokeLength(commands) {
+    let at=commands[0].slice(1), length=0;
+    for (const c of commands.slice(1)) {
+      const end=c.slice(-2);
+      length+=c[0]==='C' ? arcLength(at,c.slice(1,3),c.slice(3,5),end) : distance(at,end);
+      at=end;
+    }
+    return length;
+  }
+
+  function pointSegmentDistance(p,a,b) {
+    const dx=b[0]-a[0], dy=b[1]-a[1], square=dx*dx+dy*dy;
+    const t=square ? Math.min(1,Math.max(0,((p[0]-a[0])*dx+(p[1]-a[1])*dy)/square)) : 0;
+    return Math.hypot(p[0]-a[0]-t*dx,p[1]-a[1]-t*dy);
+  }
+
+  // Only the clear, straight portion of a free terminal can lose material.
+  // Protect the four overall extents, junctions, adjacent letters, and any
+  // returning portion of the same path. No curvature is fitted or moved.
+  function freeTerminal(stroke,start,design) {
+    const {commands,run}=stroke;
+    if (commands.length<2 || distance(run[0],run.at(-1))<CUT_EPS) return null;
+    if ((start ? commands[1] : commands.at(-1))[0]!=='L') return null;
+    const from=start ? run[0] : run.at(-1);
+    const toward=(start ? commands[1] : commands.at(-2)).slice(-2);
+    if (distance(from,toward)<=CUT_EPS) return null;
+    const width=design.widthMm, height=design.heightMm;
+    if ([width,height].some((extent,axis) => Math.abs(from[axis]-toward[axis])>CUT_EPS &&
+      (Math.abs(from[axis]-TUBE/2)<CUT_EPS || Math.abs(from[axis]-extent+TUBE/2)<CUT_EPS))) return null;
+    return {from,toward};
+  }
+
+  function terminalCapacity(stroke,start,strokes,design) {
+    const tip=freeTerminal(stroke,start,design);
+    if (!tip) return 0;
+    const {from,toward}=tip;
+    let capacity=Math.min(MAX_TRIM,distance(from,toward)/2);
+    for (const other of strokes) {
+      const box=other.box, reach=TUBE+capacity+.025;
+      if (from[0]+reach<box.left || from[0]-reach>box.right || from[1]+reach<box.bottom || from[1]-reach>box.top) continue;
+      for (let i=1;i<other.run.length;i++) {
+        if (other===stroke && i===(start ? 1 : stroke.run.length-1)) continue;
+        capacity=Math.min(capacity,pointSegmentDistance(from,other.run[i-1],other.run[i])-TUBE-.025);
+        if (capacity<=CUT_EPS) return 0;
+      }
+    }
+    return Math.max(0,capacity);
+  }
+
+  // Preserve the same SVG curves while bounding the aggregate loss of arc
+  // length introduced by tessellating a completed strip into DXF chords.
+  function cutPolyline(commands) {
+    const points=[commands[0].slice(1)];
+    const budget=.003/Math.max(1,commands.filter(c=>c[0]==='C').length);
+    function add(p,a,b,q,allowance,depth) {
+      const chord=distance(p,q), excess=distance(p,a)+distance(a,b)+distance(b,q)-chord;
+      if (depth>=22 || (excess<=allowance && Math.max(pointSegmentDistance(a,p,q),pointSegmentDistance(b,p,q))<=.025)) {
+        points.push(q);return;
+      }
+      const pa=midpoint(p,a), ab=midpoint(a,b), bq=midpoint(b,q);
+      const l=midpoint(pa,ab), r=midpoint(ab,bq), mid=midpoint(l,r);
+      add(p,pa,l,mid,allowance/2,depth+1);add(mid,r,bq,q,allowance/2,depth+1);
+    }
+    for (const c of commands.slice(1)) {
+      const q=c.slice(-2), p=points.at(-1);
+      if(c[0]==='C') add(p,c.slice(1,3),c.slice(3,5),q,budget,0);
+      else if(distance(p,q)>1e-10) points.push(q);
+    }
+    return points;
+  }
+
+  function cutLayout(options={}, limits={}) {
+    const strokes=[], design=layout(options,strokes);
+    if (!design.valid) return design;
+    for (const stroke of strokes) {
+      stroke.length=strokeLength(stroke.commands);
+      stroke.box=emptyBounds();
+      for (const [x,y] of stroke.run) include(stroke.box,x,y);
+    }
+    const pieces=strokes.map((stroke,index) => {
+      const {character,line,charIndex,runIndex,length}=stroke;
+      const modules=Math.max(1,Math.round(length/CUT_STEP));
+      let cutMm=modules*CUT_STEP, ready=Math.abs(length-cutMm)<=CUT_EPS;
+      const lower=CUT_STEP*Math.floor(length/CUT_STEP), excess=length-lower;
+      if (!ready && lower>=CUT_STEP && excess<=Math.min(MAX_TRIM,length*.02)) {
+        const start=terminalCapacity(stroke,true,strokes,design), end=terminalCapacity(stroke,false,strokes,design);
+        if (excess<=start+end) {
+          stroke.trimStart=Math.max(excess-end,Math.min(excess/2,start));
+          stroke.trimEnd=excess-stroke.trimStart;
+          cutMm=lower;ready=true;
+        }
+      }
+      return {index,character,line,charIndex,runIndex,lengthMm:length,cutMm:ready ? cutMm : null,
+        modules:ready ? cutMm/CUT_STEP : null,ready,reason:ready ? null : length<CUT_STEP ? 'too-short' : 'off-mark'};
+    });
+    const ready=pieces.every(piece=>piece.ready);
+    const plan={stepMm:CUT_STEP,ready,pieces,suggestedWidthMm:null,totalCutMm:ready ? pieces.reduce((s,p)=>s+p.cutMm,0) : null};
+    design.cutPlan=plan;
+    if (!ready) {
+      plan.error='Each separate LED strip needs a cut length of 25 mm or a whole multiple of 25 mm.';
+      design.errors.push(plan.error);design.valid=false;
+      if (limits.suggestions!==false) plan.suggestedWidthMm=suggestCutWidth(options,limits,strokes,design);
+      return design;
+    }
+    for (const stroke of strokes) {
+      const c=stroke.commands;
+      const start=c[0].slice(1), end=c.at(-1).slice(-2);
+      const startTowards=c.length>1 ? c[1].slice(-2) : start, endTowards=c.at(-2).slice(-2);
+      if(stroke.trimStart) c[0]=['M',...interpolate(start,startTowards,stroke.trimStart/distance(start,startTowards))];
+      if(stroke.trimEnd) c[c.length-1]=['L',...interpolate(end,endTowards,stroke.trimEnd/distance(end,endTowards))];
+      design.paths[stroke.pathIndex].d=c.map(cmd=>cmd[0]+cmd.slice(1).map(cutNumber).join(' ')).join('');
+      design.runs[stroke.pathIndex]=cutPolyline(c);
+    }
+    design.lengthMm=plan.totalCutMm;
+    return design;
+  }
+
+  function cutNumber(value) { return String(Math.round(value*1e6)/1e6); }
+
+  // Each run permits a sequence of scale intervals. A loop permits only the
+  // exact scale for each cut mark; a clear straight tip permits a small trim.
+  // Intersect these intervals before rebuilding any suggested production art.
+  function suggestCutWidth(options,limits,strokes,design) {
+    const min=Math.max(200,limits.minWidth??200), max=Math.min(3000,limits.maxWidth??3000);
+    if (min>max || strokes.some(s=>s.length<=CUT_EPS)) return null;
+    const span=design.widthMm-TUBE, minScale=(min-TUBE)/span, maxScale=(max-TUBE)/span;
+    const constraints=strokes.map(s=>({
+      length:s.length, rigid:!freeTerminal(s,true,design) && !freeTerminal(s,false,design)
+    })).sort((a,b)=>Number(b.rigid)-Number(a.rigid) || a.length-b.length);
+    const anchor=constraints[0];
+    function maxLength(target,rigid) { return rigid ? target : Math.min(target+MAX_TRIM,target/.98); }
+    function firstMark(length,rigid) {
+      return Math.max(1,Math.ceil((length-(rigid ? 0 : MAX_TRIM)-CUT_EPS)/CUT_STEP));
+    }
+    function lastMark(length) { return Math.floor((length+CUT_EPS)/CUT_STEP); }
+    const low=firstMark(anchor.length*minScale,anchor.rigid), high=lastMark(anchor.length*maxScale);
+    const midpointMark=anchor.length/CUT_STEP;
+    let left=Math.min(high,Math.floor(midpointMark)), right=Math.max(low,Math.floor(midpointMark)+1);
+    const attempted=new Set();
+    // Traverse outwards so either end of the configured range is reachable.
+    // Extremely tall, narrow signs may have thousands of possible cut marks.
+    for (let examined=0; examined<2000 && (left>=low || right<=high); examined++) {
+      const useLeft=left>=low && (right>high || midpointMark-left<=right-midpointMark);
+      const target=(useLeft ? left-- : right++)*CUT_STEP;
+      const from=Math.max(minScale,target/anchor.length);
+      const to=Math.min(maxScale,maxLength(target,anchor.rigid)/anchor.length);
+      if (from>to+1e-12) continue;
+      let intervals=[[from,to]];
+      for (const {length,rigid} of constraints.slice(1)) {
+        const shared=[];
+        for (const [lo,hi] of intervals) {
+          const last=lastMark(hi*length);
+          for (let n=firstMark(lo*length,rigid);n<=last;n++) {
+            const start=Math.max(lo,n*CUT_STEP/length);
+            const end=Math.min(hi,maxLength(n*CUT_STEP,rigid)/length);
+            if (start<=end+1e-12) shared.push([start,end]);
+          }
+        }
+        intervals=shared;
+        if (!intervals.length) break;
+      }
+      for (const [lo,hi] of intervals) {
+        // Try the closest point to the chosen sign size, then the point that
+        // requires the least trimming. Final checks enforce actual clearances.
+        for (const scale of [Math.max(lo,Math.min(1,hi)),lo]) {
+          const proposed=Number((TUBE+span*scale).toFixed(7));
+          if (proposed<min || proposed>max || proposed===design.widthMm || attempted.has(proposed)) continue;
+          attempted.add(proposed);
+          if (cutLayout({...options,widthMm:proposed},{suggestions:false}).cutPlan?.ready) return proposed;
+          if (attempted.size>=30) return null;
+        }
+      }
+    }
+    return null;
+  }
+
   function svg(design, {color = '#262626'} = {}) {
     if (!design.valid) throw new Error('Complete the design before exporting it.');
     if (!/^#[0-9a-f]{3}(?:[0-9a-f]{3})?$/i.test(color)) color = '#262626';
@@ -545,11 +758,12 @@
       const closed = run.length>2 && distance(run[0],run.at(-1)) < 0.00001;
       const points = closed ? run.slice(0,-1) : run;
       groups.push(0,'LWPOLYLINE',5,(0x100+index).toString(16),100,'AcDbEntity',8,layer,100,'AcDbPolyline',90,points.length,70,closed ? 1 : 0);
-      for (const p of points) groups.push(10,number(p[0]),20,number(design.heightMm-p[1]));
+      const format=design.cutPlan ? cutNumber : number;
+      for (const p of points) groups.push(10,format(p[0]),20,format(design.heightMm-p[1]));
     }
     groups.push(0,'ENDSEC',0,'EOF');
     return groups.join('\r\n')+'\r\n';
   }
 
-  globalThis.NeonGeometry = {fonts, layout, svg, dxf};
+  globalThis.NeonGeometry = {fonts, layout, cutLayout, svg, dxf};
 })();

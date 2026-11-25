@@ -67,14 +67,31 @@ $neonIcon = static function (string $key) use ($neonIcons): string {
         <div><dt>Tube width</dt><dd>6 mm</dd></div>
         <div><dt>Tube length</dt><dd data-neon-output="length">—</dd></div>
       </dl>
+      <section class="neon-cut-check" data-neon-cut-check aria-labelledby="neon-cut-heading" hidden>
+        <div class="neon-cut-heading">
+          <h3 id="neon-cut-heading">Strip cut check</h3>
+          <span data-neon-output="cut-summary" role="status"></span>
+        </div>
+        <p data-neon-output="cut-help"></p>
+        <button class="neon-cut-resize" type="button" data-neon-action="use-cut-width" hidden></button>
+        <details data-neon-cut-details>
+          <summary>View individual pieces</summary>
+          <div class="neon-cut-scroll" tabindex="0" role="region" aria-label="Lengths of individual strip pieces">
+            <table>
+              <thead><tr><th scope="col">Piece</th><th scope="col">Drawn length</th><th scope="col">Strip cut</th></tr></thead>
+              <tbody data-neon-cut-pieces></tbody>
+            </table>
+          </div>
+        </details>
+      </section>
       <p class="neon-warning" data-neon-output="warnings" role="status"></p>
       <div class="neon-proof-actions">
         <label class="neon-wall-picker"><?= $neonIcon('open') ?> Try your wall
           <input type="file" data-neon-wall data-private accept="image/jpeg,image/png,image/webp" aria-label="Preview the sign on your wall photo">
         </label>
         <button type="button" data-neon-action="clear-wall">Remove photo</button>
-        <button type="button" data-neon-action="export-svg"><?= $neonIcon('save') ?> Export SVG</button>
-        <button type="button" data-neon-action="export-dxf"><?= $neonIcon('save') ?> Export DXF</button>
+        <button type="button" data-neon-action="export-svg" disabled><?= $neonIcon('save') ?> Export SVG</button>
+        <button type="button" data-neon-action="export-dxf" disabled><?= $neonIcon('save') ?> Export DXF</button>
         <span data-neon-output="status" role="status"></span>
       </div>
     </div>
@@ -125,7 +142,7 @@ $neonIcon = static function (string $key) use ($neonIcons): string {
         <summary>Size &amp; mounting</summary>
         <div class="neon-group-body">
           <label for="neon-width">Lettering width</label>
-          <div class="neon-unit"><input id="neon-width" type="number" min="200" max="3000" step="1" inputmode="numeric" value="600" data-neon-field="widthMm"><span>mm</span></div>
+          <div class="neon-unit"><input id="neon-width" type="number" min="200" max="3000" step="any" inputmode="decimal" value="600" data-neon-field="widthMm"><span>mm</span></div>
           <input type="range" aria-label="Adjust lettering width in millimetres" min="200" max="3000" step="1" value="600" data-neon-field="widthMm">
           <div class="neon-input-pair">
             <label>Backboard<select data-neon-field="backing"><option value="clear">Clear acrylic</option><option value="black">Black acrylic</option><option value="none">No backboard</option></select></label>
@@ -142,15 +159,16 @@ $neonIcon = static function (string $key) use ($neonIcons): string {
       <div class="neon-quote">
         <p data-neon-price>Shop quote on request</p>
         <details>
-          <summary>Request a shop quote <span aria-hidden="true">→</span></summary>
+          <summary><span data-neon-request-label>Request a shop quote</span> <span aria-hidden="true">→</span></summary>
           <form method="post" action="/online-quote/neon-request" data-neon-quote-form data-private>
             <input type="hidden" name="csrf_token" value="<?= e(csrf_token()) ?>">
             <input type="hidden" name="request_id" value="<?= bin2hex(random_bytes(16)) ?>">
             <input type="hidden" name="design" data-neon-spec>
+            <input type="hidden" name="intent" value="review">
             <label>Your name<input name="customer_name" autocomplete="name" required maxlength="120"></label>
             <label>Email<input name="email" type="email" autocomplete="email" required maxlength="254"></label>
             <label>Project notes (optional)<textarea name="message" rows="2" maxlength="2000"></textarea></label>
-            <button type="submit" data-neon-submit>Send design for review</button>
+            <button type="submit" data-neon-submit disabled>Request a shop review</button>
             <p role="status" data-neon-response></p>
           </form>
         </details>

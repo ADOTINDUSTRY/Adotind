@@ -18,6 +18,10 @@
   const fontCards = new Map();
   const fileInput = root.querySelector('[data-neon-import]');
   const spec = root.querySelector('[data-neon-spec]');
+  const requestIntent = root.querySelector('input[name="intent"]');
+  const cutCheck = root.querySelector('[data-neon-cut-check]');
+  const cutRows = root.querySelector('[data-neon-cut-pieces]');
+  const resizeButton = root.querySelector('[data-neon-action="use-cut-width"]');
   const submit = root.querySelector('[data-neon-submit]');
   const outputs = new Map();
   for (const node of root.querySelectorAll('[data-neon-output]')) {
@@ -38,7 +42,7 @@
   }
   const minWidth = Number.isFinite(shop.minWidth) ? Math.max(200, shop.minWidth) : 200;
   const maxWidth = Number.isFinite(shop.maxWidth) ? Math.min(3000, shop.maxWidth) : 3000;
-  if (!canvas || !engine || !engine.fonts.length) {
+  if (!canvas || typeof engine?.cutLayout !== 'function' || !engine.fonts.length) {
     output('warnings', 'The lettering engine could not load. Refresh the page to try again.');
     if (submit) submit.disabled = true;
     return;
@@ -84,6 +88,7 @@
   const future = [];
   let sequence;
   const mm = value => new Intl.NumberFormat(undefined, {maximumFractionDigits: 1}).format(value) + ' mm';
+  const cutMeasure = new Intl.NumberFormat(undefined, {maximumFractionDigits: 3});
 
   function svg(tag, attrs = {}, content = '') {
     const node = document.createElementNS(NS, tag);
@@ -333,11 +338,54 @@
     buttonState('zoom-out', zoom <= minZoom());
   }
   const clampZoom = value => Math.min(maxZoom, Math.max(minZoom(), value));
+  function renderCutPlan(plan) {
+    cutCheck.hidden = !plan?.pieces.length;
+    if (cutCheck.hidden) return;
+    const pieces = plan.pieces;
+    const failed = pieces.filter(piece => !piece.ready).length;
+    const count = failed || pieces.length;
+    cutCheck.dataset.ready = String(plan.ready);
+    output('cut-summary', count + (count === 1 ? ' piece' : ' pieces') + (plan.ready ? ' ready to cut' : ' to review'));
+    let help = 'Every separate stroke or dot needs at least 25 mm (2.5 cm) of strip, in whole 25 mm sections.';
+    if (plan.ready && pieces.some(piece => piece.lengthMm - piece.cutMm > .001)) {
+      help += ' The preview includes a small trim at a free straight end to reach a cut mark.';
+    }
+    const suggestion = plan.suggestedWidthMm;
+    resizeButton.hidden = plan.ready || !Number.isFinite(suggestion);
+    if (!resizeButton.hidden) {
+      resizeButton.textContent = 'Fit at ' + (Number.isInteger(suggestion) ? '' : '≈ ') + cutMeasure.format(suggestion) + ' mm wide';
+      help += ' This size fits the cut marks and keeps the letter shapes.';
+    } else if (!plan.ready) {
+      help += ' Try a different style or send this design to the shop for review.';
+    }
+    output('cut-help', help);
+    const rows = document.createDocumentFragment();
+    for (const piece of pieces) {
+      const row = document.createElement('tr');
+      row.dataset.fit = String(piece.ready);
+      const title = document.createElement('th');
+      title.scope = 'row';
+      title.textContent = '#' + (piece.index + 1) + ' · “' + piece.character + '”';
+      const location = document.createElement('small');
+      location.textContent = (geometry.lineCount > 1 ? 'Line ' + (piece.line + 1) + ' · ' : '') +
+        'Char ' + (piece.charIndex + 1) + ' · Stroke ' + (piece.runIndex + 1);
+      title.append(location);
+      const measured = document.createElement('td');
+      measured.textContent = cutMeasure.format(piece.lengthMm) + ' mm';
+      const cut = document.createElement('td');
+      cut.textContent = piece.ready ? piece.cutMm + ' mm (' + piece.modules + ' × 25)' :
+        piece.reason === 'too-short' ? 'Under 25 mm' : 'Between cut marks';
+      row.append(title, measured, cut);
+      rows.append(row);
+    }
+    cutRows.replaceChildren(rows);
+  }
   function render() {
     const nextKey = JSON.stringify([design.text, design.font, design.widthMm, design.align, design.letterSpacing, design.lineSpacing]);
     if (nextKey !== geometryKey) {
-      geometry = engine.layout(design);
+      geometry = engine.cutLayout(design, {minWidth, maxWidth});
       geometryKey = nextKey;
+      renderCutPlan(geometry.cutPlan);
       renderFontSummary();
     }
     root.dataset.scene = design.scene;
@@ -368,29 +416,34 @@
     output('letterSpacing', design.letterSpacing.toFixed(2) + ' em');
     output('lineSpacing', design.lineSpacing.toFixed(2) + '×');
     const structuralError = projectError(design);
-    const warnings = [...new Set([structuralError, ...(geometry.errors || []), ...(geometry.warnings || [])].filter(Boolean))];
-    const valid = !structuralError && geometry.valid && geometry.paths.length > 0 &&
+    const plan = geometry.cutPlan;
+    const warnings = [...new Set([structuralError, ...(geometry.errors || []), ...(geometry.warnings || [])]
+      .filter(message => message && (!plan?.pieces.length || message !== plan.error)))];
+    const reviewable = !structuralError && Boolean(plan?.pieces.length) && geometry.paths.length > 0 &&
       fields.every(field => field.type !== 'number' || (field.value !== '' && field.validity.valid));
+    const ready = reviewable && geometry.valid && plan.ready;
     const warningText = warnings.join(' ');
     output('warnings', warningText);
     output('warning', warningText);
-    root.dataset.neonValid = String(Boolean(valid));
+    root.dataset.neonValid = String(ready);
     const w = geometry.widthMm, h = geometry.heightMm;
     const hasPaths = geometry.paths.length > 0;
     output('width', hasPaths ? mm(w) : '—');
     output('height', hasPaths ? mm(h) : '—');
     output('size', hasPaths ? mm(w) + ' × ' + mm(h) : '—');
-    output('length', hasPaths ? (geometry.lengthMm / 1000).toFixed(2) + ' m' : '—');
+    output('length', hasPaths ? mm(ready ? plan.totalCutMm : geometry.lengthMm) : '—');
     output('runs', String(geometry.paths.length));
     output('strokes', String(geometry.paths.length));
-    if (spec) spec.value = valid ? JSON.stringify(design) : '';
-    if (submit) submit.disabled = !valid;
-    for (const action of ['export', 'export-svg', 'export-dxf']) buttonState(action, !valid);
+    if (spec) spec.value = reviewable ? JSON.stringify(design) : '';
+    const intent = ready ? 'production' : 'review';
+    if (requestIntent) requestIntent.value = intent;
+    if (submit) submit.disabled = !reviewable;
+    for (const action of ['export', 'export-svg', 'export-dxf']) buttonState(action, !ready);
     buttonState('undo', !past.length);
     buttonState('redo', !future.length);
     paint();
     root.dispatchEvent(new CustomEvent('neon:design', {bubbles: true,
-      detail: {spec: valid ? {...design} : null, lengthMm: geometry.lengthMm}}));
+      detail: {spec: reviewable ? {...design} : null, intent, lengthMm: ready ? plan.totalCutMm : geometry.lengthMm}}));
   }
   function edit(key, input, group) {
     if (!(key in defaults) || key === 'version') return;
@@ -508,6 +561,10 @@
       }
     }
     if (action === 'browse-fonts') browseFonts();
+    if (action === 'use-cut-width' && Number.isFinite(geometry.cutPlan?.suggestedWidthMm)) {
+      changed('widthMm', geometry.cutPlan.suggestedWidthMm, false);
+      root.querySelector('#neon-width').focus({preventScroll: true});
+    }
     if (action === 'close-fonts') fontDialog.close();
     if (action === 'previous-font' || action === 'next-font') cycleFont(action === 'previous-font' ? -1 : 1);
     if (action === 'match-font' && compatibleFonts.length) changed('font', compatibleFonts[0].id, false);
@@ -519,11 +576,11 @@
       camera();
     }
     if (action === 'export-svg' || action === 'export') {
-      if (!geometry.valid || projectError(design)) return;
+      if (root.dataset.neonValid !== 'true') return;
       download(engine.svg(geometry, {color: design.color}), 'image/svg+xml', 'svg');
       output('status', 'Centerline drawing downloaded.');
     }
-    if (action === 'export-dxf' && geometry.valid && !projectError(design)) {
+    if (action === 'export-dxf' && root.dataset.neonValid === 'true') {
       download(engine.dxf(geometry), 'application/dxf', 'dxf');
       output('status', 'DXF centerlines downloaded in millimetres.');
     }

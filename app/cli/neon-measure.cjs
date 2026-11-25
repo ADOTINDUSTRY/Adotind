@@ -14,7 +14,8 @@ const choices = {
 const ranges = {widthMm: [200, 3000], letterSpacing: [0, 0.30], lineSpacing: [1, 2], brightness: [10, 100]};
 const fields = new Set(['version', 'text', 'color', 'power', ...Object.keys(choices), ...Object.keys(ranges)]);
 
-function measure(input) {
+function measure(input, intent = 'production') {
+  if (!['production', 'review'].includes(intent)) return {error: 'Choose a valid request type.'};
   if (!input || Array.isArray(input) || typeof input !== 'object' || input.version !== 1 ||
       Object.keys(input).some(key => !fields.has(key))) return {error: 'Choose a valid version 1 design.'};
   if (typeof input.text !== 'string') return {error: 'Enter the lettering for your sign.'};
@@ -34,10 +35,28 @@ function measure(input) {
     if (!Number.isFinite(value) || value < min || value > max) return {error: 'Choose a value within the control limits.'};
     design[key] = value;
   }
-  const proof = geometry.layout(design);
-  if (!proof.valid) return {error: proof.errors[0]};
+  const proof = geometry.cutLayout(design, {suggestions: false});
+  if (!proof.cutPlan) return {error: proof.errors[0] || 'Check the lettering before sending.'};
+  const cutPlan = proof.cutPlan;
+  if (!cutPlan.ready && intent === 'production') {
+    return {error: 'Each separate LED strip must fit a whole number of 25 mm sections. Change the design or request a shop review.'};
+  }
+  if (cutPlan.ready && intent === 'review') {
+    return {error: 'This design fits the strip cuts. Review the current design and submit it from the editor.'};
+  }
+  if (!cutPlan.ready) {
+    const artwork = geometry.layout(design);
+    if (!artwork.valid) return {error: artwork.errors[0]};
+    // Shop enquiries keep a visual reference. Only a verified production plan
+    // receives a machine file or a cutting layer.
+    const svg = geometry.svg(artwork, {color: design.color}).replace('<g id="TUBE_CENTERLINE_6MM"',
+      '<title>Artwork for shop review only</title><desc>Strip lengths require review before cutting.</desc>\n<g id="VISUAL_REVIEW_ONLY"');
+    return {reviewOnly: true, cutPlan, design, widthMm: artwork.widthMm, heightMm: artwork.heightMm,
+      lengthMm: artwork.lengthMm, warnings: artwork.warnings, svg, dxf: ''};
+  }
+  if (!proof.valid) return {error: proof.errors[0] || 'The cutting geometry could not be verified.'};
   return {
-    design, widthMm: proof.widthMm, heightMm: proof.heightMm, lengthMm: proof.lengthMm,
+    reviewOnly: false, cutPlan, design, widthMm: proof.widthMm, heightMm: proof.heightMm, lengthMm: cutPlan.totalCutMm,
     warnings: proof.warnings, svg: geometry.svg(proof, {color: design.color}), dxf: geometry.dxf(proof),
   };
 }
@@ -61,7 +80,7 @@ async function main() {
     process.stdout.write(JSON.stringify({error: 'Choose a valid design.'}));
     return;
   }
-  process.stdout.write(JSON.stringify(measure(input)));
+  process.stdout.write(JSON.stringify(measure(input, process.argv[2] || 'production')));
 }
 
 if (require.main === module) main().catch(() => { process.exitCode = 1; });
