@@ -352,8 +352,6 @@
         canvas.append(path({'stroke-width':16*previewSpread,opacity:.65*level,filter:'url(#neon-halo)'}));
         canvas.append(path({'stroke-width':8+2*previewSpread,opacity:.9*level,filter:'url(#neon-bloom)'}));
         canvas.append(path({opacity:.55+.45*level}));
-        canvas.append(path({'stroke-width':1.8,opacity:.92*level,
-          style:'stroke:color-mix(in srgb, '+lineColor+', white 82%)'}));
       } else canvas.append(path());
     }
     const measure = svg('g', {stroke: technical ? '#526371' : '#d2dadf', 'stroke-width': Math.max(.5, chartSize * .065), fill: 'none', opacity: .85});
