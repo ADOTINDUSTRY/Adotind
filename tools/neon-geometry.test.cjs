@@ -431,13 +431,29 @@ test('a two-colour neon proof saves both colours and retains the same cutting ge
 });
 test('finished acrylic controls pricing tiers and the 3 by 2 metre limit', () => {
   const spec={...design,text:'Hello',boardShape:'rectangle'};
-  for (const [width,tier] of [[1156,120],[1157,240],[2356,240],[2357,300],[2956,300]]) {
+  for (const [width,tier] of [[1100,120],[1200,240],[2300,240],[2400,300],[2912,300]]) {
     const proof=measure({...spec,widthMm:width});
-    assert.equal(proof.finished.widthMm,width+44);
+    near(proof.finished.widthMm,width+2*geometry.acrylicMargin(width,spec),.001);
     assert.equal(proof.finished.tier,tier);
     assert.ok(proof.finished.areaMm2>0);
   }
-  assert.match(measure({...spec,widthMm:2957}).error,/3,000 × 2,000/);
+  assert.match(measure({...spec,widthMm:2913}).error,/3,000 × 2,000/);
   const high=geometry.finishedSize({widthMm:1000,heightMm:2001},null,spec);
   assert.equal(high.withinLimit,false);
+});
+
+test('acrylic and spacer inset scale, with width tiers and extra rows above one metre', () => {
+  const spec={...design,boardShape:'rectangle',mount:'wall'};
+  assert.equal(geometry.acrylicMargin(456,spec),22);
+  assert.equal(geometry.acrylicMargin(2912,spec),44);
+  for (const [width,height,count] of [[700,400,4],[1000,400,6],[2000,400,8],[1000,1100,10],[2400,1100,12]]) {
+    const board=geometry.backboard({widthMm:width,heightMm:height},spec);
+    assert.equal(board.holes.length,count);
+    near(board.holes[0][0]+board.pad,15*board.pad/22,.001);
+  }
+  for (const [widthMm,count] of [[700,4],[1000,6],[2100,8]]) {
+    const contour={...spec,boardShape:'contour',text:'Hello Hello',widthMm};
+    const drawing=geometry.layout(contour);
+    assert.equal(geometry.backboard(drawing,contour).holes.length,count);
+  }
 });

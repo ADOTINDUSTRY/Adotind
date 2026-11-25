@@ -560,7 +560,29 @@
   }
 
   const CUT_STEP = 25;
-  function contourPanels(art, gap) {
+  function acrylicMargin(widthMm, spec) {
+    if (!spec.backing || spec.backing === 'none') return 0;
+    const base = spec.boardShape === 'contour' ? (spec.boardGap ?? 30) : 22;
+    // The margin doubles between 500 and 3000 mm of nominal finished width.
+    const growth = Math.max(0,widthMm+2*base-500)/(2500-2*base);
+    return base*(1+Math.min(1,growth));
+  }
+
+  function spacerTargets(left,top,right,bottom,inset) {
+    const width=right-left, height=bottom-top;
+    const columns=width<=800.01?2:width<=2000.01?3:4;
+    const targets=[];
+    for (let i=0;i<columns;i++) {
+      const x=left+inset+(width-2*inset)*i/(columns-1);
+      targets.push([x,top+inset],[x,bottom-inset]);
+    }
+    if (height>1000.01) for (const x of [left+inset,right-inset]) {
+      for (const fraction of [1/3,2/3]) targets.push([x,top+height*fraction]);
+    }
+    return targets;
+  }
+
+  function contourPanels(art, gap, factor) {
     const clipper = typeof module === 'object' && module.exports
       ? require('./neon-clipper.js') : globalThis.ClipperLib;
     const scale=100;
@@ -599,17 +621,22 @@
       const inset=new clipper.ClipperOffset(2,0.05*scale);
       inset.AddPath(path,clipper.JoinType.jtRound,clipper.EndType.etClosedPolygon);
       const mountArea=[];
-      inset.Execute(mountArea,-15*scale);
-      const candidates=mountArea.flat().filter(({X,Y})=>art.runs.every(run=>run.every(([x,y],i)=>{
-        const [ax,ay]=run[i-1] || run[i], dx=x-ax, dy=y-ay;
-        const t=Math.max(0,Math.min(1,((X/scale-ax)*dx+(Y/scale-ay)*dy)/(dx*dx+dy*dy || 1)));
-        return Math.hypot(X/scale-ax-t*dx,Y/scale-ay-t*dy)>=11;
-      })));
-      if (candidates.length) {
-        const first=candidates.reduce((a,b)=>a.X+a.Y<b.X+b.Y?a:b);
-        const last=candidates.reduce((a,b)=>Math.hypot(a.X-first.X,a.Y-first.Y)>Math.hypot(b.X-first.X,b.Y-first.Y)?a:b);
-        holes.push([first.X/scale,first.Y/scale]);
-        if (Math.hypot(last.X-first.X,last.Y-first.Y)>=20*scale) holes.push([last.X/scale,last.Y/scale]);
+      const edge=15*factor;
+      inset.Execute(mountArea,-edge*scale);
+      const points=outlines.at(-1);
+      const xs=points.map(point=>point[0]), ys=points.map(point=>point[1]);
+      const targets=spacerTargets(Math.min(...xs),Math.min(...ys),Math.max(...xs),Math.max(...ys),edge);
+      const candidates=mountArea.flat().map(({X,Y})=>[X/scale,Y/scale]);
+      // Search nearer points first because contoured edges may have valleys or no acrylic at a nominal corner.
+      for (const target of targets) {
+        candidates.sort((a,b)=>distance(a,target)-distance(b,target));
+        const point=candidates.find(([X,Y])=>holes.every(hole=>distance(hole,[X,Y])>=20*factor) &&
+          art.runs.every(run=>run.every(([x,y],i)=>{
+            const [ax,ay]=run[i-1] || run[i], dx=x-ax, dy=y-ay;
+            const t=Math.max(0,Math.min(1,((X-ax)*dx+(Y-ay)*dy)/(dx*dx+dy*dy || 1)));
+            return Math.hypot(X-ax-t*dx,Y-ay-t*dy)>=11*factor;
+          })));
+        if (point) holes.push(point);
       }
     }
     return {outline:outlines[0] || [],outlines,holes,wall:true,pad:gap+15};
@@ -617,8 +644,10 @@
 
   function backboard(art, spec) {
     if (!spec.backing || spec.backing === 'none') return null;
-    if (spec.boardShape === 'contour') return contourPanels(art, spec.boardGap ?? 30);
-    const w = art.widthMm, h = art.heightMm, pad = 22;
+    const w=art.widthMm, h=art.heightMm, pad=acrylicMargin(w,spec);
+    const base=spec.boardShape==='contour' ? (spec.boardGap ?? 30) : 22;
+    const factor=pad/base;
+    if (spec.boardShape === 'contour') return contourPanels(art,pad,factor);
     const radius=20;
     const corners=[[-pad+radius,-pad+radius],[w+pad-radius,-pad+radius],
       [w+pad-radius,h+pad-radius],[-pad+radius,h+pad-radius]];
@@ -631,7 +660,7 @@
     const outline=corners.flatMap(corner);
     const wall=spec.mount==='wall', holes=[];
     if (wall) {
-      for (const x of [-pad+15,w+pad-15]) for (const y of [-pad+15,h+pad-15]) holes.push([x,y]);
+      holes.push(...spacerTargets(-pad,-pad,w+pad,h+pad,15*factor));
     } else if (spec.mount==='suspended') {
       for (const x of [w*.16,w*.84]) holes.push([x,-pad+15]);
     }
@@ -721,5 +750,5 @@
     return groups.join('\r\n')+'\r\n';
   }
 
-  globalThis.NeonGeometry = {fonts, layout, svg, dxf, backboard, finishedSize};
+  globalThis.NeonGeometry = {fonts, layout, svg, dxf, backboard, finishedSize, acrylicMargin};
 })();

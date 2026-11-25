@@ -453,8 +453,9 @@
     widthAllowance = board ? Math.max(0,finished.widthMm-design.widthMm) : 0;
     root.querySelector('label[for="neon-width"]').textContent = design.backing === 'none' ? 'Lettering width' : 'Finished acrylic width';
     for (const control of fields.filter(field => field.dataset.neonField === 'widthMm')) {
-      control.min = Math.min(3000,effectiveMin+widthAllowance);
-      control.max = Math.min(3000,maxWidth+widthAllowance);
+      const allowanceCorrection=widthAllowance-2*engine.acrylicMargin(design.widthMm,design);
+      control.min = Math.min(3000,effectiveMin+2*engine.acrylicMargin(effectiveMin,design)+allowanceCorrection);
+      control.max = Math.min(3000,maxWidth+2*engine.acrylicMargin(maxWidth,design)+allowanceCorrection);
       control.setAttribute('aria-label',design.backing === 'none' ? 'Lettering width in millimetres' : 'Finished acrylic width in millimetres');
       if (control.type === 'range' || control !== document.activeElement) control.value = Number((design.widthMm+widthAllowance).toFixed(1));
     }
@@ -503,7 +504,10 @@
       const applyWidth = () => {
         if (!Number.isFinite(node.valueAsNumber)) return;
         const width = Math.min(Number(node.max),Math.max(Number(node.min),node.valueAsNumber));
-        changed('widthMm',Math.max(minWidth,width-widthAllowance),true);
+        const correction=widthAllowance-2*engine.acrylicMargin(design.widthMm,design);
+        let lettering=width-widthAllowance;
+        for (let pass=0;pass<6;pass++) lettering=width-correction-2*engine.acrylicMargin(lettering,design);
+        changed('widthMm',Math.min(maxWidth,Math.max(minWidth,lettering)),true);
       };
       if (node.type === 'range') node.addEventListener('input',applyWidth);
       node.addEventListener('change',applyWidth);
