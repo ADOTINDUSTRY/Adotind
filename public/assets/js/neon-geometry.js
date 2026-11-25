@@ -631,29 +631,32 @@
 
   function dxf(design, spec = {}) {
     if (!design.valid || !design.runs) throw new Error('Complete the design before exporting it.');
-    const layer = 'TUBE_CENTERLINE_6MM';
-    const groups = [0,'SECTION',2,'HEADER',9,'$ACADVER',1,'AC1015',9,'$INSUNITS',70,4,9,'$MEASUREMENT',70,1,0,'ENDSEC',
-      0,'SECTION',2,'TABLES',0,'TABLE',2,'LAYER',5,'2',330,'0',100,'AcDbSymbolTable',70,1,0,'LAYER',5,'31',330,'2',100,'AcDbSymbolTableRecord',
-      100,'AcDbLayerTableRecord',2,layer,70,0,62,7,6,'CONTINUOUS',0,'ENDTAB',0,'ENDSEC',0,'SECTION',2,'ENTITIES'];
-    for (const [index,run] of design.runs.entries()) {
-      const closed = run.length>2 && distance(run[0],run.at(-1)) < 0.00001;
-      const points = closed ? run.slice(0,-1) : run;
-      groups.push(0,'LWPOLYLINE',5,(0x100+index).toString(16),100,'AcDbEntity',8,layer,100,'AcDbPolyline',90,points.length,70,closed ? 1 : 0);
-      for (const p of points) groups.push(10,number(p[0]),20,number(design.heightMm-p[1]));
+    const tubeLayer = 'TUBE_CENTERLINE_6MM';
+    const board = backboard(design,spec);
+    const layers = ['0',tubeLayer];
+    if (board) layers.push('ACRYLIC_OUTLINE');
+    if (board?.holes.length) layers.push('MOUNT_HOLES');
+    const groups = [0,'SECTION',2,'HEADER',9,'$ACADVER',1,'AC1009',9,'$LUNITS',70,2,
+      9,'$MEASUREMENT',70,1,0,'ENDSEC',
+      0,'SECTION',2,'TABLES',0,'TABLE',2,'LTYPE',70,1,
+      0,'LTYPE',2,'CONTINUOUS',70,0,3,'Solid line',72,65,73,0,40,0,0,'ENDTAB',
+      0,'TABLE',2,'LAYER',70,layers.length];
+    for (const [index,layer] of layers.entries()) groups.push(0,'LAYER',2,layer,70,0,62,[7,7,3,4][index],6,'CONTINUOUS');
+    groups.push(0,'ENDTAB',0,'ENDSEC',0,'SECTION',2,'BLOCKS',0,'ENDSEC',0,'SECTION',2,'ENTITIES');
+    function polyline(points,layer,closed) {
+      groups.push(0,'POLYLINE',8,layer,66,1,10,0,20,0,30,0,70,closed?1:0);
+      for (const [x,y] of points) groups.push(0,'VERTEX',8,layer,10,number(x),20,number(design.heightMm-y),30,0,70,0);
+      groups.push(0,'SEQEND',8,layer);
     }
-    const board=backboard(design,spec);
+    for (const run of design.runs) {
+      const closed = run.length>2 && distance(run[0],run.at(-1)) < 0.00001;
+      polyline(closed ? run.slice(0,-1) : run,tubeLayer,closed);
+    }
     if (board) {
-      const layerEnd=groups.indexOf('ENDTAB')-1;
-      const layers=['ACRYLIC_OUTLINE', ...(board.holes.length ? ['MOUNT_HOLES'] : [])];
-      groups[groups.indexOf('AcDbSymbolTable')+2]=1+layers.length;
-      groups.splice(layerEnd,0,...layers.flatMap((name,i)=>[0,'LAYER',5,(50+i).toString(16),330,'2',100,'AcDbSymbolTableRecord',100,'AcDbLayerTableRecord',2,name,70,0,62,i+3,6,'CONTINUOUS']));
-      let handle=0x100+design.runs.length;
-      for (const outline of board.outlines) {
-        groups.push(0,'LWPOLYLINE',5,handle.toString(16),100,'AcDbEntity',8,layers[0],100,'AcDbPolyline',90,outline.length,70,1);
-        for(const [x,y] of outline) groups.push(10,number(x),20,number(design.heightMm-y));
-        handle++;
+      for (const outline of board.outlines) polyline(outline,'ACRYLIC_OUTLINE',true);
+      for (const [x,y] of board.holes) {
+        groups.push(0,'CIRCLE',8,'MOUNT_HOLES',10,number(x),20,number(design.heightMm-y),30,0,40,board.wall?5.5:2.5);
       }
-      board.holes.forEach(([x,y],i)=>groups.push(0,'CIRCLE',5,(handle+1+i).toString(16),100,'AcDbEntity',8,layers[1],100,'AcDbCircle',10,number(x),20,number(design.heightMm-y),40,board.wall?5.5:2.5));
     }
     groups.push(0,'ENDSEC',0,'EOF');
     return groups.join('\r\n')+'\r\n';

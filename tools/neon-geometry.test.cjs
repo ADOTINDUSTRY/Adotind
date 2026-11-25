@@ -19,18 +19,22 @@ function polylines(dxf) {
   const groups = dxf.trim().split(/\r?\n/);
   const entities = [];
   let current = null;
+  let record = '';
   for (let i = 0; i < groups.length; i += 2) {
     const code = Number(groups[i]), value = groups[i+1];
     if (code === 0) {
-      current = value === 'LWPOLYLINE' ? {points: []} : null;
-      if (current) entities.push(current);
+      record = value;
+      if (record === 'POLYLINE') {
+        current = {points: []};
+        entities.push(current);
+      } else if (record !== 'VERTEX') current = null;
     }
     if (!current) continue;
-    if (code === 8) current.layer = value;
-    if (code === 70) current.closed = Number(value) === 1;
-    if (code === 90) current.count = Number(value);
-    if (code === 10) current.points.push([Number(value)]);
-    if (code === 20) current.points.at(-1).push(Number(value));
+    if (record === 'POLYLINE' && code === 8) current.layer = value;
+    if (record === 'POLYLINE' && code === 70) current.closed = Number(value) === 1;
+    if (record === 'VERTEX' && code === 10) current.points.push([Number(value)]);
+    if (record === 'VERTEX' && code === 20) current.points.at(-1).push(Number(value));
+    current.count = current.points.length;
   }
   return entities;
 }
@@ -48,7 +52,7 @@ test('all fonts keep a physical 6 mm tube at every sign size and export matching
       assert.doesNotMatch(svg, /<text|<use|transform=/);
       assert.equal((svg.match(/<path /g) || []).length, layout.paths.length);
       const cad = geometry.dxf(layout);
-      assert.match(cad, /\$INSUNITS\r\n70\r\n4\r\n/);
+      assert.match(cad, /\$MEASUREMENT\r\n70\r\n1\r\n/);
       const entities = polylines(cad);
       assert.equal(entities.length, layout.paths.length);
       let left = Infinity, bottom = Infinity, right = -Infinity, top = -Infinity, length = 0;
