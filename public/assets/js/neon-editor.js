@@ -120,6 +120,7 @@
     sequence = group ? {key, at: now} : undefined;
     future.length = 0;
     design = {...design, [key]: value};
+    if (design.mount !== 'wall' && design.boardShape === 'contour') design.boardShape = 'rectangle';
     if (key === 'cover' && value !== WHITE_COVER) design.color = value;
     output('status', '');
     render();
@@ -141,6 +142,7 @@
     if (typeof value.power !== 'boolean') {
       return 'Choose a valid power setting.';
     }
+    if (value.boardShape === 'contour' && value.mount !== 'wall') return 'Cut-around acrylic is available for wall mounting only.';
     return '';
   }
   function previewText(font, text) {
@@ -433,6 +435,7 @@
     root.dataset.power = design.power ? 'on' : 'off';
     root.dataset.backing = design.backing;
     root.querySelector('[data-neon-field="boardShape"]').disabled = design.backing === 'none';
+    root.querySelector('[data-neon-field="boardShape"] option[value="contour"]').disabled = design.mount !== 'wall';
     root.dataset.mount = design.mount;
     root.style.setProperty('--neon-color', design.color);
     for (const node of fields) {

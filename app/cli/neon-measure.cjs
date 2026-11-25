@@ -42,6 +42,9 @@ function measure(input, intent = 'production') {
     if (!values.includes(value)) return {error: 'Choose a valid ' + key + ' option.'};
     design[key] = value;
   }
+  if (design.boardShape === 'contour' && design.mount !== 'wall') {
+    return {error: 'Cut-around acrylic is available for wall mounting only.'};
+  }
   for (const [key, [min, max]] of Object.entries(ranges)) {
     const value = input[key];
     if (!Number.isFinite(value) || value < min || value > max) return {error: 'Choose a value within the control limits.'};
