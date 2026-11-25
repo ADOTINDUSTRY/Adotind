@@ -135,7 +135,7 @@
 
 (() => {
   const targets = document.querySelectorAll(
-    '.section .container > *, .page-hero .container > *, .cap-grid article, .service-card, .gallery-item, .tags span'
+    '.section .container > :not([data-neon-editor]), .page-hero .container > *, .cap-grid article, .service-card, .gallery-item, .tags span'
   );
   if (!targets.length) return;
 
