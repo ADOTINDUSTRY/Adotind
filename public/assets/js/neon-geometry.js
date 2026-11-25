@@ -659,7 +659,11 @@
     return '<svg xmlns="http://www.w3.org/2000/svg" width="'+w+'mm" height="'+h+'mm" viewBox="'+(-pad)+' '+(-pad)+' '+w+' '+h+'"'+backdrop+'>\n'
       + (description.length ? '<desc>' + description.join(' ') + '</desc>\n' : '')
       + boardSvg + '<g id="'+layer+'" fill="none" stroke="'+stroke+'" stroke-width="6" stroke-linecap="round" stroke-linejoin="round">\n'
-      + design.paths.map(path => '  <path d="'+path.d+'"/>').join('\n')+'\n</g>\n</svg>\n';
+      + design.paths.map(path => {
+          const selected = spec.lineColors?.[path.line];
+          const lineStroke = power && /^#[0-9a-f]{6}$/i.test(selected || '') ? ' stroke="'+selected+'"' : '';
+          return '  <path d="'+path.d+'"'+lineStroke+'/>';
+        }).join('\n')+'\n</g>\n</svg>\n';
   }
 
   function dxf(design, spec = {}) {

@@ -67,7 +67,7 @@
   }
   const defaults = {
     version: 2, text: 'Hello', font: fonts[0].id, widthMm: Math.min(maxWidth, Math.max(minWidth, 600)),
-    align: 'center', letterSpacing: 0, lineSpacing: 1.25, color: colors[0], cover: WHITE_COVER,
+    align: 'center', letterSpacing: 0, lineSpacing: 1.25, color: colors[0], lineColors: [], cover: WHITE_COVER,
     boardShape: 'rectangle', boardGap: 30, backing: 'clear', mount: 'wall', scene: 'studio', power: true, brightness: 85,
   };
   const options = {
@@ -107,6 +107,17 @@
   function buttonState(action, disabled) {
     for (const el of root.querySelectorAll('[data-neon-action="' + action + '"]')) el.disabled = disabled;
   }
+  for (const select of root.querySelectorAll('[data-neon-line-color]')) {
+    for (const option of select.options) {
+      option.disabled = Boolean(option.value && !colors.includes(option.value));
+    }
+    select.addEventListener('change',()=>{
+      const line = Number(select.dataset.neonLineColor);
+      const next = Array.from({length:Math.max(line+1,design.lineColors.length)},(_,index)=>
+        index===line ? select.value || null : design.lineColors[index] || null);
+      changed('lineColors',next,false);
+    });
+  }
   function changed(key, value, group) {
     if (design[key] === value) return;
     if (key === 'color' && design.cover !== WHITE_COVER && value !== design.cover) return;
@@ -119,7 +130,10 @@
     future.length = 0;
     design = {...design, [key]: value};
     if (design.mount !== 'wall' && design.boardShape === 'contour') design.boardShape = 'rectangle';
-    if (key === 'cover' && value !== WHITE_COVER) design.color = value;
+    if (key === 'cover' && value !== WHITE_COVER) {
+      design.color = value;
+      design.lineColors = [];
+    }
     output('status', '');
     render();
   }
@@ -130,6 +144,10 @@
     }
     for (const [key, values] of Object.entries(options)) {
       if (!values.includes(value[key])) return 'Choose one of the available ' + key + ' options.';
+    }
+    if (!Array.isArray(value.lineColors) || value.lineColors.length > 4 ||
+        value.lineColors.some(color => color !== null && (!colors.includes(color) || value.cover !== WHITE_COVER))) {
+      return 'Choose available line colours with a white silicone cover.';
     }
     if (value.cover !== WHITE_COVER && value.cover !== value.color) {
       return 'A coloured silicone cover requires a matching LED. Choose a white cover to use a different LED.';
@@ -323,18 +341,21 @@
     } else {
       canvas.append(useTube({transform: 'translate(1.2 3.3)', stroke: '#050609', opacity: .75, filter: 'url(#neon-shadow)'}));
     }
-    const face = useTube({stroke: design.power ? color : design.cover});
-    if (lit) {
-      const level = design.brightness / 100;
-      // Dim the reflected light while keeping the physical tube width fixed.
-      canvas.append(useTube({stroke: color, 'stroke-width': 12 * previewSpread, opacity: .46 * level,
-        filter: 'url(#neon-halo)', style: 'mix-blend-mode:screen'}));
-      canvas.append(useTube({stroke: color, 'stroke-width': 6 + 2 * previewSpread, opacity: .52 * level,
-        filter: 'url(#neon-bloom)', style: 'mix-blend-mode:screen'}));
-      face.setAttribute('opacity', .42 + .58 * level);
-      face.style.stroke = `color-mix(in srgb, ${color}, white ${20 * level * level}%)`;
+    const level = design.brightness / 100;
+    const linePaths = new Map();
+    for (const path of geometry.paths) linePaths.set(path.line,(linePaths.get(path.line) || '') + ' ' + path.d);
+    for (const [line,pathData] of linePaths) {
+      const lineColor = design.power ? (design.lineColors[line] || color) : design.cover;
+      const path = attrs => svg('path',{d:pathData,fill:'none',stroke:lineColor,'stroke-width':6,
+        'stroke-linecap':'round','stroke-linejoin':'round',...attrs});
+      if (lit) {
+        canvas.append(path({'stroke-width':16*previewSpread,opacity:.65*level,filter:'url(#neon-halo)'}));
+        canvas.append(path({'stroke-width':8+2*previewSpread,opacity:.9*level,filter:'url(#neon-bloom)'}));
+        canvas.append(path({opacity:.55+.45*level}));
+        canvas.append(path({'stroke-width':1.8,opacity:.92*level,
+          style:'stroke:color-mix(in srgb, '+lineColor+', white 82%)'}));
+      } else canvas.append(path());
     }
-    canvas.append(face);
     const measure = svg('g', {stroke: technical ? '#526371' : '#d2dadf', 'stroke-width': Math.max(.5, chartSize * .065), fill: 'none', opacity: .85});
     const offset = dimOffset + mountBottom, tick = chartSize * .33, side = w + dimOffset;
     measure.append(svg('path', {d: 'M0 ' + offset + 'h' + w + ' M0 ' + (offset - tick) + 'v' + (2 * tick) +
@@ -406,6 +427,13 @@
         !(wallURL && key === 'scene') && String(design[key]) === btn.dataset.value;
       btn.setAttribute('aria-pressed', String(selected));
       btn.classList.toggle('is-active', selected);
+    }
+    for (const select of root.querySelectorAll('[data-neon-line-color]')) {
+      const line = Number(select.dataset.neonLineColor);
+      const active = design.cover === WHITE_COVER && Boolean(design.text.split('\n')[line]?.trim());
+      select.disabled = !active;
+      select.closest('label').hidden = !active;
+      select.value = design.lineColors[line] || '';
     }
     const ledLabel = swatches.find(el => el.dataset.value === design.color).dataset.label;
     const coverLabel = coverSwatches.find(el => el.dataset.value === design.cover).dataset.label;
@@ -614,6 +642,7 @@
         throw Error('Choose a .neon.json design exported by this editor.');
       }
       if (imported.boardShape === undefined) imported.boardShape = 'rectangle';
+      if (imported.lineColors === undefined) imported.lineColors = [];
       if (imported.boardGap === undefined) imported.boardGap = 30;
       if (imported.version === 1) imported = {...imported, version: 2, cover: WHITE_COVER};
       const disabledFont = !options.font.includes(imported.font) && engine.fonts.some(f => f.id === imported.font);

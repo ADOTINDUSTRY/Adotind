@@ -240,6 +240,9 @@ body:has(.neon-studio dialog[open]) { overflow: hidden; }
 .neon-segment button[aria-pressed="true"] { background: #243652; color: #fff; }
 .neon-palette { display: flex; flex-wrap: wrap; margin: .4rem 0 .15rem; gap: .32rem; }
 .neon-colour-group + .neon-colour-group { border-top: 1px solid var(--studio-line); }
+.neon-line-colours { display: grid; grid-template-columns: repeat(auto-fit,minmax(min(100%, 10rem),1fr)); gap: .5rem; }
+.neon-line-colours label[hidden] { display: none; }
+.neon-line-colours select { width: 100%; margin-top: .25rem; }
 .neon-studio .neon-pairing-help { margin: 0; font-size: .8rem; color: var(--studio-muted); }
 .neon-swatch { width: clamp(1.75rem, 2.3vw, 2.4rem); aspect-ratio: 1; border: 1px solid #1b253737; border-radius: 50%; background: var(--swatch); }
 .neon-swatch[aria-pressed="true"] { box-shadow: 0 0 0 2px white inset, 0 0 0 2px #243652; border-color: #243652; }

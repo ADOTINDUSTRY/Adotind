@@ -159,6 +159,7 @@ function neon_handle_request(): never
         $shop = neon_settings($db);
         if ($shop['edition'] !== ($_POST['edition'] ?? '') || (string)$shop['revision'] !== ($_POST['revision'] ?? '') ||
             !in_array($spec['font'], $shop['fonts'], true) || !in_array($spec['color'], $shop['colors'], true)
+            || array_diff(array_filter($spec['lineColors']), $shop['colors'])
             || $spec['widthMm'] < $shop['minWidth'] || $spec['widthMm'] > $shop['maxWidth']) {
             $db->exec('ROLLBACK');
             neon_reply(409, ['error'=>'Shop options or pricing changed. Download your design, then reload and review it before sending.']);

@@ -16,7 +16,7 @@ const choices = {
   scene: ['studio', 'brick', 'concrete', 'drawing'],
 };
 const ranges = {widthMm: [100, 3000], boardGap: [30, 150], letterSpacing: [0, 0.30], lineSpacing: [1, 2], brightness: [10, 100]};
-const fields = new Set(['version', 'text', 'color', 'cover', 'power', ...Object.keys(choices), ...Object.keys(ranges)]);
+const fields = new Set(['version', 'text', 'color', 'cover', 'lineColors', 'power', ...Object.keys(choices), ...Object.keys(ranges)]);
 
 function measure(input, intent = 'production') {
   if (!['production', 'review'].includes(intent)) return {error: 'Choose a valid request type.'};
@@ -36,7 +36,12 @@ function measure(input, intent = 'production') {
   if (cover !== white && (cover === warmWhite || cover !== color)) {
     return {error: 'Use a white silicone cover with any LED colour, or match the cover to the LED. Warm white requires a white cover.'};
   }
-  const design = {version: 2, text, color, cover, power: input.power};
+  const lineColors = input.lineColors === undefined ? [] : input.lineColors;
+  if (!Array.isArray(lineColors) || lineColors.length > 4 || lineColors.some(value =>
+      value !== null && (typeof value !== 'string' || !Object.hasOwn(palette,value) || cover !== white))) {
+    return {error:'Choose available line colours with a white silicone cover.'};
+  }
+  const design = {version: 2, text, color, cover, lineColors, power: input.power};
   for (const [key, values] of Object.entries(choices)) {
     const value = key === 'boardShape' && input[key] === undefined ? 'rectangle' : input[key];
     if (!values.includes(value)) return {error: 'Choose a valid ' + key + ' option.'};

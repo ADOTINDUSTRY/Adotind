@@ -420,3 +420,12 @@ test('dot marks export as open strokes throughout the neon font catalogue', () =
     assert.ok(polylines(geometry.dxf(sign)).every(path=>!path.closed),font.id);
   }
 });
+test('a two-colour neon proof saves both colours and retains the same cutting geometry', () => {
+  const draft={...design,version:2,text:'NEON\neffect',cover:'#ffffff'};
+  const mixed=measure({...draft,lineColors:['#68c7ff','#bc8bff']});
+  assert.deepEqual(mixed.design.lineColors,['#68c7ff','#bc8bff']);
+  assert.match(mixed.svg,/stroke="#68c7ff"/);
+  assert.match(mixed.svg,/stroke="#bc8bff"/);
+  assert.equal(mixed.dxf,measure(draft).dxf);
+  assert.ok(measure({...draft,cover:'#ff488d',lineColors:['#68c7ff']}).error);
+});

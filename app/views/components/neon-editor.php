@@ -122,6 +122,18 @@ $neonIcon = static function (string $key) use ($neonIcons): string {
               </div>
             </fieldset>
           <?php endforeach; ?>
+          <div class="neon-line-colours">
+            <?php for ($line = 0; $line < 4; $line++): ?>
+              <label hidden>Line <?= $line + 1 ?> LED colour
+                <select data-neon-line-color="<?= $line ?>" disabled>
+                  <option value="">Use main colour</option>
+                  <?php foreach ($neonColours as $hex=>$name): ?>
+                    <option value="<?= e($hex) ?>"><?= e($name) ?></option>
+                  <?php endforeach; ?>
+                </select>
+              </label>
+            <?php endfor; ?>
+          </div>
           <p class="neon-pairing-help" id="neon-pairing-help" data-neon-output="pairing" aria-live="polite"></p>
           <div class="neon-label-pair"><label for="neon-brightness">Preview brightness</label><output data-neon-output="brightness">85%</output></div>
           <input id="neon-brightness" type="range" data-neon-field="brightness" min="10" max="100" value="85" step="1">
