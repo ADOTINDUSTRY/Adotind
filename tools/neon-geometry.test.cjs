@@ -138,6 +138,159 @@ test('the expanded font catalogue contains distinct, selectable shop proofs and 
   assert.equal(examples.size,geometry.fonts.length);
 });
 
+// Evaluate the visible SVG independently of the CAD subdivision code.
+function svgSamples(d) {
+  const points = [];
+  let start;
+  for (const [,type,values] of d.matchAll(/([MLC])([^MLC]+)/g)) {
+    const coordinates = values.trim().split(/\s+/).map(Number);
+    const end = coordinates.slice(-2);
+    if (type === 'C') {
+      for (const t of [0.25, 0.5, 0.75]) {
+        const u = 1-t;
+        points.push(start.map((a,i) => u**3*a + 3*u*u*t*coordinates[i] +
+          3*u*t*t*coordinates[i+2] + t**3*end[i]));
+      }
+    }
+    points.push(end);
+    start = end;
+  }
+  return points;
+}
+
+function liesOnPolyline([x,y], vertices, tolerance) {
+  for (let i=1; i<vertices.length; i++) {
+    const [ax,ay]=vertices[i-1], [bx,by]=vertices[i];
+    const dx=bx-ax, dy=by-ay;
+    const length2=dx*dx+dy*dy;
+    const t=length2 ? Math.max(0,Math.min(1,((x-ax)*dx+(y-ay)*dy)/length2)) : 0;
+    if ((x-ax-t*dx)**2 + (y-ay-t*dy)**2 <= tolerance*tolerance) return true;
+  }
+  return false;
+}
+
+test('every catalogue glyph retains its ink and its preview matches its exported cutting paths at three sizes', () => {
+  for (const {id} of geometry.fonts) {
+    const glyphs=Object.entries(globalThis.NeonStrokeFonts[id].glyphs);
+    const punctuation=geometry.layout({...design,font:id,text:'!!'}).paths.length;
+    for (let i=0; i<glyphs.length; i+=22) {
+      const batch=glyphs.slice(i,i+22);
+      let expectedPaths=0;
+      let text='';
+      for (const [ch,[,ink]] of batch) {
+        // Punctuation provides an extent for vertical strokes and a neutral base
+        // for combining marks. Letter sentinels can NFC-compose into another glyph.
+        const single=geometry.layout({...design,font:id,text:'!'+ch+'!'});
+        const count=single.paths.length-punctuation;
+        assert.ok(single.valid, id+' U+'+ch.codePointAt(0).toString(16));
+        assert.equal(count>0, Boolean(ink), id+' '+JSON.stringify(ch));
+        expectedPaths+=count+punctuation/2;
+        text+=ch+'!';
+      }
+      for (const widthMm of [200,600,3000]) {
+        const spec={...design,font:id,text,widthMm};
+        const proof=geometry.layout(spec);
+        const label=id+' at '+widthMm+' mm, entries '+i+'–'+(i+batch.length-1);
+        assert.ok(proof.valid && proof.tubeMm===6 && proof.lengthMm>0, label);
+        const artwork=geometry.svg(proof);
+        const paths=Array.from(artwork.matchAll(/<path d="([^"]+)"/g), match=>match[1]);
+        const cad=polylines(geometry.dxf(proof));
+        assert.equal(paths.length,expectedPaths,label);
+        assert.equal(cad.length,paths.length,label);
+        for (const [index,d] of paths.entries()) {
+          const {points,closed,layer}=cad[index];
+          assert.equal(layer,'TUBE_CENTERLINE_6MM',label);
+          const vertices=points.map(([x,y])=>[x,proof.heightMm-y]);
+          if (closed) vertices.push(vertices[0]);
+          for (const sample of svgSamples(d)) {
+            assert.ok(liesOnPolyline(sample,vertices,0.026),label+' stroke '+index);
+          }
+        }
+      }
+    }
+  }
+});
+
+test('Art Deco lowercase ll has a straight stem and turns continuously through its foot', () => {
+  const proof=geometry.layout({...design,font:'deco',text:'ll',widthMm:600});
+  assert.equal(proof.paths.length,2);
+  for (const stroke of polylines(geometry.dxf(proof))) {
+    const points=stroke.points.map(([x,y])=>[x,proof.heightMm-y]);
+    const first=points[0], last=points.at(-1);
+    const height=last[1]-first[1], footWidth=last[0]-first[0];
+    assert.ok(height>0 && footWidth>0);
+    const stemY=first[1]+0.70*height;
+    assert.ok(liesOnPolyline([first[0],stemY],points,0.026),
+      'the source vertical must stay straight down the stem');
+    const directions=[];
+    let length=0;
+    for (let i=1; i<points.length; i++) {
+      const dx=points[i][0]-points[i-1][0], dy=points[i][1]-points[i-1][1];
+      const segment=Math.hypot(dx,dy);
+      directions.push({at:length+segment/2,angle:Math.atan2(dx,dy)*180/Math.PI});
+      length+=segment;
+    }
+    const middle=directions.filter(({angle})=>angle>=25 && angle<=65);
+    assert.ok(middle.length>=3,'the rounded part of the hook must contain a curve');
+    for (const {at,angle} of middle) {
+      const next=middle.find(other=>other.at>=at+0.20*footWidth);
+      if (next) assert.ok(next.angle-angle>2,'the lower bend must keep turning through its diagonal');
+    }
+  }
+});
+
+test('long stems and diagonals of geometric lettering retain their designed straight edges', () => {
+  const samples={deco:'MY',slab:'KkM',terrace:'Y'};
+  for (const [font, letters] of Object.entries(samples)) {
+    for (const text of letters) {
+      const source=globalThis.NeonStrokeFonts[font].glyphs[text][1];
+      // These particular shop alphabets draw these angular glyphs with one
+      // unbroken polygon, including their serif returns and pointed junctions.
+      assert.match(source,/^M[\d. -]+(?:L[\d. -]+)+$/);
+      const points=svgSamples(source);
+      const minX=Math.min(...points.map(p=>p[0])), maxX=Math.max(...points.map(p=>p[0]));
+      const maxY=Math.max(...points.map(p=>p[1]));
+      const proof=geometry.layout({...design,font,text,widthMm:600});
+      const scale=(proof.widthMm-proof.tubeMm)/(maxX-minX);
+      const original=points.map(([x,y])=>[3+(x-minX)*scale,3+(maxY-y)*scale]);
+      const entities=polylines(geometry.dxf(proof));
+      assert.equal(entities.length,1);
+      const cad=entities[0].points.map(([x,y])=>[x,proof.heightMm-y]);
+      for (const point of cad) assert.ok(liesOnPolyline(point,original,0.026),
+        font+' '+text+' bowed away from its straight source stroke');
+      for (const point of original) assert.ok(liesOnPolyline(point,cad,0.026),
+        font+' '+text+' lost a corner or a serif');
+    }
+  }
+});
+
+test('close return strokes in Velvet and Flourish keep their original open paths', () => {
+  function crossesItself(points) {
+    // Endpoints and retraced segments may touch. Only a strict change of side
+    // for both non-adjacent segments introduces a crossing in this pen stroke.
+    const side=([ax,ay],[bx,by],[x,y])=>(bx-ax)*(y-ay)-(by-ay)*(x-ax);
+    for (let i=1; i<points.length; i++) {
+      const a=points[i-1], b=points[i];
+      for (let j=i+2; j<points.length; j++) {
+        const c=points[j-1], d=points[j];
+        if (side(a,b,c)*side(a,b,d)<0 && side(c,d,a)*side(c,d,b)<0) return true;
+      }
+    }
+    return false;
+  }
+  for (const [font,text] of [['velvet','a'],['velvet','p'],['flourish','M']]) {
+    const source=globalThis.NeonStrokeFonts[font].glyphs[text][1];
+    assert.equal(crossesItself(svgSamples(source)),false,text+' source');
+    for (const widthMm of [200,600,3000]) {
+      const proof=geometry.layout({...design,font,text,widthMm});
+      const strokes=polylines(geometry.dxf(proof));
+      assert.equal(strokes.length,1);
+      assert.equal(strokes[0].closed,false);
+      assert.equal(crossesItself(strokes[0].points),false,text+' at '+widthMm+' mm');
+    }
+  }
+});
+
 test('invalid values and unsupported glyphs never generate a submission or partial export', () => {
   const invalid = geometry.layout({...design,text:'Hello 🦩'});
   assert.equal(invalid.valid, false);

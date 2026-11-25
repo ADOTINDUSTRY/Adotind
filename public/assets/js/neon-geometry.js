@@ -91,13 +91,86 @@
     box.bottom = Math.min(box.bottom, y); box.top = Math.max(box.top, y);
   }
 
+  // Detect proper crossings between two strokes. Shared endpoints and pen
+  // retraces are valid in the original lettering.
+  function crossingCount(a,b,hits) {
+    let count=0;
+    for (let i=1;i<a.length;i++) {
+      const p=a[i-1], dx=a[i][0]-p[0], dy=a[i][1]-p[1];
+      for (let j=1;j<b.length;j++) {
+        const q=b[j-1], ex=b[j][0]-q[0], ey=b[j][1]-q[1];
+        const det=dx*ey-dy*ex;
+        if (Math.abs(det)<1e-8) continue;
+        const x=q[0]-p[0], y=q[1]-p[1], t=(x*ey-y*ex)/det, u=(x*dy-y*dx)/det;
+        if (t>1e-8 && t<1-1e-8 && u>1e-8 && u<1-1e-8) {
+          count++;
+          if (hits) hits.push([p[0]+t*dx,p[1]+t*dy]);
+        }
+      }
+    }
+    return count;
+  }
+
+  // A script can come within a pen sample of a previous stroke; a fitting
+  // tolerance alone cannot preserve that clearance. Constrain the source
+  // edges only where fitted spans have introduced an actual new crossing.
+  function protectCrossings(parts, points, stems, em) {
+    const bounds=parts.map(({first,command}) => {
+      const box=emptyBounds();
+      include(box,...points[first]);
+      for (let k=1;k<command.length;k+=2) include(box,command[k],command[k+1]);
+      return box;
+    });
+    const samples=new Map();
+    function flattened(part) {
+      if (samples.has(part)) return samples.get(part);
+      const {first,last,command}=part, p=points[first], q=points[last], line=[p];
+      if (command[0]==='C') flattenCubic(line,p,command.slice(1,3),command.slice(3,5),q,0,em*.0001);
+      else line.push(q);
+      samples.set(part,line);
+      return line;
+    }
+    let changed=false;
+    for (let i=0;i<parts.length;i++) for (let j=i+1;j<parts.length;j++) {
+      const a=parts[i], b=parts[j], u=bounds[i], v=bounds[j];
+      if ((a.command[0]==='L' && b.command[0]==='L') || u.right<v.left || v.right<u.left ||
+          u.top<v.bottom || v.top<u.bottom) continue;
+      const hits=[];
+      const fitted=crossingCount(flattened(a),flattened(b),hits);
+      if (!fitted) continue;
+      const originalHits=[];
+      crossingCount(points.slice(a.first,a.last+1),points.slice(b.first,b.last+1),originalHits);
+      // A pen tip meeting an earlier stroke within the source's coordinate
+      // precision is a contact; don't enlarge it into an overhanging tail.
+      const original=originalHits.filter(hit => distance(hit,points[0])>em*.0001 &&
+        distance(hit,points.at(-1))>em*.0001).length;
+      if (fitted<=original) continue;
+      for (const part of [a,b]) {
+        if (part.command[0]!=='C') continue;
+        for (const hit of hits) {
+          let best=Infinity, edge=part.first;
+          for (let k=part.first;k<part.last;k++) {
+            const p=points[k], q=points[k+1], dx=q[0]-p[0], dy=q[1]-p[1];
+            const t=Math.max(0,Math.min(1,((hit[0]-p[0])*dx+(hit[1]-p[1])*dy)/(dx*dx+dy*dy)));
+            const gap=Math.hypot(hit[0]-p[0]-t*dx,hit[1]-p[1]-t*dy);
+            if (gap<best) {best=gap;edge=k;}
+          }
+          if (!stems[edge]) {stems[edge]=true;changed=true;}
+        }
+      }
+    }
+    return changed;
+  }
+
   // Sampled centreline fonts use chords between pen positions. Fit a cubic
   // through each smooth span in font coordinates. Tangents agree at internal
   // splits; genuine corners end the span and keep their own incoming/outgoing
   // direction. The original endpoints and pen lifts remain authoritative.
   function smoothPenPaths(commands, em) {
     const result = [];
-    const tolerance = em * 0.003;
+    // Pen samples were digitised on a coarse grid. Treat them as observations,
+    // not vertices which a stroke must pass through to a fraction of a grid cell.
+    const tolerance = em * 0.009;
     const direction = (p, q) => {
       const length = distance(p, q);
       return length ? [(q[0] - p[0]) / length, (q[1] - p[1]) / length] : [0, 0];
@@ -108,17 +181,45 @@
       if (points.length < 2) return;
       const end = points.length - 1;
       const closed = end > 2 && distance(points[0], points[end]) < 1e-7;
-      const edges = [], cumulative = [0];
+      const edges = [], lengths = [], cumulative = [0];
       for (let i = 0; i < end; i++) {
         edges.push(direction(points[i], points[i+1]));
-        cumulative.push(cumulative[i] + distance(points[i], points[i+1]));
+        lengths.push(distance(points[i], points[i+1]));
+        cumulative.push(cumulative[i] + lengths[i]);
       }
+      // A stroke font describes a stem with one long chord, then uses much
+      // shorter chords on the shoulder/bowl. Preserve that straight segment
+      // exactly and constrain the neighbouring curve's tangent at the join.
+      const stems = lengths.map((length, i) => {
+        const prev = i>0 || closed ? (i+end-1)%end : -1;
+        const next = i+1<end || closed ? (i+1)%end : -1;
+        const neighbours = [prev,next].filter(j => j>=0).map(j => lengths[j]);
+        const [dx,dy]=edges[i];
+        const axial = Math.min(Math.abs(dx),Math.abs(dy))*length <= em*.001;
+        // Engraving alphabets often retrace a serif or crossbar before
+        // lifting the pen. A fitted curve here would create a second outline.
+        if ([prev,next].some(j => j>=0 && dot(edges[j],edges[i])<-.97)) return true;
+        const meetsCorner = [prev,next].some(j => j>=0 && dot(edges[j],edges[i])<.38);
+        if (axial && (length>=em*.14 || (length>=em*.055 && meetsCorner))) return true;
+        if (length>=em*.12 && neighbours.length && neighbours.every(n => length>=n*1.85)) return true;
+        if (length<em*.30) return false;
+        // Long diagonals can be adjacent to another equally long diagonal
+        // (M/W) or a serif. Only round through a long chord when both sides
+        // give evidence that it is part of the same, sparsely sampled arc.
+        if (prev<0 || next<0 || neighbours.some(n => n<length*.53)) return true;
+        const before=edges[prev], after=edges[next];
+        const turnIn=Math.atan2(before[0]*dy-before[1]*dx,dot(before,edges[i]));
+        const turnOut=Math.atan2(dx*after[1]-dy*after[0],dot(edges[i],after));
+        return !(turnIn*turnOut>0 && Math.min(Math.abs(turnIn),Math.abs(turnOut))>.10 &&
+          Math.max(Math.abs(turnIn),Math.abs(turnOut))<1);
+      });
       function incoming(i) { return edges[i > 0 ? i-1 : end-1]; }
       function outgoing(i) { return edges[i < end ? i : 0]; }
       function corner(i) {
         if (!closed && (i === 0 || i === end)) return true;
         const a = incoming(i), b = outgoing(i), turn = dot(a,b);
         if (turn < 0.04) return true;
+        if (turn < .58 && (stems[(i-1+end)%end] || stems[i%end])) return true;
         // Protect V, W, diagonals and right-angled display lettering. A gentle
         // arc may cross the angle threshold at coarse, widely spaced samples.
         const pre = i > 1 ? edges[i-2] : closed ? edges[(i-2+end)%end] : null;
@@ -129,12 +230,24 @@
       }
       function tangent(i) {
         const a = incoming(i), b = outgoing(i);
+        if (stems[(i-1+end)%end] && (i!==0 || closed)) return a;
+        if (stems[i%end] && (i!==end || closed)) return b;
         return direction([0,0],[a[0]+b[0],a[1]+b[1]]);
       }
+      let parts;
+      function add(first,last,command) { parts.push({first,last,command}); }
       function segment(first, last, startTangent, endTangent) {
         const p = points[first], q = points[last], baseline = distance(p,q);
-        if (!baseline && last-first>1) {
-          const mid = (first+last)>>1;
+        let turning = 0;
+        for (let i=first+1;i<last;i++) {
+          turning += Math.acos(Math.max(-1,Math.min(1,dot(incoming(i),outgoing(i)))));
+        }
+        // Divide broad bowls and loops before fitting. A nearly half-circle
+        // fitted with a single cubic is underconstrained between samples.
+        if ((!baseline || turning>Math.PI*.75) && last-first>1) {
+          const centre = (cumulative[first]+cumulative[last])/2;
+          let mid=first+1;
+          while (mid<last-1 && cumulative[mid]<centre) mid++;
           const join = tangent(mid);
           segment(first,mid,startTangent,join);
           segment(mid,last,join,endTangent);
@@ -143,29 +256,50 @@
         const chord = direction(p,q);
         const exactLine = dot(startTangent,chord)>.99999 && dot(endTangent,chord)>.99999 &&
           points.slice(first+1,last).every(v => Math.abs((v[1]-p[1])*chord[0] - (v[0]-p[0])*chord[1])<.01);
-        if (exactLine) { result.push(['L', ...q]); return; }
+        if (exactLine) { add(first,last,['L',...q]); return; }
         const span = cumulative[last] - cumulative[first];
-        const tAt = i => (cumulative[i]-cumulative[first])/span;
-        let aa=0, ab=0, bb=0, ar=0, br=0;
-        for (let i=first+1;i<last;i++) {
-          const t=tAt(i), u=1-t, b1=3*u*u*t, b2=3*u*t*t;
-          const a=moved([0,0],startTangent,b1), b=moved([0,0],endTangent,-b2);
-          const residual = [
-            points[i][0] - ((u*u*u+b1)*p[0] + (t*t*t+b2)*q[0]),
-            points[i][1] - ((u*u*u+b1)*p[1] + (t*t*t+b2)*q[1])
-          ];
-          aa+=dot(a,a); ab+=dot(a,b); bb+=dot(b,b); ar+=dot(a,residual); br+=dot(b,residual);
+        const parameters = points.slice(first,last+1).map((_, j) => (cumulative[first+j]-cumulative[first])/span);
+        // Orthogonal fitting prevents uneven digitiser spacing from creating
+        // another, visibly kinked cubic on what is actually one continuous arc.
+        function controls() {
+          let aa=0, ab=0, bb=0, ar=0, br=0;
+          for (let i=first+1;i<last;i++) {
+            const t=parameters[i-first], u=1-t, b1=3*u*u*t, b2=3*u*t*t;
+            const a=moved([0,0],startTangent,b1), b=moved([0,0],endTangent,-b2);
+            const residual = [
+              points[i][0] - ((u*u*u+b1)*p[0] + (t*t*t+b2)*q[0]),
+              points[i][1] - ((u*u*u+b1)*p[1] + (t*t*t+b2)*q[1])
+            ];
+            aa+=dot(a,a); ab+=dot(a,b); bb+=dot(b,b); ar+=dot(a,residual); br+=dot(b,residual);
+          }
+          const det=aa*bb-ab*ab;
+          let left=span/3, right=span/3;
+          if (det>1e-10) {
+            const l=(ar*bb-br*ab)/det, r=(aa*br-ab*ar)/det;
+            if (l>0 && r>0 && l<span*.85 && r<span*.85) { left=l; right=r; }
+          }
+          return [moved(p,startTangent,left),moved(q,endTangent,-right)];
         }
-        const det=aa*bb-ab*ab;
-        let left=span/3, right=span/3;
-        if (det>1e-10) {
-          const l=(ar*bb-br*ab)/det, r=(aa*br-ab*ar)/det;
-          if (l>0 && r>0 && l<span*.85 && r<span*.85) { left=l; right=r; }
+        let [a,b] = controls();
+        for (let pass=0;pass<3 && last-first>2;pass++) {
+          const next = parameters.slice();
+          for (let j=1;j<parameters.length-1;j++) {
+            const t=parameters[j], u=1-t;
+            let error=0, slope=0;
+            for (let axis=0;axis<2;axis++) {
+              const at=cubicAt(p[axis],a[axis],b[axis],q[axis],t);
+              const derivative=3*(u*u*(a[axis]-p[axis])+2*u*t*(b[axis]-a[axis])+t*t*(q[axis]-b[axis]));
+              error+=(at-points[first+j][axis])*derivative;
+              slope+=derivative*derivative;
+            }
+            if (slope>1e-8) next[j]=Math.max((parameters[j-1]+t)/2,Math.min((t+parameters[j+1])/2,t-error/slope));
+          }
+          for (let j=1;j<parameters.length-1;j++) parameters[j]=next[j];
+          [a,b]=controls();
         }
-        const a=moved(p,startTangent,left), b=moved(q,endTangent,-right);
-        let worst=tolerance, split=-1;
+        let worst=Math.min(tolerance,span*.055), split=-1;
         for (let i=first+1;i<last;i++) {
-          const t=tAt(i);
+          const t=parameters[i-first];
           const error=distance(points[i],[cubicAt(p[0],a[0],b[0],q[0],t),cubicAt(p[1],a[1],b[1],q[1],t)]);
           if (error>worst) { worst=error; split=i; }
         }
@@ -174,15 +308,20 @@
           segment(first,split,startTangent,join);
           segment(split,last,join,endTangent);
         } else {
-          result.push(['C',...a,...b,...q]);
+          add(first,last,['C',...a,...b,...q]);
         }
       }
-      let first=0;
-      for (let i=1;i<=end;i++) {
-        if (i<end && !corner(i)) continue;
-        segment(first,i,corner(first) ? outgoing(first) : tangent(first),corner(i) ? incoming(i) : tangent(i));
-        first=i;
-      }
+      do {
+        parts=[];
+        let first=0;
+        for (let i=1;i<=end;i++) {
+          if (i<end && !corner(i) && !stems[i-1] && !stems[i]) continue;
+          if (i===first+1 && stems[first]) add(first,i,['L',...points[i]]);
+          else segment(first,i,corner(first) ? outgoing(first) : tangent(first),corner(i) ? incoming(i) : tangent(i));
+          first=i;
+        }
+      } while (protectCrossings(parts,points,stems,em));
+      for (const {command} of parts) result.push(command);
     }
     let run = [];
     function finish() {
@@ -260,18 +399,18 @@
 
   // De Casteljau subdivision; both control points must fit inside a 0.025 mm
   // capsule around the chord. The control polygon excess also detects reversals.
-  function flattenCubic(out, p, a, b, q, depth = 0) {
+  function flattenCubic(out, p, a, b, q, depth = 0, tolerance = 0.025) {
     const dx = q[0]-p[0], dy = q[1]-p[1], chord = distance(p,q);
     const lineDistance = r => chord ? Math.abs(dx*(p[1]-r[1]) - dy*(p[0]-r[0])) / chord : distance(p,r);
     const excess = distance(p,a) + distance(a,b) + distance(b,q) - chord;
-    if (depth >= 18 || (excess < 0.025 && Math.max(lineDistance(a),lineDistance(b)) < 0.025)) {
+    if (depth >= 18 || (excess < tolerance && Math.max(lineDistance(a),lineDistance(b)) < tolerance)) {
       out.push(q);
       return;
     }
     const pa = midpoint(p,a), ab = midpoint(a,b), bq = midpoint(b,q);
     const l = midpoint(pa,ab), r = midpoint(ab,bq), mid = midpoint(l,r);
-    flattenCubic(out, p, pa, l, mid, depth+1);
-    flattenCubic(out, mid, r, bq, q, depth+1);
+    flattenCubic(out, p, pa, l, mid, depth+1,tolerance);
+    flattenCubic(out, mid, r, bq, q, depth+1,tolerance);
   }
 
   function layout(options = {}) {
