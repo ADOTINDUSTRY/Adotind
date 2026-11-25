@@ -743,7 +743,8 @@
   // through gaps to keep one connected sheet, including on multiline signs.
   function backboard(art, spec) {
     if (!spec.backing || spec.backing === 'none') return null;
-    const w = art.widthMm, h = art.heightMm, pad = 22;
+    const contour = spec.boardShape === 'contour';
+    const w = art.widthMm, h = art.heightMm, pad = contour ? 300 : 22;
     const n = Math.ceil(w / 8), dx = w / n;
     const top = Array(n+1).fill(Infinity), bottom = Array(n+1).fill(-Infinity);
     if (spec.boardShape === 'contour') {
@@ -769,18 +770,41 @@
         const near=edge.slice(Math.max(0,i-3),Math.min(n+1,i+4));
         return [i*dx,upper?Math.min(...near)-pad:Math.max(...near)+pad];
       });
-      return [[-pad,pts[0][1]],...pts,[w+pad,pts[n][1]]];
+      return [[-pad,pts[0][1]],...pts,[w+pad,pts[n][1]]].flatMap((p,i,points)=>{
+        if (!i) return [p];
+        const [x,y]=points[i-1];
+        return Array.from({length:8},(_,j)=>{
+          const t=(j+1)/8;
+          return [x+(p[0]-x)*t,y+(p[1]-y)*(1-Math.cos(Math.PI*t))/2];
+        });
+      });
     }
     const hi=edgePoints(top,true), lo=edgePoints(bottom,false);
-    const outline=spec.boardShape==='contour' ? [...hi,...lo.slice().reverse()] :
-      [[-pad,-pad],[w+pad,-pad],[w+pad,h+pad],[-pad,h+pad]];
+    const radius=20;
+    const corners=[[-pad+radius,-pad+radius],[w+pad-radius,-pad+radius],
+      [w+pad-radius,h+pad-radius],[-pad+radius,h+pad-radius]];
+    function corner([x,y],i) {
+      return Array.from({length:17},(_,j)=>{
+        const angle=Math.PI/2*(i+2+j/16);
+        return [x+radius*Math.cos(angle),y+radius*Math.sin(angle)];
+      });
+    }
+    const last=hi.length-1;
+    const outline=contour ? [
+      ...corner([-pad+radius,hi[0][1]+radius],0), ...hi.slice(9,-8),
+      ...corner([w+pad-radius,hi[last][1]+radius],1),
+      ...corner([w+pad-radius,lo[last][1]-radius],2), ...lo.slice(9,-8).reverse(),
+      ...corner([-pad+radius,lo[0][1]-radius],3),
+    ] : corners.flatMap(corner);
     const wall=spec.mount==='wall', holes=[];
     if (wall) {
-      for (const [x,i] of [[-11,0],[w+11,n]]) for (const y of [hi[i+1][1]+11,lo[i+1][1]-11]) holes.push([x,y]);
+      for (const [x,i] of [[-pad+15,0],[w+pad-15,hi.length-1]]) {
+        for (const y of [hi[i][1]+15,lo[i][1]-15]) holes.push([x,y]);
+      }
     } else if (spec.mount==='suspended') {
-      for (const i of [Math.round(n*.16),Math.round(n*.84)]) holes.push([i*dx,hi[i+1][1]+11]);
+      for (const i of [Math.round(n*.16),Math.round(n*.84)]) holes.push([i*dx,hi[(i+1)*8][1]+15]);
     }
-    return {outline,holes,wall};
+    return {outline,holes,wall,pad};
   }
 
   function svg(design, spec = {}) {
@@ -794,7 +818,7 @@
     if (hasCover) description.push('Indoor use only. Silicone cover: ' + cover + '. LED colour: ' + color + '.');
     if (reviewOnly) description.push('Strip lengths require review before cutting.');
     const board = backboard(design,spec);
-    const pad = board ? 22 : 0;
+    const pad = board?.pad ?? 0;
     const w = number(design.widthMm+2*pad), h = number(design.heightMm+2*pad);
     const boardSvg = board ? '<g fill="none" stroke="#718398" stroke-width="0.4"><polygon id="ACRYLIC_OUTLINE" points="' +
       board.outline.map(([x,y])=>number(x)+','+number(y)).join(' ')+'"/><g id="MOUNT_HOLES">'+

@@ -279,7 +279,8 @@
     const technical = !wallURL && design.scene === 'drawing';
     const lit = design.power && !technical;
     const color = design.color;
-    const padding = 22; // visual backboard allowance; a shop confirms its final size
+    const board = engine.backboard(geometry, design);
+    const padding = board?.pad ?? 22;
     const bw = w + padding * 2, bh = h + padding * 2;
     const chartSize = Math.max(w / 52, h / 33, 6);
     const dimOffset = padding + chartSize * 2.4;
@@ -300,7 +301,6 @@
     canvas.append(defs);
     const fixture = technical ? '#72808d' : '#c1cdd7';
     if (design.backing !== 'none') {
-      const board = engine.backboard(geometry, design);
       canvas.append(svg('polygon', {points:board.outline.map(p=>p.join(',')).join(' '), fill: technical ? 'none' : design.backing === 'black' ? '#0d1017' : '#cee1f7',
         'fill-opacity': design.backing === 'clear' ? .08 : .94, stroke:fixture, 'stroke-width':1.2}));
       for (const [x,y] of board.holes) {
