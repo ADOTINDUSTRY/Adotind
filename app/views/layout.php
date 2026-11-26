@@ -120,7 +120,7 @@ $trackingEnabled = is_writable('/var/www/site-tracking') && $isPublicPage;
       $neonFiles = [
           'style' => $neonAsset('/public/assets/css/neon-editor.css'),
           'scripts' => array_map(static fn($name) => $neonAsset('/public/assets/js/' . $name . '.js'),
-              ['neon-fonts','neon-clipper','neon-geometry','neon-strip-plan','neon-quote','neon-editor']),
+              ['neon-fonts','neon-clipper','neon-geometry','neon-acute-fit','neon-strip-plan','neon-quote','neon-editor']),
       ];
     ?>
     <script type="application/json" id="neon-assets"><?= json_encode($neonFiles, JSON_THROW_ON_ERROR | JSON_HEX_TAG) ?></script>

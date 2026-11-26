@@ -641,7 +641,22 @@
             const ends=[project(second.a),project(second.b)];
             const overlap=Math.min(length,Math.max(...ends))-Math.max(0,Math.min(...ends));
             const continuation=sharedEnd && scale>0 && Math.abs(cross)/scale<1e-9 && overlap<.1;
-            if (transverse || continuation) continue;
+            // A shallow turn at a shared endpoint is also a normal continuous
+            // join if the two segments lead away from the joint in opposite
+            // directions. Do not exempt overlapping segments or acute returns.
+            let smoothContinuation=false;
+            if (sharedEnd && overlap<.1) {
+              for (const a of [first.a,first.b]) for (const b of [second.a,second.b]) {
+                if (distance(a,b)>=.1) continue;
+                const otherA=a===first.a ? first.b : first.a;
+                const otherB=b===second.a ? second.b : second.a;
+                const ax=otherA[0]-a[0], ay=otherA[1]-a[1];
+                const bx=otherB[0]-b[0], by=otherB[1]-b[1];
+                const denom=Math.hypot(ax,ay)*Math.hypot(bx,by);
+                if (denom>0 && (ax*bx+ay*by)/denom<=-Math.SQRT1_2) smoothContinuation=true;
+              }
+            }
+            if (transverse || continuation || smoothContinuation) continue;
           }
         }
         const dx=first.b[0]-first.a[0],dy=first.b[1]-first.a[1];
@@ -1051,5 +1066,6 @@
     return groups.join('\r\n')+'\r\n';
   }
 
-  globalThis.NeonGeometry = {fonts, layout, svg, dxf, backboard, finishedSize, acrylicMargin, inspectManufacturing, repairLayout};
+  const countBends = paths => paths.reduce((count,path)=>count+sharpBends(readPath(path.d)),0);
+  globalThis.NeonGeometry = {fonts, layout, svg, dxf, backboard, finishedSize, acrylicMargin, inspectManufacturing, repairLayout, countBends};
 })();

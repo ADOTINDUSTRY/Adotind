@@ -8,6 +8,7 @@
   const stage = root.querySelector('.neon-view');
   const expandedProof = root.querySelector('.neon-expanded-proof');
   const engine = window.NeonGeometry;
+  const acuteFit = window.NeonAcuteFit;
   const stripPlanning = window.NeonStripPlanning;
   const NS = 'http://www.w3.org/2000/svg';
   const MAX_FILE_BYTES = 16384;
@@ -44,7 +45,7 @@
   }
   const minWidth = Number.isFinite(shop.minWidth) ? Math.max(100, shop.minWidth) : 100;
   const maxWidth = Number.isFinite(shop.maxWidth) ? Math.min(3000, shop.maxWidth) : 3000;
-  if (!canvas || typeof engine?.layout !== 'function' || !engine.fonts.length || typeof stripPlanning?.fitIndependentPaths !== 'function') {
+  if (!canvas || typeof engine?.layout !== 'function' || !engine.fonts.length || typeof acuteFit?.prepareForSpec !== 'function' || typeof stripPlanning?.fitIndependentPaths !== 'function') {
     output('warnings', 'The lettering engine could not load. Refresh the page to try again.');
     if (submit) submit.disabled = true;
     return;
@@ -103,6 +104,8 @@
   function prepareDrawing(spec) {
     let drawing = engine.repairLayout(spec);
     if (!drawing.valid) return drawing;
+    const acute = acuteFit.prepareForSpec(drawing, spec, engine);
+    if (acute.applied) drawing = acute.artwork;
     const fit = stripPlanning.fitIndependentPaths(drawing, engine.inspectManufacturing);
     if (fit.applied) drawing = fit.artwork;
     drawing.stripFit = {applied:fit.applied, reason:fit.reason || null,
@@ -497,6 +500,7 @@
         geometry.warnings.push('LED routing and silicone-cover joins need shop review before production.');
         if (!geometry.stripFit.pathsMatchCutMarks) geometry.warnings.push('Some drawing strokes are not 25 mm multiples; the LED layout needs review.');
         if (geometry.stripFit.applied) geometry.warnings.push('Some separate strokes were adjusted for 25 mm LED cuts. Review the updated drawing.');
+        if (geometry.acuteRepair) geometry.warnings.push('A sharp return was reshaped with a 10 mm gap. Review the updated drawing.');
         if (geometry.manufacturing.incomplete) geometry.warnings.push('This design needs a manual clearance check.');
         if (geometry.repair?.changed) geometry.warnings.push('Letter spacing or height was adjusted for neon clearance. Please review the preview and final dimensions.');
       }

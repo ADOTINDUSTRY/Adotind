@@ -195,6 +195,7 @@ function neon_handle_request(): never
         $spec['spacerCount'] = $proof['spacerCount'];
         $spec['manufacturing'] = $proof['manufacturing'];
         $spec['geometryAdjustment'] = $proof['repair'];
+        $spec['acuteRepair'] = $proof['acuteRepair'];
         $spec['stripFit'] = $proof['stripFit'];
         $spec['delivery'] = $delivery === 'delivery' ? 'delivery'.$tier : 'pickup';
         if ($delivery === 'delivery') $spec['deliveryAddress'] = trim($address);

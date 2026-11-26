@@ -3,6 +3,7 @@
 require('../../public/assets/js/neon-fonts.js');
 require('../../public/assets/js/neon-geometry.js');
 const geometry = globalThis.NeonGeometry;
+const acuteFit = require('../../public/assets/js/neon-acute-fit.js');
 const stripPlanning = require('../../public/assets/js/neon-strip-plan.js');
 const palette = require('../data/neon-colors.json');
 const white = '#ffffff';
@@ -58,6 +59,8 @@ function measure(input, intent = 'production') {
   }
   let proof = geometry.repairLayout(design);
   if (!proof.valid) return {error: proof.errors[0] || 'Check the lettering before sending.'};
+  const acute = acuteFit.prepareForSpec(proof, design, geometry);
+  if (acute.applied) proof = acute.artwork;
   const stripFit = stripPlanning.fitIndependentPaths(proof, geometry.inspectManufacturing);
   if (stripFit.applied) proof = stripFit.artwork;
   // The drawing runs are not an electrical wiring plan, and cover cuts are not
@@ -68,6 +71,7 @@ function measure(input, intent = 'production') {
   proof.warnings.push('LED routing and silicone-cover joins need shop review before production.');
   if (!stripFit.plan.pathsMatchCutMarks) proof.warnings.push('Some drawing strokes are not 25 mm multiples; the LED layout needs review.');
   if (stripFit.applied) proof.warnings.push('Some separate strokes were adjusted for 25 mm LED cuts. Review the updated drawing.');
+  if (acute.applied) proof.warnings.push('A sharp return was reshaped with a 10 mm gap. Review the updated drawing.');
   const manufacturing=proof.manufacturing;
   if (manufacturing.shortStrokes) proof.warnings.push('A neon stroke is shorter than 6 mm and needs shop review.');
   if (manufacturing.closePaths) proof.warnings.push('Some neon paths are too close, overlap, or have a junction that needs shop review.');
@@ -82,7 +86,7 @@ function measure(input, intent = 'production') {
   const finished = geometry.finishedSize(proof,board,design);
   if (!finished.withinLimit) return {error:'The finished sign must fit within 3,000 × 2,000 mm.'};
   return {
-    finished, manufacturing, repair:proof.repair, stripFit: {applied:stripFit.applied, reason:stripFit.reason || null, pathsMatchCutMarks:stripFit.plan.pathsMatchCutMarks, electricalRoutingVerified:stripFit.plan.electricalRoutingVerified, coverCrossingsVerified}, reviewOnly, design, widthMm: proof.widthMm, heightMm: proof.heightMm, lengthMm: proof.lengthMm,
+    finished, manufacturing, repair:proof.repair, acuteRepair:proof.acuteRepair || null, stripFit: {applied:stripFit.applied, reason:stripFit.reason || null, pathsMatchCutMarks:stripFit.plan.pathsMatchCutMarks, electricalRoutingVerified:stripFit.plan.electricalRoutingVerified, coverCrossingsVerified}, reviewOnly, design, widthMm: proof.widthMm, heightMm: proof.heightMm, lengthMm: proof.lengthMm,
     strokeCount:proof.paths.length, bendCount:proof.bendCount, spacerCount:board?.wall ? board.holes.length : 0,
     warnings: proof.warnings, svg: geometry.svg(proof, design), dxf: geometry.dxf(proof, design),
   };

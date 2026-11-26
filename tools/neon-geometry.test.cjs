@@ -495,6 +495,7 @@ test('manufacturing screening flags tight separate paths and short strokes while
   // Shared endpoints are not permission for two covers to occupy one line.
   assert.equal(audit([[[0,0],[100,0]],[[0,0],[100,0]]]).closePaths,true);
   assert.equal(audit([[[0,0],[100,0]],[[100,0],[200,0]]]).requiresReview,false);
+  assert.equal(audit([[[0,0],[50,0]],[[50,0],[100,15]]]).requiresReview,false);
 });
 
 test('U-bend screening uses ten millimetres clear between tube faces', () => {

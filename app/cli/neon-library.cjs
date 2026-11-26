@@ -13,6 +13,7 @@ for (const filename of ['neon-fonts.js', 'neon-geometry.js']) {
 }
 // Changes to the manufacturing planner must invalidate open designer sessions.
 hash.update(fs.readFileSync(path.join(assets, 'neon-strip-plan.js'), 'utf8').replace(/\r\n/g, '\n'));
+hash.update(fs.readFileSync(path.join(assets, 'neon-acute-fit.js'), 'utf8').replace(/\r\n/g, '\n'));
 hash.update(fs.readFileSync(path.join(__dirname, '../data/neon-colors.json'), 'utf8').replace(/\r\n/g, '\n'));
 const geometry = globalThis.NeonGeometry;
 const fonts = geometry.fonts.map(font => {
