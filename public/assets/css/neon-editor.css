@@ -272,6 +272,9 @@ body:has(.neon-studio dialog[open]) { overflow: hidden; }
 .neon-spacing { border-top: 1px solid #e7ebf0; padding-top: .65rem; margin-top: .2rem; }
 .neon-spacing > summary { display: flex; justify-content: space-between; align-items: center; color: #43546d; font-size: .82rem; }
 .neon-spacing .neon-input-pair { margin-top: .65rem; }
+.neon-line-spacing-controls { display: flex; align-items: end; gap: .35rem; }
+.neon-line-spacing-controls input { width: 0; flex: 1 1 auto; }
+.neon-line-spacing-controls button { min-height: 42px; padding: .4rem .65rem; border: 1px solid #9bacbf; border-radius: 7px; background: #f2f6fb; color: #243f61; font-weight: 650; }
 .neon-quote { padding: 1.1rem; background: #16253b; color: white; border-color: #16253b; }
 .neon-studio .neon-quote > p { color: white; font-size: 1.05rem; font-weight: 650; margin: 0 0 .7rem; }
 .neon-quote summary, .neon-quote button {

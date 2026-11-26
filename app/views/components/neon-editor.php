@@ -161,7 +161,13 @@ $neonIcon = static function (string $key) use ($neonIcons): string {
           <details class="neon-spacing"><summary>Letter &amp; line spacing</summary>
             <div class="neon-input-pair">
               <label>Letter spacing (em)<input type="number" data-neon-field="letterSpacing" value="0" min="0" max=".3" step=".01"></label>
-              <label>Line spacing<input type="number" data-neon-field="lineSpacing" value="1.25" min="1" max="2" step=".05"></label>
+              <div>
+                <label for="neon-line-spacing">Line spacing</label>
+                <div class="neon-line-spacing-controls">
+                  <input id="neon-line-spacing" type="number" data-neon-field="lineSpacing" value="1.25" min="0.5" max="2" step=".05">
+                  <button type="button" data-neon-action="auto-line-spacing" title="Adjust line spacing for the selected lettering">Auto</button>
+                </div>
+              </div>
             </div>
           </details>
         </div>

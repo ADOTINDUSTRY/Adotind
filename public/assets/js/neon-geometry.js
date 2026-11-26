@@ -727,7 +727,7 @@
     if (!text.trim()) fail('Enter the lettering for your sign.');
     if (Array.from(text).length > 80 || rows.length > 4) fail('Use up to 80 characters on a maximum of four lines.');
     if (!(width >= 100 && width <= 3000)) fail('Choose a width from 100 to 3000 mm.');
-    if (!(tracking >= 0 && tracking <= 0.30 && leading >= 1 && leading <= 2)) fail('Choose a valid letter and line spacing.');
+    if (!(tracking >= 0 && tracking <= 0.30 && leading >= 0.5 && leading <= 2)) fail('Choose a valid letter and line spacing.');
     if (!['left','center','right'].includes(align)) fail('Choose left, centre or right alignment.');
     if (errors.length) return result;
 
@@ -994,7 +994,7 @@
         sample.line=line;
         return sample;
       });
-      const connected=words.splice(0,1), bridges=[];
+      const connected=words.splice(0,1), bridges=[], panelZones=[];
       const best=words.map(word=>{
         const candidate=nearest(connected,[word]);
         candidate.fromLine=connected[candidate.pathIndex].line;
@@ -1013,8 +1013,11 @@
         } else {
           const first=rowBounds.get(edge.fromLine),second=rowBounds.get(added.line);
           const left=Math.max(first.left,second.left),right=Math.min(first.right,second.right);
-          if (right>left) bridges.push(...rowPanel(left,right,
-            Math.min(edge.a.Y,edge.b.Y),Math.max(edge.a.Y,edge.b.Y),gap*.5));
+          if (right>left) {
+            const top=Math.min(edge.a.Y,edge.b.Y),bottom=Math.max(edge.a.Y,edge.b.Y);
+            bridges.push(...rowPanel(left,right,top,bottom,gap*.5));
+            if (bottom-top>=2) panelZones.push({left,right,top,bottom});
+          }
         }
         connected.push(added);
         for (const [i,word] of words.entries()) {
@@ -1026,6 +1029,36 @@
         }
       }
       if (bridges.length) joined.splice(0,joined.length,...unite([...joined,...bridges]));
+      // The union of the broad row panel and an existing letter outline can
+      // leave a square inward step. Round only the two panel-to-letter edges:
+      // closing supplies extra material, then local masks keep unrelated
+      // letter contours and the selected acrylic margin intact.
+      if (panelZones.length && joined.length) {
+        const radius=Math.min(gap*.65,24)*scale;
+        const expanded=[], closed=[];
+        const grow=new clipper.ClipperOffset(2,.05*scale);
+        grow.AddPaths(joined,clipper.JoinType.jtRound,clipper.EndType.etClosedPolygon);
+        grow.Execute(expanded,radius);
+        if (expanded.length) {
+          const shrink=new clipper.ClipperOffset(2,.05*scale);
+          shrink.AddPaths(expanded,clipper.JoinType.jtRound,clipper.EndType.etClosedPolygon);
+          shrink.Execute(closed,-radius);
+        }
+        if (closed.length) {
+          const masks=[];
+          for (const zone of panelZones) for (const side of [zone.left,zone.right]) {
+            const l=Math.round(side-4*radius),r=Math.round(side+4*radius);
+            const t=Math.round(zone.top-4*radius),b=Math.round(zone.bottom+4*radius);
+            masks.push([{X:l,Y:t},{X:r,Y:t},{X:r,Y:b},{X:l,Y:b}]);
+          }
+          const intersect=new clipper.Clipper(), patches=[];
+          intersect.AddPaths(closed,clipper.PolyType.ptSubject,true);
+          intersect.AddPaths(masks,clipper.PolyType.ptClip,true);
+          intersect.Execute(clipper.ClipType.ctIntersection,patches,
+            clipper.PolyFillType.pftNonZero,clipper.PolyFillType.pftNonZero);
+          if (patches.length) joined.splice(0,joined.length,...unite([...joined,...patches]));
+        }
+      }
     }
     const outlines=[], holes=[];
     let requestedSpacers=0;

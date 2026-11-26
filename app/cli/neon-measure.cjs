@@ -15,7 +15,7 @@ const choices = {
   mount: ['wall', 'suspended', 'freestanding'],
   scene: ['studio', 'brick', 'concrete', 'drawing'],
 };
-const ranges = {widthMm: [100, 3000], boardGap: [30, 150], letterSpacing: [0, 0.30], lineSpacing: [1, 2], brightness: [10, 100]};
+const ranges = {widthMm: [100, 3000], boardGap: [30, 150], letterSpacing: [0, 0.30], lineSpacing: [0.5, 2], brightness: [10, 100]};
 const fields = new Set(['version', 'text', 'color', 'cover', 'lineColors', 'power', ...Object.keys(choices), ...Object.keys(ranges)]);
 
 function measure(input, intent = 'production') {

@@ -8,6 +8,7 @@
   const stage = root.querySelector('.neon-view');
   const expandedProof = root.querySelector('.neon-expanded-proof');
   const engine = window.NeonGeometry;
+  const sessionPhoto = window.NeonSessionPhoto;
   const NS = 'http://www.w3.org/2000/svg';
   const MAX_FILE_BYTES = 16384;
   const WHITE_COVER = '#ffffff';
@@ -75,14 +76,50 @@
     boardShape: ['rectangle','contour'], backing: ['clear', 'black', 'none'], mount: ['wall', 'suspended', 'freestanding'],
     scene: ['brick', 'studio', 'concrete', 'drawing'],
   };
-  const limits = {widthMm: [minWidth, maxWidth], boardGap: [30, 150], letterSpacing: [0, 0.3], lineSpacing: [1, 2], brightness: [10, 100]};
+  const limits = {widthMm: [minWidth, maxWidth], boardGap: [30, 150], letterSpacing: [0, 0.3], lineSpacing: [.5, 2], brightness: [10, 100]};
   let design = {...defaults};
+  let manualLineSpacing = false;
+  const designStorageKey = 'adotind.neon.design.v1';
   const textStorageKey = 'adotind.neon.sign-text.v1';
+  let restoredDesign = false;
   try {
-    const savedText = window.sessionStorage.getItem(textStorageKey);
-    if (savedText !== null && savedText.length <= 160) design.text = savedText;
+    const raw = window.sessionStorage.getItem(designStorageKey);
+    const stored = raw ? JSON.parse(raw) : null;
+    if (stored?.version === 1 && stored.design && typeof stored.design === 'object' && !Array.isArray(stored.design)) {
+      const saved = stored.design;
+      if (typeof saved.text === 'string' && saved.text.length <= 160) design.text = saved.text;
+      for (const [key, values] of Object.entries(options)) if (values.includes(saved[key])) design[key] = saved[key];
+      for (const [key, [low, high]] of Object.entries(limits)) {
+        if (Number.isFinite(saved[key])) design[key] = Math.max(low,Math.min(high,saved[key]));
+      }
+      if (typeof saved.power === 'boolean') design.power = saved.power;
+      if (design.cover !== WHITE_COVER) {
+        design.color = design.cover;
+        design.lineColors = [];
+      } else if (Array.isArray(saved.lineColors) && saved.lineColors.length <= 4) {
+        design.lineColors = saved.lineColors.map(color => colors.includes(color) ? color : null);
+      }
+      if (design.mount !== 'wall' && design.boardShape === 'contour') design.boardShape = 'rectangle';
+      manualLineSpacing = stored.manualLineSpacing === true;
+      restoredDesign = true;
+    } else {
+      const savedText = window.sessionStorage.getItem(textStorageKey);
+      if (savedText !== null && savedText.length <= 160) design.text = savedText;
+    }
   } catch {
-    // The designer remains usable when browser storage is unavailable.
+    // Storage may be unavailable or contain an invalid draft. Old text-only
+    // drafts are still worth recovering if they can be read.
+    try {
+      const savedText = window.sessionStorage.getItem(textStorageKey);
+      if (savedText !== null && savedText.length <= 160) design.text = savedText;
+    } catch { /* The designer remains usable without storage. */ }
+  }
+  function suggestedLineSpacing(value) {
+    try { return window.NeonLineSpacing?.recommend(engine,value) ?? null; } catch { return null; }
+  }
+  if (!restoredDesign) {
+    const suggested = suggestedLineSpacing(design);
+    if (suggested !== null) design.lineSpacing = suggested;
   }
   let widthAllowance = 0;
   let geometry;
@@ -100,6 +137,21 @@
   let frame;
   let wallURL = '';
   let wallGeneration = 0;
+  const cameraStorageKey = 'adotind.neon.camera.v1';
+  try {
+    const photo = sessionPhoto?.load(window.sessionStorage);
+    if (photo) {
+      wallURL = photo;
+      root.dataset.wallPhoto = 'true';
+      root.style.setProperty('--neon-wall-image', 'url("' + photo + '")');
+      zoom = .75;
+    }
+    const camera = JSON.parse(window.sessionStorage.getItem(cameraStorageKey) || 'null');
+    if (camera && Number.isFinite(camera.zoom) && Number.isFinite(camera.x) && Number.isFinite(camera.y)) {
+      zoom = Math.min(maxZoom, Math.max(minZoom(), camera.zoom));
+      pan = {x: camera.x, y: camera.y};
+    }
+  } catch { /* The designer remains usable without browser storage. */ }
   const past = [];
   const future = [];
   let sequence;
@@ -129,11 +181,16 @@
     });
   }
   function changed(key, value, group) {
-    if (design[key] === value) return;
+    const beforeManual = manualLineSpacing;
+    if (key === 'lineSpacing') manualLineSpacing = true;
+    if (design[key] === value) {
+      if (manualLineSpacing !== beforeManual) render();
+      return;
+    }
     if (key === 'color' && design.cover !== WHITE_COVER && value !== design.cover) return;
     const now = performance.now();
     if (!group || !sequence || sequence.key !== key || now - sequence.at > 850) {
-      past.push(design);
+      past.push({design,manualLineSpacing:beforeManual});
       if (past.length > 100) past.shift();
     }
     sequence = group ? {key, at: now} : undefined;
@@ -143,6 +200,10 @@
     if (key === 'cover' && value !== WHITE_COVER) {
       design.color = value;
       design.lineColors = [];
+    }
+    if (!manualLineSpacing && ['text','font','widthMm','letterSpacing'].includes(key)) {
+      const suggested = suggestedLineSpacing(design);
+      if (suggested !== null) design.lineSpacing = suggested;
     }
     output('status', '');
     render();
@@ -454,17 +515,29 @@
     output('zoom', Math.round(zoom * 100) + '%');
     buttonState('zoom-in', zoom >= maxZoom);
     buttonState('zoom-out', zoom <= minZoom());
+    try { window.sessionStorage.setItem(cameraStorageKey,JSON.stringify({zoom,x:pan.x,y:pan.y})); }
+    catch { /* Preview controls still work if storage is unavailable. */ }
   }
   const clampZoom = value => Math.min(maxZoom, Math.max(minZoom(), value));
   function render() {
-    // Session storage keeps only this tab's sign text across reloads. Saving
-    // on render also covers undo, redo and opening an editable design.
-    try { window.sessionStorage.setItem(textStorageKey, design.text); } catch { /* Storage may be disabled. */ }
     const longestLine = Math.max(0,...design.text.normalize('NFC').split('\n').map(line=>Array.from(line.replace(/\s/gu,'')).length));
     const requiredWidth = Math.max(minWidth, longestLine*(shop.mmPerCharacter ?? 100));
     const effectiveMin = Math.min(requiredWidth, maxWidth);
     const sizeError = requiredWidth > maxWidth ? 'Split the lettering over more lines to fit the maximum width of '+maxWidth+' mm.' : '';
-    if (design.widthMm < effectiveMin) design = {...design,widthMm:effectiveMin};
+    if (design.widthMm < effectiveMin) {
+      design = {...design,widthMm:effectiveMin};
+      if (!manualLineSpacing) {
+        const suggested = suggestedLineSpacing(design);
+        if (suggested !== null) design.lineSpacing = suggested;
+      }
+    }
+    // Save this tab's editable design, including in-progress invalid text,
+    // on all changes, undo/redo and opening a project. The wall preview is
+    // stored separately; checkout details and filenames are not stored here.
+    try {
+      window.sessionStorage.setItem(designStorageKey,JSON.stringify({version:1,design,manualLineSpacing}));
+      window.sessionStorage.setItem(textStorageKey,design.text);
+    } catch { /* Storage can be disabled without breaking the editor. */ }
     const nextKey = JSON.stringify([design.text, design.font, design.widthMm, design.align, design.letterSpacing, design.lineSpacing,
       design.backing, design.boardShape, design.boardGap, design.mount]);
     if (nextKey !== geometryKey) {
@@ -619,14 +692,17 @@
     const [from, to] = direction === 'undo' ? [past, future] : [future, past];
     if (!from.length) return;
     sequence = undefined;
-    to.push(design);
-    design = from.pop();
+    to.push({design,manualLineSpacing});
+    const previous = from.pop();
+    design = previous.design;
+    manualLineSpacing = previous.manualLineSpacing;
     render();
   }
   function clearWall() {
     ++wallGeneration;
-    if (wallURL) URL.revokeObjectURL(wallURL);
+    if (wallURL.startsWith('blob:')) URL.revokeObjectURL(wallURL);
     wallURL = '';
+    try { sessionPhoto?.clear(window.sessionStorage); } catch { /* Storage may be disabled. */ }
     root.dataset.wallPhoto = 'false';
     root.style.removeProperty('--neon-wall-image');
     zoom = 1;
@@ -649,13 +725,24 @@
       await photo.decode();
       if (attempt !== wallGeneration) { URL.revokeObjectURL(url); return; }
       if (photo.naturalWidth * photo.naturalHeight > 60_000_000) throw Error('oversize');
-      if (wallURL) URL.revokeObjectURL(wallURL);
+      if (wallURL.startsWith('blob:')) URL.revokeObjectURL(wallURL);
       wallURL = url;
+      // Remove the previous saved photo before preparing its replacement.
+      try { sessionPhoto?.clear(window.sessionStorage); } catch { /* Storage may be disabled. */ }
       root.style.setProperty('--neon-wall-image', 'url("' + url + '")');
       root.dataset.wallPhoto = 'true';
       zoom = .75; pan = {x: 0, y: 0};
       render();
-      output('status', 'Drag to position your sign. Photo scale is approximate. This photo stays on your device.');
+      output('status', 'Preparing this photo for the current tab…');
+      let saved = false;
+      try {
+        const data = await sessionPhoto?.encode(file, photo);
+        if (attempt !== wallGeneration) return;
+        saved = sessionPhoto?.save(window.sessionStorage, data) === true;
+      } catch { /* The live preview still works even if storage is unavailable. */ }
+      if (attempt === wallGeneration) output('status', saved
+        ? 'Drag to position your sign. Photo scale is approximate. This photo stays on your device.'
+        : 'Your wall photo is visible now, but could not be saved for a refresh.');
     } catch {
       URL.revokeObjectURL(url);
       if (attempt === wallGeneration) output('status', 'This photo could not be displayed. Try a smaller JPG, PNG or WebP.');
@@ -681,6 +768,21 @@
       return;
     }
     const action = btn.dataset.neonAction;
+    if (action === 'auto-line-spacing') {
+      const suggested = suggestedLineSpacing(design);
+      if (suggested === null) {
+        output('status','Enter supported lettering to adjust line spacing automatically.');
+      } else {
+        past.push({design,manualLineSpacing});
+        if (past.length > 100) past.shift();
+        future.length = 0;
+        sequence = undefined;
+        manualLineSpacing = false;
+        design = {...design,lineSpacing:suggested};
+        render();
+        output('status','Line spacing adjusted for this lettering.');
+      }
+    }
     if (action === 'view-sign') {
       canvas.focus({preventScroll: true});
       stage.scrollIntoView({block: 'center', behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth'});
@@ -731,11 +833,12 @@
     if (action === 'import-project' || action === 'load') fileInput?.click();
   });
   function openDesign(imported) {
-    past.push(design);
+    past.push({design,manualLineSpacing});
     if (past.length > 100) past.shift();
     future.length = 0;
     sequence = undefined;
     design = Object.fromEntries(Object.keys(defaults).map(key => [key, imported[key]]));
+    manualLineSpacing = true;
     clearWall();
     render();
     output('status', 'Design opened.');
