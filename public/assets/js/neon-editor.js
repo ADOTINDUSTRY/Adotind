@@ -77,6 +77,13 @@
   };
   const limits = {widthMm: [minWidth, maxWidth], boardGap: [30, 150], letterSpacing: [0, 0.3], lineSpacing: [1, 2], brightness: [10, 100]};
   let design = {...defaults};
+  const textStorageKey = 'adotind.neon.sign-text.v1';
+  try {
+    const savedText = window.sessionStorage.getItem(textStorageKey);
+    if (savedText !== null && savedText.length <= 160) design.text = savedText;
+  } catch {
+    // The designer remains usable when browser storage is unavailable.
+  }
   let widthAllowance = 0;
   let geometry;
   let geometryKey;
@@ -450,6 +457,9 @@
   }
   const clampZoom = value => Math.min(maxZoom, Math.max(minZoom(), value));
   function render() {
+    // Session storage keeps only this tab's sign text across reloads. Saving
+    // on render also covers undo, redo and opening an editable design.
+    try { window.sessionStorage.setItem(textStorageKey, design.text); } catch { /* Storage may be disabled. */ }
     const longestLine = Math.max(0,...design.text.normalize('NFC').split('\n').map(line=>Array.from(line.replace(/\s/gu,'')).length));
     const requiredWidth = Math.max(minWidth, longestLine*(shop.mmPerCharacter ?? 100));
     const effectiveMin = Math.min(requiredWidth, maxWidth);
