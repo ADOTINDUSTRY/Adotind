@@ -66,14 +66,14 @@
     const rates = shop.rates;
     let label = valid ? (review ? 'Price after shop review' : 'Shop quote on request') : 'Complete your lettering to request a quote';
     let estimate = '';
-    if (valid && rates && !review) {
+    if (valid && rates) {
       const acrylicRate = finished.areaMm2 ? rates['acrylic'+finished.tier] : 0;
       const deliveryFee = delivery.value==='delivery' ? rates['delivery'+finished.tier] : 0;
       if ([rates.base,rates.perMetre,rates[spec.mount],acrylicRate,deliveryFee].every(value=>Number.isSafeInteger(value) && value>=0)) {
         const cents = rates.base + Math.round(Math.round(lengthMm)*rates.perMetre/1000)
           + Math.round(finished.areaMm2*acrylicRate/1_000_000) + rates[spec.mount] + deliveryFee
           + strokeCount*(rates.perStroke ?? 0) + bendCount*(rates.perBend ?? 0) + spacerCount*(rates.perSpacer ?? 0);
-        label = estimate = 'Estimated price '+money.format(cents/100);
+        label = estimate = 'Estimated price '+money.format(cents/100) + (review ? ' · subject to shop review' : '');
       }
     }
     if (price.textContent !== label) price.textContent = label;
@@ -103,11 +103,11 @@
     let attempt = attempts.get(signature);
     if (!attempt) {
       const id = attempts.size === 0 ? requestField.value : Array.from(crypto.getRandomValues(new Uint8Array(16)), byte => byte.toString(16).padStart(2, '0')).join('');
-      attempt = {id, reference: ''};
+      attempt = {id, reference: '', reviewOnly: null};
       attempts.set(signature, attempt);
     }
     if (attempt.reference) {
-      message((review ? 'Shop review already requested.' : 'Design request already sent.') + ' Your reference is ' + attempt.reference + '.', 'success', signature);
+      message(((attempt.reviewOnly ?? review) ? 'Shop review already requested.' : 'Design request already sent.') + ' Your reference is ' + attempt.reference + '.', 'success', signature);
       return;
     }
     requestField.value = attempt.id;
@@ -128,9 +128,10 @@
         return;
       }
       attempt.reference = result.reference;
+      attempt.reviewOnly = result.reviewOnly === true;
       const current = signatureOf(new FormData(form));
       const edited = current !== signature ? ' Your latest edits are still in the editor.' : '';
-      message((review ? 'Shop review requested.' : 'Design request sent.') + ' Your reference is ' + attempt.reference + '.' + edited, 'success', current);
+      message((attempt.reviewOnly ? 'Shop review requested.' : 'Design request sent.') + ' Your reference is ' + attempt.reference + '.' + edited, 'success', current);
     } catch {
       message('Receipt could not be confirmed. Try again with the same design to check your request.', 'error', signature);
     } finally {

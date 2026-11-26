@@ -1,5 +1,5 @@
-/* The sign is drawn in millimetres. Camera zoom, wall scenes and lighting only
-   affect the proof. Exports use the untouched geometry from NeonGeometry. */
+/* The sign is drawn in millimetres. Preview and exports use the same paths;
+   camera zoom, wall scenes and lighting only affect the proof. */
 (() => {
   'use strict';
   const root = document.querySelector('[data-neon-editor]');
@@ -8,6 +8,7 @@
   const stage = root.querySelector('.neon-view');
   const expandedProof = root.querySelector('.neon-expanded-proof');
   const engine = window.NeonGeometry;
+  const stripPlanning = window.NeonStripPlanning;
   const NS = 'http://www.w3.org/2000/svg';
   const MAX_FILE_BYTES = 16384;
   const WHITE_COVER = '#ffffff';
@@ -43,7 +44,7 @@
   }
   const minWidth = Number.isFinite(shop.minWidth) ? Math.max(100, shop.minWidth) : 100;
   const maxWidth = Number.isFinite(shop.maxWidth) ? Math.min(3000, shop.maxWidth) : 3000;
-  if (!canvas || typeof engine?.layout !== 'function' || !engine.fonts.length) {
+  if (!canvas || typeof engine?.layout !== 'function' || !engine.fonts.length || typeof stripPlanning?.fitIndependentPaths !== 'function') {
     output('warnings', 'The lettering engine could not load. Refresh the page to try again.');
     if (submit) submit.disabled = true;
     return;
@@ -98,6 +99,23 @@
   let sequence;
   const mm = value => new Intl.NumberFormat(undefined, {maximumFractionDigits: 1}).format(value) + ' mm';
   const cutMeasure = new Intl.NumberFormat(undefined, {maximumFractionDigits: 3});
+
+  function prepareDrawing(spec) {
+    let drawing = engine.repairLayout(spec);
+    if (!drawing.valid) return drawing;
+    const fit = stripPlanning.fitIndependentPaths(drawing, engine.inspectManufacturing);
+    if (fit.applied) drawing = fit.artwork;
+    drawing.stripFit = {applied:fit.applied, reason:fit.reason || null,
+      pathsMatchCutMarks:fit.plan.pathsMatchCutMarks,
+      electricalRoutingVerified:fit.plan.electricalRoutingVerified,
+      coverCrossingsVerified:false};
+    return drawing;
+  }
+
+  function needsShopReview(drawing) {
+    return Boolean(drawing.manufacturing?.requiresReview || !drawing.stripFit?.pathsMatchCutMarks ||
+      !drawing.stripFit?.electricalRoutingVerified || !drawing.stripFit?.coverCrossingsVerified);
+  }
 
   function svg(tag, attrs = {}, content = '') {
     const node = document.createElementNS(NS, tag);
@@ -469,12 +487,16 @@
     const nextKey = JSON.stringify([design.text, design.font, design.widthMm, design.align, design.letterSpacing, design.lineSpacing,
       design.backing, design.boardShape, design.boardGap, design.mount]);
     if (nextKey !== geometryKey) {
-      geometry = engine.repairLayout(design);
+      geometry = prepareDrawing(design);
       if (geometry.valid) {
         geometry.reviewLocations = geometry.manufacturing.requiresReview ? engine.inspectManufacturing(geometry.runs,true) : null;
         if (geometry.manufacturing.shortStrokes) geometry.warnings.push('A neon stroke is shorter than 6 mm and needs shop review.');
-        if (geometry.manufacturing.closePaths) geometry.warnings.push('Some neon paths have less than 10 mm clear space or cross and need shop review.');
+        if (geometry.manufacturing.closePaths) geometry.warnings.push('Some neon paths are too close, overlap, or have a junction that needs shop review.');
         if (geometry.manufacturing.tightCurves) geometry.warnings.push('A neon curve is very tight and needs shop review.');
+        if (geometry.manufacturing.sharpReturns) geometry.warnings.push('A return angle is under 45° and needs shop review.');
+        geometry.warnings.push('LED routing and silicone-cover joins need shop review before production.');
+        if (!geometry.stripFit.pathsMatchCutMarks) geometry.warnings.push('Some drawing strokes are not 25 mm multiples; the LED layout needs review.');
+        if (geometry.stripFit.applied) geometry.warnings.push('Some separate strokes were adjusted for 25 mm LED cuts. Review the updated drawing.');
         if (geometry.manufacturing.incomplete) geometry.warnings.push('This design needs a manual clearance check.');
         if (geometry.repair?.changed) geometry.warnings.push('Letter spacing or height was adjusted for neon clearance. Please review the preview and final dimensions.');
       }
@@ -561,7 +583,9 @@
       geometry.reviewLocations?.incomplete ? 'The automatic scan was incomplete. Other areas may also need review.'
       : issues.length >= 60 ? 'Showing the first 60 areas. Other areas may also need review.'
       : issues.length ? 'Numbers mark areas to review on the drawing.' : 'No precise location is available for this warning.';
-    root.querySelector('[data-neon-action="find-clearance-size"]').hidden = !geometry.manufacturing?.requiresReview;
+    const clearanceButton = root.querySelector('[data-neon-action="find-clearance-size"]');
+    clearanceButton.hidden = !geometry.manufacturing?.requiresReview;
+    clearanceButton.textContent = 'Find clearer spacing';
     output('warning', warningText);
     root.dataset.neonValid = String(ready);
     const w = geometry.widthMm, h = geometry.heightMm;
@@ -578,7 +602,7 @@
     const spacerCount = board?.wall ? board.holes.length : 0;
     output('spacers',String(spacerCount));
     if (spec) spec.value = ready ? JSON.stringify(design) : '';
-    const intent = geometry.manufacturing?.requiresReview ? 'review' : 'production';
+    const intent = needsShopReview(geometry) ? 'review' : 'production';
     if (requestIntent) requestIntent.value = intent;
     if (submit) submit.disabled = !ready;
     for (const action of ['export', 'export-svg', 'export-dxf']) buttonState(action, !ready);
@@ -718,7 +742,7 @@
       try {
         for (let width = design.widthMm * 1.08; width <= maxWidth * 1.08; width *= 1.08) {
           const candidate = {...original, widthMm:Math.min(maxWidth,width)};
-          const drawing = engine.repairLayout(candidate);
+          const drawing = prepareDrawing(candidate);
           if (!drawing.valid || drawing.manufacturing.requiresReview) {
             if (candidate.widthMm === maxWidth) break;
             continue;
@@ -734,7 +758,7 @@
         if (design !== original) return;
         if (match !== null) {
           changed('widthMm',match,false);
-          output('status','Adjusted the size to pass the spacing check. Please review the new dimensions.');
+          output('status','Adjusted the size to pass the spacing check. LED routing and cover joins still need shop review.');
         } else {
           output('status','No larger size passed the check. Try another font or contact the shop.');
         }

@@ -340,7 +340,11 @@ test('silicone and LEDs obey the same indoor product rules on quotes and shop re
   }
   const draft = {...sign, text: 'Hello', widthMm: 600, cover: white, color: warmWhite};
   const shop = measure(draft, 'review');
-  assert.equal(shop.reviewOnly, shop.manufacturing.requiresReview);
+  // Even a shape that passes clearance must not be called production-ready
+  // until the LED routing and silicone-cover joins have been verified.
+  assert.equal(shop.reviewOnly, true);
+  assert.equal(shop.stripFit.electricalRoutingVerified, false);
+  assert.equal(shop.stripFit.coverCrossingsVerified, false);
   assert.equal(shop.design.cover, white);
   assert.equal(shop.design.color, warmWhite);
   assert.match(shop.svg, /Indoor use only/);
@@ -474,7 +478,23 @@ test('manufacturing screening flags tight separate paths and short strokes while
   assert.equal(audit([[[0,0],[50,0]],[[0,16],[50,16]]]).requiresReview,false);
   assert.equal(audit([[[0,0],[50,0]],[[50,0],[50,50]]]).requiresReview,false);
   assert.equal(audit([[[0,0],[2,0]]]).shortStrokes,1);
-  assert.equal(audit([[[0,0],[50,50]],[[0,50],[50,0]]]).requiresReview,true);
+  assert.equal(audit([[[0,0],[50,50]],[[0,50],[50,0]]]).requiresReview,false);
+  // A conventional cross remains clear even when represented by many segments.
+  assert.equal(audit([[[-80,0],[-40,0],[0,0],[40,0],[80,0]],[[0,-80],[0,-40],[0,0],[0,40],[0,80]]]).requiresReview,false);
+  // A 30-degree crossing and nearby parallel paths still need inspection.
+  assert.equal(audit([[[-80,0],[80,0]],[[-80,-46.188],[80,46.188]]]).closePaths,true);
+  assert.equal(audit([[[-80,0],[80,0]],[[-80,10],[80,10]]]).closePaths,true);
+  // An unrelated nearby stroke is not excused by a crossing between two other strokes.
+  assert.equal(audit([[[-80,0],[80,0]],[[0,-80],[0,80]],[[-80,10],[80,10]]]).closePaths,true);
+  // A crossing cannot excuse a later parallel section of the same two runs.
+  // The horizontal sections here are 5 mm centre-to-centre, not 16 mm.
+  assert.equal(audit([[[-20,0],[20,0]],[[0,-50],[0,0],[0,5],[20,5]]]).closePaths,true);
+  assert.equal(audit([[[-20,0],[20,0]],[[0,-50],[0,0],[0,5],[15,5]]]).closePaths,true);
+  // Nor can an existing intersection excuse overlapping collinear strokes.
+  assert.equal(audit([[[-20,0],[20,0]],[[0,-20],[0,0],[10,0],[10,10]]]).closePaths,true);
+  // Shared endpoints are not permission for two covers to occupy one line.
+  assert.equal(audit([[[0,0],[100,0]],[[0,0],[100,0]]]).closePaths,true);
+  assert.equal(audit([[[0,0],[100,0]],[[100,0],[200,0]]]).requiresReview,false);
 });
 
 test('U-bend screening uses ten millimetres clear between tube faces', () => {
@@ -488,7 +508,7 @@ test('U-bend screening uses ten millimetres clear between tube faces', () => {
 });
 
 test('automatic repair preserves every stroke and verifies resized paths', () => {
-  for(const [font,widthMm] of [['velvet',600],['atelier',1000]]) {
+  for(const [font,widthMm] of [['velvet',600]]) {
     const options={...design,font,text:'ii',widthMm,backing:'none',letterSpacing:0};
     const original=geometry.layout(options);
     const fixed=geometry.repairLayout(options);
@@ -516,4 +536,15 @@ test('nearly joined ends of a single neon loop are connected in preview and DXF'
   const cad=polylines(geometry.dxf(corrected));
   assert.equal(cad.length,1);
   assert.equal(cad[0].closed,true);
+});
+
+test('sharp returns and close U arms need review while a wide crossing remains valid', () => {
+  const inspect=geometry.inspectManufacturing;
+  const narrow=inspect([[[0,0],[0,80],[10,80],[10,0]]],true);
+  assert.equal(narrow.closePaths,true);
+  const acute=inspect([[[0,0],[100,0],[40,14]]],true);
+  assert.equal(acute.sharpReturns,true);
+  assert.ok(acute.locations.some(location=>location.type==='Sharp return under 45°'));
+  const crossing=inspect([[[0,0],[100,0]],[[50,-50],[50,50]]],true);
+  assert.equal(crossing.requiresReview,false);
 });

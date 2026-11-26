@@ -488,6 +488,7 @@
     const segments = [];
     let shortStrokes = 0;
     let tightCurves = false;
+    let sharpReturns = false;
     const locations = [];
     function mark(point, type) {
       if (!showLocations || locations.length >= 60 || locations.some(item => item.type === type && distance(item.point,point) < 16)) return;
@@ -503,6 +504,11 @@
         if (ab<.05 || bc<.05 || ca<.05) continue;
         const cross=Math.abs((b[0]-a[0])*(c[1]-a[1])-(b[1]-a[1])*(c[0]-a[0]));
         const dot=((b[0]-a[0])*(c[0]-b[0])+(b[1]-a[1])*(c[1]-b[1]))/(ab*bc);
+        // The angle inside a return is 180° minus the change in direction.
+        if (dot < -Math.SQRT1_2) {
+          sharpReturns=true;
+          mark(b,'Sharp return under 45°');
+        }
         if (dot>.707 && cross>1e-7 && ab*bc*ca/(2*cross)<8-.1) {
           tightCurves=true;
           mark(b,'Tight curve');
@@ -526,7 +532,7 @@
       }
     }
     if (segments.length > 12000) {
-      return {shortStrokes,closePaths:false,tightCurves,incomplete:true,requiresReview:true,locations};
+      return {shortStrokes,closePaths:false,tightCurves,sharpReturns,incomplete:true,requiresReview:true,locations};
     }
     segments.sort((a,b)=>a.left-b.left);
     let closePaths=false, checks=0, incomplete=false;
@@ -535,6 +541,30 @@
       const t=size ? Math.max(0,Math.min(1,((p[0]-a[0])*dx+(p[1]-a[1])*dy)/size)) : 0;
       return distance(p,[a[0]+dx*t,a[1]+dy*t]);
     };
+    // Normal crossings can be joined in the shop. Remember transverse
+    // intersections so their immediate surroundings are not misidentified as
+    // two parallel tubes. Shallow crossings remain subject to clearance review.
+    const crossings=[];
+    let crossingChecks=0;
+    outerCrossings: for (let i=0;i<segments.length;i++) {
+      const first=segments[i], dx=first.b[0]-first.a[0],dy=first.b[1]-first.a[1];
+      for (let j=i+1;j<segments.length && segments[j].left<=first.right+.05;j++) {
+        const second=segments[j];
+        if (first.bottom+.05<second.top || second.bottom+.05<first.top) continue;
+        if (++crossingChecks>500000) { incomplete=true; break outerCrossings; }
+        if (first.runIndex===second.runIndex && Math.abs(first.index-second.index)<=1) continue;
+        const ex=second.b[0]-second.a[0],ey=second.b[1]-second.a[1];
+        const cross=dx*ey-dy*ex, lengths=Math.hypot(dx,dy)*Math.hypot(ex,ey);
+        if (!lengths || Math.abs(cross)/lengths < Math.SQRT1_2-1e-9) continue;
+        const px=second.a[0]-first.a[0],py=second.a[1]-first.a[1];
+        const t=(px*ey-py*ex)/cross, u=(px*dy-py*dx)/cross;
+        if (t<0 || t>1 || u<0 || u>1) continue;
+        const point=[first.a[0]+t*dx,first.a[1]+t*dy];
+        if (!crossings.some(c=>c.a===first.runIndex && c.b===second.runIndex && distance(c.point,point)<1)) {
+          crossings.push({point,a:first.runIndex,b:second.runIndex});
+        }
+      }
+    }
     outer: for (let i=0; i<segments.length; i++) {
       const first=segments[i];
       for (let j=i+1; j<segments.length && segments[j].left<first.right+centerlineClearance; j++) {
@@ -546,7 +576,32 @@
           if (first.closed) along=Math.min(along, first.runLength-Math.max(first.end,second.end)+Math.min(first.start,second.start));
           // Nearby samples on the same continuous bend naturally approach
           // each other. The separate curvature check handles these.
-          if (along<centerlineClearance*Math.PI/2) continue;
+          if (along<centerlineClearance*Math.PI/2) {
+            // Long arms joined by a short segment may still run parallel too close.
+            // Check positions away from the join, using their actual arc positions.
+            const localLimit=centerlineClearance*Math.PI/2;
+            let remoteClose=false;
+            const testRemote = (segment,other) => {
+              const length=segment.end-segment.start;
+              const samples=Math.max(1,Math.ceil(length/4));
+              for (let k=0;k<=samples;k++) {
+                if (++checks>500000) { incomplete=true; return false; }
+                const t=k/samples;
+                const point=[segment.a[0]+(segment.b[0]-segment.a[0])*t,
+                  segment.a[1]+(segment.b[1]-segment.a[1])*t];
+                const dx=other.b[0]-other.a[0],dy=other.b[1]-other.a[1];
+                const size=dx*dx+dy*dy;
+                const u=size ? Math.max(0,Math.min(1,((point[0]-other.a[0])*dx+(point[1]-other.a[1])*dy)/size)) : 0;
+                let arc=Math.abs(segment.start+length*t-(other.start+(other.end-other.start)*u));
+                if (segment.closed) arc=Math.min(arc,segment.runLength-arc);
+                if (arc>=localLimit && pointToSegment(point,other.a,other.b)<centerlineClearance-.05) return true;
+              }
+              return false;
+            };
+            const maximum=Math.max(Math.abs(first.start-second.end),Math.abs(first.end-second.start));
+            if (maximum>=localLimit) remoteClose=testRemote(first,second) || testRemote(second,first);
+            if (!remoteClose) continue;
+          }
         } else {
           // Shared terminals are normal pen lifts at a letter junction. Overlaps
           // beyond the shared terminal remain candidates for shop inspection.
@@ -559,7 +614,21 @@
               Math.min(distance(a,first.a),distance(a,first.b))<centerlineClearance) ||
             terminalB.some(b=>pointToSegment(b,first.a,first.b)<.1 &&
               Math.min(distance(b,second.a),distance(b,second.b))<centerlineClearance);
-          if (junction) continue;
+          if (junction) {
+            const dx=first.b[0]-first.a[0], dy=first.b[1]-first.a[1];
+            const ex=second.b[0]-second.a[0], ey=second.b[1]-second.a[1];
+            const length=Math.hypot(dx,dy), otherLength=Math.hypot(ex,ey);
+            const cross=dx*ey-dy*ex, scale=length*otherLength;
+            const transverse=scale>0 && Math.abs(cross)/scale>=Math.SQRT1_2-1e-9;
+            // Two collinear segments meeting end-to-end are a continuation,
+            // but segments sharing a terminal and overlapping are not.
+            const sharedEnd=[first.a,first.b].some(a=>[second.a,second.b].some(b=>distance(a,b)<.1));
+            const project=p=>((p[0]-first.a[0])*dx+(p[1]-first.a[1])*dy)/length;
+            const ends=[project(second.a),project(second.b)];
+            const overlap=Math.min(length,Math.max(...ends))-Math.max(0,Math.min(...ends));
+            const continuation=sharedEnd && scale>0 && Math.abs(cross)/scale<1e-9 && overlap<.1;
+            if (transverse || continuation) continue;
+          }
         }
         const dx=first.b[0]-first.a[0],dy=first.b[1]-first.a[1];
         const ex=second.b[0]-second.a[0],ey=second.b[1]-second.a[1];
@@ -574,6 +643,23 @@
           pointToSegment(first.a,second.a,second.b),pointToSegment(first.b,second.a,second.b),
           pointToSegment(second.a,first.a,first.b),pointToSegment(second.b,first.a,first.b));
         if (gap<centerlineClearance-.05) {
+          const sameRuns = entry => (entry.a===first.runIndex && entry.b===second.runIndex) ||
+            (entry.b===first.runIndex && entry.a===second.runIndex);
+          const segmentLengths=Math.hypot(dx,dy)*Math.hypot(ex,ey);
+          const transverse=segmentLengths>0 && Math.abs(cross)/segmentLengths>=Math.SQRT1_2-1e-9;
+          const crossing = transverse && crossings.find(entry => sameRuns(entry) &&
+            pointToSegment(entry.point,first.a,first.b)<.1 &&
+            pointToSegment(entry.point,second.a,second.b)<.1);
+          if (crossing) continue;
+          // A nearby segment that has turned and runs parallel to the other
+          // tube still needs clearance. A real crossing does not exempt the
+          // rest of either stroke from the spacing check.
+          const nearCrossing = transverse && crossings.some(entry => sameRuns(entry) &&
+            pointToSegment(entry.point,first.a,first.b)<centerlineClearance &&
+            pointToSegment(entry.point,second.a,second.b)<centerlineClearance &&
+            Math.min(distance(entry.point,first.a),distance(entry.point,first.b))<centerlineClearance*2 &&
+            Math.min(distance(entry.point,second.a),distance(entry.point,second.b))<centerlineClearance*2);
+          if (nearCrossing) continue;
           closePaths=true;
           if (!showLocations) break outer;
           const candidates = [
@@ -592,7 +678,7 @@
         }
       }
     }
-    return {shortStrokes,closePaths,tightCurves,incomplete,requiresReview:shortStrokes>0 || closePaths || tightCurves || incomplete,locations};
+    return {shortStrokes,closePaths,tightCurves,sharpReturns,incomplete,requiresReview:shortStrokes>0 || closePaths || tightCurves || sharpReturns || incomplete,locations};
   }
 
   function layout(options = {}) {

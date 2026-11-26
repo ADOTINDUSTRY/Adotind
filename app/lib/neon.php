@@ -195,6 +195,7 @@ function neon_handle_request(): never
         $spec['spacerCount'] = $proof['spacerCount'];
         $spec['manufacturing'] = $proof['manufacturing'];
         $spec['geometryAdjustment'] = $proof['repair'];
+        $spec['stripFit'] = $proof['stripFit'];
         $spec['delivery'] = $delivery === 'delivery' ? 'delivery'.$tier : 'pickup';
         if ($delivery === 'delivery') $spec['deliveryAddress'] = trim($address);
         $insert = $db->prepare('INSERT INTO requests(request_key,name,email,message,design,width_mm,height_mm,tube_length_mm,warnings,estimated_cents,retail_breakdown,settings_revision,svg,dxf)
@@ -205,7 +206,7 @@ function neon_handle_request(): never
         $fresh = $insert->rowCount();
         if ($fresh && $proof['reviewOnly']) {
             $review = $db->prepare('INSERT INTO request_cut_plans(request_id,cut_ready,plan) VALUES(last_insert_rowid(),0,?)');
-            $review->execute([json_encode(['ready'=>false,'pieces'=>[], 'manufacturing'=>$proof['manufacturing'] + ['messages'=>$proof['warnings']]], JSON_THROW_ON_ERROR)]);
+            $review->execute([json_encode(['ready'=>false,'pieces'=>[], 'manufacturing'=>$proof['manufacturing'] + ['messages'=>$proof['warnings']], 'stripFit'=>$proof['stripFit']], JSON_THROW_ON_ERROR)]);
         }
         $existing->execute([$key]);
         $saved = $existing->fetch();
