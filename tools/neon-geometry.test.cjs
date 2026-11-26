@@ -406,6 +406,47 @@ test('100 mm shop geometry and contoured spacer hardware use true drawing units'
   assert.equal(geometry.backboard(model,{...spec,backing:'none'}),null);
 });
 
+test('contoured acrylic reinforces spaces while preserving one-word lettering', () => {
+  const clipper = require('../public/assets/js/neon-clipper.js');
+  const spec={...design,backing:'clear',boardShape:'contour',boardGap:30,mount:'wall',font:'signature'};
+  // Offsets of these two words overlap by only 0.1 mm, creating a near-tangent
+  // acrylic neck even though the initial union already has a single outline.
+  const synthetic={widthMm:200,heightMm:100,runs:[[[30,50],[30,50.1]],[[95.9,50],[95.9,50.1]]],runWords:['0:0','0:1']};
+  const pinched=geometry.backboard(synthetic,spec);
+  assert.equal(pinched.outlines.length,1);
+  const x=62.95, intersections=[];
+  for(let i=0;i<pinched.outline.length;i++) {
+    const a=pinched.outline[i], b=pinched.outline[(i+1)%pinched.outline.length];
+    if((a[0]-x)*(b[0]-x)<0)intersections.push(a[1]+(b[1]-a[1])*(x-a[0])/(b[0]-a[0]));
+  }
+  assert.equal(intersections.length,2);
+  assert.ok(Math.max(...intersections)-Math.min(...intersections)>=60);
+
+  const single=geometry.layout({...spec,text:'Hello',widthMm:600});
+  const withoutWordGroups={...single};
+  Object.defineProperty(withoutWordGroups,'runs',{value:single.runs});
+  assert.deepEqual(geometry.backboard(single,spec).outlines,geometry.backboard(withoutWordGroups,spec).outlines);
+
+  for (const [text,widthMm] of [['Hello h',600],['Hello Hello',1000],['Hello   Hello\nHello',1800]]) {
+    const drawing=geometry.layout({...spec,text,widthMm});
+    const board=geometry.backboard(drawing,spec);
+    assert.equal(board.outlines.length,1,text);
+    // A bridge over 60 mm remains connected after erosion by 29 mm.
+    const inset=new clipper.ClipperOffset(2,5), cores=[];
+    inset.AddPaths(board.outlines.map(path=>path.map(([x,y])=>({X:Math.round(x*100),Y:Math.round(y*100)}))),
+      clipper.JoinType.jtRound,clipper.EndType.etClosedPolygon);
+    inset.Execute(cores,-2900);
+    assert.equal(cores.filter(clipper.Clipper.Orientation).length,1,text);
+    const cad=polylines(geometry.dxf(drawing,spec)).filter(path=>path.layer==='ACRYLIC_OUTLINE');
+    assert.equal(cad.length,board.outlines.length);
+    assert.equal(cad[0].points.length,board.outlines[0].length);
+    for(let i=0;i<cad[0].points.length;i++) {
+      near(cad[0].points[i][0],board.outlines[0][i][0],.00011);
+      near(cad[0].points[i][1],drawing.heightMm-board.outlines[0][i][1],.00011);
+    }
+  }
+});
+
 test('Hello across two lines exports original strokes at non-multiple lengths', () => {
   const spec={...design,text:'Hello   Hello\\nHello',font:'signature',widthMm:1000};
   const drawing=geometry.layout(spec);

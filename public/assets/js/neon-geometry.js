@@ -734,8 +734,12 @@
     const kern = kerning(fontId, font);
     const lines = rows.map(row => {
       const glyphs = [], box = emptyBounds();
-      let x = 0, previous = '';
+      let x = 0, previous = '', word = 0, inWord = false;
       for (const ch of row) {
+        if (/\s/u.test(ch)) {
+          if (inWord) word++;
+          inWord = false;
+        } else inWord = true;
         const raw = font.glyphs[ch];
         if (!raw) {
           if (!unsupported.includes(ch)) unsupported.push(ch);
@@ -744,7 +748,7 @@
         if (previous) x += tracking * font.em - (kern.get(previous + ch) || 0);
         const g = glyphGeometry(fontId, ch, raw);
         if (Number.isFinite(g.box.left)) {
-          glyphs.push({x, g, ch});
+          glyphs.push({x, g, ch, word});
           include(box, x+g.box.left, g.box.bottom); include(box, x+g.box.right, g.box.top);
         }
         x += g.advance;
@@ -782,14 +786,15 @@
       fail('This wording produces a sign over 100 metres tall. Choose another style or add lettering.');
       return result;
     }
-    const runs = [];
+    const runs = [], runWords = [];
     for (const [index, line] of lines.entries()) {
-      for (const {x, g} of line.glyphs) {
+      for (const {x, g, word} of line.glyphs) {
         result.bendCount += sharpBends(g.commands);
         let run = null, d = '';
         function finish() {
           if (run && run.length >= 2) {
             runs.push(run);
+            runWords.push(index+':'+word);
             result.paths.push({line:index, d});
           }
         }
@@ -817,6 +822,7 @@
     if (!result.valid) fail('The lettering has no measurable tube length.');
     // Keep the flattened millimetre runs for CAD export, out of public JSON summaries.
     Object.defineProperty(result, 'runs', {value:runs});
+    Object.defineProperty(result, 'runWords', {value:runWords});
     return result;
   }
 
@@ -859,6 +865,7 @@
         }));
         candidate.bendCount = candidate.paths.reduce((total,path)=>total+sharpBends(readPath(path.d)),0);
         Object.defineProperty(candidate, 'runs', {value:revisedRuns});
+        if (base.runWords) Object.defineProperty(candidate, 'runWords', {value:base.runWords});
         candidate.lengthMm = revisedRuns.reduce((total,run)=>total+run.slice(1).reduce(
           (length,point,index)=>length+distance(run[index],point),0),0);
         const board = backboard(candidate,spec);
@@ -903,26 +910,76 @@
     const result=[];
     // Offset the centreline by the tube radius plus the acrylic clearance.
     offset.Execute(result,(gap+3)*scale);
-    const islands = result.filter(clipper.Clipper.Orientation);
-    const joined = islands.splice(0,1);
-    while (islands.length && joined.length) {
+    function nearest(paths, remaining) {
       let closest, shortest = Infinity;
-      for (const [index,island] of islands.entries()) {
-        for (const path of joined) for (const a of path) for (const b of island) {
+      for (const [index,island] of remaining.entries()) {
+        for (const path of paths) for (const a of path) for (const b of island) {
           const squared = (a.X-b.X)**2+(a.Y-b.Y)**2;
           if (squared < shortest) { shortest = squared; closest = {index,a,b}; }
         }
       }
-      const {index,a,b} = closest;
+      return closest;
+    }
+    function bridgeBetween(a,b,radius) {
       const bridge = new clipper.ClipperOffset(2,0.05*scale);
-      bridge.AddPath([a,b],clipper.JoinType.jtRound,clipper.EndType.etOpenRound);
+      // A zero-length Clipper path cannot be offset. A 0.01 mm segment makes
+      // a round disk where two word centrelines happen to coincide.
+      const end = a.X===b.X && a.Y===b.Y ? {X:b.X+1,Y:b.Y} : b;
+      bridge.AddPath([a,end],clipper.JoinType.jtRound,clipper.EndType.etOpenRound);
       const connection = [];
-      bridge.Execute(connection,15*scale);
+      bridge.Execute(connection,radius*scale);
+      return connection;
+    }
+    function unite(paths) {
       const union = new clipper.Clipper();
-      union.AddPaths([...joined,islands.splice(index,1)[0],...connection],clipper.PolyType.ptSubject,true);
+      union.AddPaths(paths,clipper.PolyType.ptSubject,true);
       const merged = [];
       union.Execute(clipper.ClipType.ctUnion,merged,clipper.PolyFillType.pftNonZero,clipper.PolyFillType.pftNonZero);
-      joined.splice(0,joined.length,...merged.filter(clipper.Clipper.Orientation));
+      return merged.filter(clipper.Clipper.Orientation);
+    }
+    const islands = result.filter(clipper.Clipper.Orientation);
+    const joined = islands.splice(0,1);
+    while (islands.length && joined.length) {
+      const {index,a,b} = nearest(joined,islands);
+      joined.splice(0,joined.length,...unite([...joined,islands.splice(index,1)[0],...bridgeBetween(a,b,15)]));
+    }
+    // Word offsets can already touch before island joining, making the
+    // connection between them almost invisible. Reinforce between the words'
+    // tube centrelines, not every narrow part of an individual letter. The
+    // half-width follows the selected acrylic margin, at least 30 mm.
+    if (joined.length && art.runWords?.length===art.runs.length) {
+      const groups=new Map();
+      for (const [index,run] of art.runs.entries()) {
+        const id=art.runWords[index];
+        if (!groups.has(id)) groups.set(id,[]);
+        groups.get(id).push(...run.map(([x,y])=>({X:Math.round(x*scale),Y:Math.round(y*scale)})));
+      }
+      // Use evenly sampled centreline points per word to keep nearest-neighbour
+      // work bounded for long text. The generous connector overlaps each word's
+      // own offset, so sub-millimetre nearest-point precision is not required.
+      const words=[...groups.values()].filter(points=>points.length).map(points=>{
+        const step=Math.max(1,Math.ceil(points.length/64));
+        return points.filter((_,i)=>i%step===0 || i===points.length-1);
+      });
+      const connected=words.splice(0,1), bridges=[];
+      const best=words.map(word=>nearest(connected,[word]));
+      while (words.length && connected.length) {
+        let choice=0, shortest=Infinity;
+        for (const [i,entry] of best.entries()) {
+          const squared=(entry.a.X-entry.b.X)**2+(entry.a.Y-entry.b.Y)**2;
+          if (squared<shortest) {shortest=squared;choice=i;}
+        }
+        const edge=best.splice(choice,1)[0], added=words.splice(choice,1)[0];
+        bridges.push(...bridgeBetween(edge.a,edge.b,gap+1));
+        connected.push(added);
+        for (const [i,word] of words.entries()) {
+          const candidate=nearest([added],[word]);
+          const newer=(candidate.a.X-candidate.b.X)**2+(candidate.a.Y-candidate.b.Y)**2;
+          const older=(best[i].a.X-best[i].b.X)**2+(best[i].a.Y-best[i].b.Y)**2;
+          if (newer<older) best[i]=candidate;
+        }
+      }
+      if (bridges.length) joined.splice(0,joined.length,...unite([...joined,...bridges]));
     }
     const outlines=[], holes=[];
     let requestedSpacers=0;
