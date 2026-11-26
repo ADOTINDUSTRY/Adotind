@@ -492,7 +492,7 @@
         geometry.reviewLocations = geometry.manufacturing.requiresReview ? engine.inspectManufacturing(geometry.runs,true) : null;
         if (geometry.manufacturing.shortStrokes) geometry.warnings.push('A neon stroke is shorter than 6 mm and needs shop review.');
         if (geometry.manufacturing.closePaths) geometry.warnings.push('Some neon paths are too close, overlap, or have a junction that needs shop review.');
-        if (geometry.manufacturing.tightCurves) geometry.warnings.push('A neon curve is very tight and needs shop review.');
+        if (geometry.manufacturing.tightCurves) geometry.warnings.push('A U-bend has less than 10 mm of clear space and needs shop review.');
         if (geometry.manufacturing.sharpReturns) geometry.warnings.push('A return angle is under 45° and needs shop review.');
         geometry.warnings.push('LED routing and silicone-cover joins need shop review before production.');
         if (!geometry.stripFit.pathsMatchCutMarks) geometry.warnings.push('Some drawing strokes are not 25 mm multiples; the LED layout needs review.');

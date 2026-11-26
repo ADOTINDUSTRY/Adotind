@@ -71,7 +71,7 @@ function measure(input, intent = 'production') {
   const manufacturing=proof.manufacturing;
   if (manufacturing.shortStrokes) proof.warnings.push('A neon stroke is shorter than 6 mm and needs shop review.');
   if (manufacturing.closePaths) proof.warnings.push('Some neon paths are too close, overlap, or have a junction that needs shop review.');
-  if (manufacturing.tightCurves) proof.warnings.push('A neon curve is very tight and needs shop review.');
+  if (manufacturing.tightCurves) proof.warnings.push('A U-bend has less than 10 mm of clear space and needs shop review.');
   if (manufacturing.sharpReturns) proof.warnings.push('A return angle is under 45° and needs shop review.');
   if (manufacturing.incomplete) proof.warnings.push('This design is too complex for a complete clearance check and needs shop review.');
   if (proof.repair?.changed) proof.warnings.push('The lettering was adjusted for neon clearance. Please review the preview and final dimensions.');

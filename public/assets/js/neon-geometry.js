@@ -496,22 +496,19 @@
     }
     for (const [runIndex, run] of runs.entries()) {
       let total = 0;
-      // An 8 mm centerline radius is the geometric minimum for a semicircle
-      // with 10 mm clear space inside a 6 mm tube. The flex may require more.
+      // A local curve radius alone is not enough to prove the user's 10 mm
+      // clearance rule is violated. A short rounded turn can be tight locally
+      // while its returning arm is still far enough away. Check actual opposing
+      // arms below instead, and keep sharp V corners as a separate rule.
       for (let i=1;i<run.length-1;i++) {
         const a=run[i-1], b=run[i], c=run[i+1];
         const ab=distance(a,b), bc=distance(b,c), ca=distance(c,a);
         if (ab<.05 || bc<.05 || ca<.05) continue;
-        const cross=Math.abs((b[0]-a[0])*(c[1]-a[1])-(b[1]-a[1])*(c[0]-a[0]));
         const dot=((b[0]-a[0])*(c[0]-b[0])+(b[1]-a[1])*(c[1]-b[1]))/(ab*bc);
         // The angle inside a return is 180° minus the change in direction.
         if (dot < -Math.SQRT1_2) {
           sharpReturns=true;
           mark(b,'Sharp return under 45°');
-        }
-        if (dot>.707 && cross>1e-7 && ab*bc*ca/(2*cross)<8-.1) {
-          tightCurves=true;
-          mark(b,'Tight curve');
         }
       }
       for (let i = 1; i < run.length; i++) {
@@ -569,6 +566,7 @@
       const first=segments[i];
       for (let j=i+1; j<segments.length && segments[j].left<first.right+centerlineClearance; j++) {
         const second=segments[j];
+        let uBendPair=false;
         if (first.bottom+centerlineClearance<second.top || second.bottom+centerlineClearance<first.top) continue;
         if (++checks>500000) { incomplete=true; break outer; }
         if (first.runIndex===second.runIndex) {
@@ -581,6 +579,22 @@
             // Check positions away from the join, using their actual arc positions.
             const localLimit=centerlineClearance*Math.PI/2;
             let remoteClose=false;
+            // Opposing legs of a compact U can be less than localLimit apart
+            // along the tube. Measure their actual 6 mm tube centrelines rather
+            // than treating an isolated small-radius sample as a bad U-bend.
+            // Near-opposite tangents select the two sides of the return, not
+            // successive samples on an ordinary smoothly curving tube.
+            const fdx=first.b[0]-first.a[0], fdy=first.b[1]-first.a[1];
+            const sdx=second.b[0]-second.a[0], sdy=second.b[1]-second.a[1];
+            const directionScale=Math.hypot(fdx,fdy)*Math.hypot(sdx,sdy);
+            const opposite=directionScale>0 && (fdx*sdx+fdy*sdy)/directionScale <= -.995;
+            if (opposite) {
+              const separation=Math.min(pointToSegment(first.a,second.a,second.b),
+                pointToSegment(first.b,second.a,second.b),pointToSegment(second.a,first.a,first.b),
+                pointToSegment(second.b,first.a,first.b));
+              uBendPair=separation<centerlineClearance-.05;
+              remoteClose=uBendPair;
+            }
             const testRemote = (segment,other) => {
               const length=segment.end-segment.start;
               const samples=Math.max(1,Math.ceil(length/4));
@@ -599,7 +613,7 @@
               return false;
             };
             const maximum=Math.max(Math.abs(first.start-second.end),Math.abs(first.end-second.start));
-            if (maximum>=localLimit) remoteClose=testRemote(first,second) || testRemote(second,first);
+            if (!remoteClose && maximum>=localLimit) remoteClose=testRemote(first,second) || testRemote(second,first);
             if (!remoteClose) continue;
           }
         } else {
@@ -661,6 +675,7 @@
             Math.min(distance(entry.point,second.a),distance(entry.point,second.b))<centerlineClearance*2);
           if (nearCrossing) continue;
           closePaths=true;
+          if (uBendPair) tightCurves=true;
           if (!showLocations) break outer;
           const candidates = [
             [first.a,pointToSegment(first.a,second.a,second.b)],
@@ -673,7 +688,7 @@
             mark([first.a[0]+t*dx,first.a[1]+t*dy],'Paths too close');
           } else {
             candidates.sort((a,b)=>a[1]-b[1]);
-            mark(candidates[0][0],'Paths too close');
+            mark(candidates[0][0],uBendPair ? 'Not enough space inside U-bend' : 'Paths too close');
           }
         }
       }

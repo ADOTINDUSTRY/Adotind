@@ -507,6 +507,29 @@ test('U-bend screening uses ten millimetres clear between tube faces', () => {
   assert.equal(geometry.inspectManufacturing([u(8.1)]).requiresReview,false);
 });
 
+test('rounded Signature l loops are not flagged solely for their local radius', () => {
+  // This is the actual lettering shape pictured in the reported false alarm.
+  // The two l runs have small local-radius samples near their upper turns,
+  // but the opposite sides of those turns have ample tube clearance.
+  const drawing = geometry.layout({...design,font:'signature',text:'Hello',widthMm:600,backing:'none'});
+  const locations = geometry.inspectManufacturing(drawing.runs,true).locations;
+  for (const [x,y] of [[470.084,8.478],[537.637,8.478]]) {
+    assert.equal(locations.some(item => Math.hypot(item.point[0]-x,item.point[1]-y)<5),false,
+      'A smooth l-loop was incorrectly marked at '+x+', '+y);
+  }
+  // Both actual compact U returns and straight, closely spaced arms remain
+  // detectable: 14 mm between centre lines leaves only 8 mm of empty space.
+  const u=radius=>Array.from({length:101},(_,i)=>{
+    const angle=Math.PI*i/100;
+    return [radius*Math.cos(angle),radius*Math.sin(angle)];
+  });
+  const tooNarrow=geometry.inspectManufacturing([u(7)],true);
+  assert.equal(tooNarrow.requiresReview,true);
+  assert.ok(tooNarrow.locations.some(item=>item.type==='Not enough space inside U-bend'));
+  assert.equal(geometry.inspectManufacturing([u(8.1)],true).requiresReview,false);
+  assert.equal(geometry.inspectManufacturing([[[0,0],[0,80],[10,80],[10,0]]]).closePaths,true);
+});
+
 test('automatic repair preserves every stroke and verifies resized paths', () => {
   for(const [font,widthMm] of [['velvet',600]]) {
     const options={...design,font,text:'ii',widthMm,backing:'none',letterSpacing:0};
