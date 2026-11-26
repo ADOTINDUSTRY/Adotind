@@ -357,6 +357,19 @@
         canvas.append(path({opacity:.55+.45*level}));
       } else canvas.append(path());
     }
+    const locations = geometry.reviewLocations?.locations || [];
+    if (root.querySelector('[data-neon-show-issues]').checked) {
+      for (const [index,issue] of locations.entries()) {
+        const [x,y]=issue.point;
+        const radius=Math.max(7,chartSize*.8);
+        const marker=svg('g',{'data-neon-issue':index+1});
+        marker.append(svg('circle',{cx:x,cy:y,r:radius,fill:'none',stroke:'#ffd13d','stroke-width':Math.max(1.2,radius*.16)}));
+        marker.append(svg('circle',{cx:x+radius,cy:y-radius,r:radius*.62,fill:'#ffd13d',stroke:'#2d2200','stroke-width':.6}));
+        marker.append(svg('text',{x:x+radius,y:y-radius,'text-anchor':'middle','dominant-baseline':'central',fill:'#211a00','font-family':'system-ui,sans-serif','font-size':radius*.75,'font-weight':'bold'},String(index+1)));
+        marker.append(svg('title',{},issue.type));
+        canvas.append(marker);
+      }
+    }
     const measure = svg('g', {stroke: technical ? '#526371' : '#d2dadf', 'stroke-width': Math.max(.5, chartSize * .065), fill: 'none', opacity: .85});
     const size = engine.finishedSize(geometry,board,design);
     const axisLabel=board ? 'Acrylic ' : '';
@@ -458,6 +471,7 @@
     if (nextKey !== geometryKey) {
       geometry = engine.repairLayout(design);
       if (geometry.valid) {
+        geometry.reviewLocations = geometry.manufacturing.requiresReview ? engine.inspectManufacturing(geometry.runs,true) : null;
         if (geometry.manufacturing.shortStrokes) geometry.warnings.push('A neon stroke is shorter than 6 mm and needs shop review.');
         if (geometry.manufacturing.closePaths) geometry.warnings.push('Some neon paths have less than 10 mm clear space or cross and need shop review.');
         if (geometry.manufacturing.tightCurves) geometry.warnings.push('A neon curve is very tight and needs shop review.');
@@ -534,6 +548,19 @@
       field.type !== 'number' || field.disabled || (field.value !== '' && field.validity.valid));
     const warningText = [...new Set([structuralError, ...geometry.errors, ...geometry.warnings].filter(Boolean))].join(' ');
     output('warnings', warningText);
+    const issueList = root.querySelector('[data-neon-issues]');
+    const issues = geometry.reviewLocations?.locations || [];
+    const issueSection = root.querySelector('[data-neon-issues-section]');
+    issueSection.hidden = !geometry.manufacturing?.requiresReview;
+    issueList.replaceChildren(...issues.map((issue,index)=>{
+      const item=document.createElement('li');
+      item.textContent=(index+1)+'. '+issue.type;
+      return item;
+    }));
+    root.querySelector('[data-neon-issues-note]').textContent =
+      geometry.reviewLocations?.incomplete ? 'The automatic scan was incomplete. Other areas may also need review.'
+      : issues.length >= 60 ? 'Showing the first 60 areas. Other areas may also need review.'
+      : issues.length ? 'Numbers mark areas to review on the drawing.' : 'No precise location is available for this warning.';
     root.querySelector('[data-neon-action="find-clearance-size"]').hidden = !geometry.manufacturing?.requiresReview;
     output('warning', warningText);
     root.dataset.neonValid = String(ready);
@@ -600,6 +627,7 @@
       }
     });
   }
+  root.querySelector('[data-neon-show-issues]').addEventListener('change',paint);
   function download(contents, type, ext) {
     const url = URL.createObjectURL(new Blob([contents], {type}));
     const link = document.createElement('a');

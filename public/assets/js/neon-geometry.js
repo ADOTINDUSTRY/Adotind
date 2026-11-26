@@ -482,12 +482,17 @@
   // This is a screening check, not a substitute for reviewing a shop drawing.
   // Adjacent segments and endpoint-to-endpoint junctions are intentionally
   // excluded from clearance warnings.
-  function inspectManufacturing(runs) {
+  function inspectManufacturing(runs, showLocations = false) {
     // A 6 mm tube with 10 mm clear space has a 16 mm centerline spacing.
     const centerlineClearance = 16;
     const segments = [];
     let shortStrokes = 0;
     let tightCurves = false;
+    const locations = [];
+    function mark(point, type) {
+      if (!showLocations || locations.length >= 60 || locations.some(item => item.type === type && distance(item.point,point) < 16)) return;
+      locations.push({point, type});
+    }
     for (const [runIndex, run] of runs.entries()) {
       let total = 0;
       // An 8 mm centerline radius is the geometric minimum for a semicircle
@@ -498,7 +503,10 @@
         if (ab<.05 || bc<.05 || ca<.05) continue;
         const cross=Math.abs((b[0]-a[0])*(c[1]-a[1])-(b[1]-a[1])*(c[0]-a[0]));
         const dot=((b[0]-a[0])*(c[0]-b[0])+(b[1]-a[1])*(c[1]-b[1]))/(ab*bc);
-        if (dot>.707 && cross>1e-7 && ab*bc*ca/(2*cross)<8-.1) tightCurves=true;
+        if (dot>.707 && cross>1e-7 && ab*bc*ca/(2*cross)<8-.1) {
+          tightCurves=true;
+          mark(b,'Tight curve');
+        }
       }
       for (let i = 1; i < run.length; i++) {
         const a = run[i-1], b = run[i], length = distance(a,b);
@@ -508,14 +516,17 @@
           top:Math.min(a[1],b[1]),bottom:Math.max(a[1],b[1])});
         total += length;
       }
-      if (total < TUBE) shortStrokes++;
+      if (total < TUBE) {
+        shortStrokes++;
+        if (run.length) mark(run[0],'Short stroke');
+      }
       for (let i=segments.length-1; i>=0 && segments[i].runIndex===runIndex; i--) {
         segments[i].runLength=total;
         segments[i].closed=distance(run[0],run.at(-1))<.05;
       }
     }
     if (segments.length > 12000) {
-      return {shortStrokes,closePaths:false,tightCurves,incomplete:true,requiresReview:true};
+      return {shortStrokes,closePaths:false,tightCurves,incomplete:true,requiresReview:true,locations};
     }
     segments.sort((a,b)=>a.left-b.left);
     let closePaths=false, checks=0, incomplete=false;
@@ -562,10 +573,26 @@
         const gap=intersects ? 0 : Math.min(
           pointToSegment(first.a,second.a,second.b),pointToSegment(first.b,second.a,second.b),
           pointToSegment(second.a,first.a,first.b),pointToSegment(second.b,first.a,first.b));
-        if (gap<centerlineClearance-.05) { closePaths=true; break outer; }
+        if (gap<centerlineClearance-.05) {
+          closePaths=true;
+          if (!showLocations) break outer;
+          const candidates = [
+            [first.a,pointToSegment(first.a,second.a,second.b)],
+            [first.b,pointToSegment(first.b,second.a,second.b)],
+            [second.a,pointToSegment(second.a,first.a,first.b)],
+            [second.b,pointToSegment(second.b,first.a,first.b)]
+          ];
+          if (intersects) {
+            const t=((second.a[0]-first.a[0])*ey-(second.a[1]-first.a[1])*ex)/cross;
+            mark([first.a[0]+t*dx,first.a[1]+t*dy],'Paths too close');
+          } else {
+            candidates.sort((a,b)=>a[1]-b[1]);
+            mark(candidates[0][0],'Paths too close');
+          }
+        }
       }
     }
-    return {shortStrokes,closePaths,tightCurves,incomplete,requiresReview:shortStrokes>0 || closePaths || tightCurves || incomplete};
+    return {shortStrokes,closePaths,tightCurves,incomplete,requiresReview:shortStrokes>0 || closePaths || tightCurves || incomplete,locations};
   }
 
   function layout(options = {}) {
