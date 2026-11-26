@@ -177,6 +177,7 @@ $neonIcon = static function (string $key) use ($neonIcons): string {
               <option value="pickup">Pickup</option>
               <option value="delivery" hidden disabled>Delivery</option>
             </select></label>
+            <label hidden>Delivery address<textarea name="delivery_address" autocomplete="street-address" maxlength="1000" rows="2"></textarea></label>
             <input type="hidden" name="design" data-neon-spec>
             <input type="hidden" name="intent" value="review">
             <label>Your name<input name="customer_name" autocomplete="name" required maxlength="120"></label>

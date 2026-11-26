@@ -128,6 +128,10 @@ function neon_handle_request(): never
     if (!in_array($intent, ['production','review'], true)) neon_reply(422, ['error'=>'Choose a valid request type.']);
     $delivery = $_POST['delivery'] ?? 'pickup';
     if (!in_array($delivery, ['pickup','delivery'], true)) neon_reply(422, ['error'=>'Choose pickup or the delivery option.']);
+    $address = $_POST['delivery_address'] ?? '';
+    if (!is_string($address) || strlen($address) > 2000 || ($delivery === 'delivery' && trim($address) === '')) {
+        neon_reply(422, ['error'=>'Enter a delivery address.']);
+    }
     $name = trim($_POST['customer_name']);
     $email = trim($_POST['email']);
     $message = trim($_POST['message']);
@@ -190,6 +194,7 @@ function neon_handle_request(): never
         $spec['bendCount'] = $proof['bendCount'];
         $spec['spacerCount'] = $proof['spacerCount'];
         $spec['delivery'] = $delivery === 'delivery' ? 'delivery'.$tier : 'pickup';
+        if ($delivery === 'delivery') $spec['deliveryAddress'] = trim($address);
         $insert = $db->prepare('INSERT INTO requests(request_key,name,email,message,design,width_mm,height_mm,tube_length_mm,warnings,estimated_cents,retail_breakdown,settings_revision,svg,dxf)
             VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(request_key) DO NOTHING');
         $insert->execute([$key,$name,$email,$message,json_encode($spec, JSON_THROW_ON_ERROR),$proof['widthMm'],$proof['heightMm'],

@@ -34,7 +34,7 @@
   }
 
   function signatureOf(data) {
-    return JSON.stringify(['design', 'intent', 'customer_name', 'email', 'message'].map(key => String(data.get(key) || '').trim()));
+    return JSON.stringify(['design', 'intent', 'delivery', 'delivery_address', 'customer_name', 'email', 'message'].map(key => String(data.get(key) || '').trim()));
   }
 
   function clearOldMessage() {
@@ -48,6 +48,7 @@
   }
 
   const delivery = form.querySelector('[data-neon-delivery]');
+  const address = form.querySelector('[name="delivery_address"]');
   const previewPrice = root.querySelector('[data-neon-preview-price]');
   let designDetails;
   function updateEstimate() {
@@ -58,6 +59,8 @@
     const deliveryOption = delivery.options[1];
     deliveryOption.hidden = deliveryOption.disabled = !valid;
     if (!valid) delivery.value = 'pickup';
+    address.required = delivery.value === 'delivery';
+    address.closest('label').hidden = !address.required;
     if (valid) deliveryOption.textContent = ({120:'Standard delivery',240:'Large-sign delivery',300:'Oversize delivery'})[finished.tier];
     const rates = shop.rates;
     let label = valid ? 'Shop quote on request' : 'Complete your lettering to request a quote';

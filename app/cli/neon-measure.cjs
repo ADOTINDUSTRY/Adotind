@@ -58,6 +58,9 @@ function measure(input, intent = 'production') {
   const proof = geometry.layout(design);
   if (!proof.valid) return {error: proof.errors[0] || 'Check the lettering before sending.'};
   const board = geometry.backboard(proof,design);
+  if (board?.wall && board.requestedSpacers && board.holes.length < board.requestedSpacers) {
+    return {error:'The acrylic needs a manual spacer layout. Please adjust the backing or contact the shop.'};
+  }
   const finished = geometry.finishedSize(proof,board,design);
   if (!finished.withinLimit) return {error:'The finished sign must fit within 3,000 × 2,000 mm.'};
   return {

@@ -651,6 +651,7 @@
       joined.splice(0,joined.length,...merged.filter(clipper.Clipper.Orientation));
     }
     const outlines=[], holes=[];
+    let requestedSpacers=0;
     for(const path of joined) {
       outlines.push(path.map(({X,Y})=>[X/scale,Y/scale]));
       const inset=new clipper.ClipperOffset(2,0.05*scale);
@@ -661,6 +662,7 @@
       const points=outlines.at(-1);
       const xs=points.map(point=>point[0]), ys=points.map(point=>point[1]);
       const targets=spacerTargets(Math.min(...xs),Math.min(...ys),Math.max(...xs),Math.max(...ys),edge);
+      requestedSpacers+=targets.length;
       const candidates=mountArea.flat().map(({X,Y})=>[X/scale,Y/scale]);
       // Search nearer points first because contoured edges may have valleys or no acrylic at a nominal corner.
       for (const target of targets) {
@@ -674,7 +676,7 @@
         if (point) holes.push(point);
       }
     }
-    return {outline:outlines[0] || [],outlines,holes,wall:true,pad:gap+15};
+    return {outline:outlines[0] || [],outlines,holes,wall:true,pad:gap+15,requestedSpacers};
   }
 
   function backboard(art, spec) {

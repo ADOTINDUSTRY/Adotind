@@ -518,7 +518,9 @@
       if (control.type === 'range' || control !== document.activeElement) control.value = Number((design.widthMm+widthAllowance).toFixed(1));
     }
     const limitError = finished && !finished.withinLimit ? 'The finished sign must fit within 3,000 × 2,000 mm. Reduce the lettering size or acrylic gap.' : '';
-    const structuralError = sizeError || limitError || projectError(design);
+    const spacerError = board?.wall && board.requestedSpacers && board.holes.length < board.requestedSpacers
+      ? 'The acrylic needs a manual spacer layout. Adjust the backing or contact the shop.' : '';
+    const structuralError = sizeError || limitError || spacerError || projectError(design);
     output('acrylic-size',board ? mm(finished.widthMm)+' × '+mm(finished.heightMm) : '—');
     const ready = !structuralError && geometry.valid && fields.every(field =>
       field.type !== 'number' || field.disabled || (field.value !== '' && field.validity.valid));
