@@ -25,11 +25,11 @@ function editor(rates) {
   const document = {getElementById(){return {textContent:JSON.stringify({rates})};},querySelector(){return root;}};
   vm.runInNewContext(fs.readFileSync(require.resolve('../public/assets/js/neon-quote.js'),'utf8'),
     {document,window:{},Intl,Number,JSON,Map,Boolean,String});
-  return {nodes, update(intent) {handlers['neon:design']({detail:{intent,spec:{mount:'wall'},lengthMm:1000,
+  return {nodes, update(intent,mount='wall') {handlers['neon:design']({detail:{intent,spec:{mount},lengthMm:1000,
     finished:{withinLimit:true,tier:120,areaMm2:1000000},strokeCount:2,bendCount:1,spacerCount:4}});}};
 }
 
-const rates = {base:100,perMetre:1000,wall:200,acrylic120:300,delivery120:0,perStroke:100,perBend:50,perSpacer:300};
+const rates = {base:100,perMetre:1000,wall:200,freestanding:200,acrylic120:300,delivery120:0,perStroke:100,perBend:50,perSpacer:300};
 
 test('review designs retain a provisional live price with a clear review label', () => {
   const {nodes,update} = editor(rates);
@@ -55,4 +55,12 @@ test('non-review designs keep their standard estimate label', () => {
   assert.match(nodes.price.textContent,/Estimated price/);
   assert.doesNotMatch(nodes.price.textContent,/subject to shop review/);
   assert.equal(nodes.submit.textContent,'Send design for quote');
+});
+
+test('freestanding price clearly excludes the unpriced 8 mm base material', () => {
+  const {nodes,update} = editor(rates);
+  update('production','freestanding');
+  assert.match(nodes.price.textContent,/base material not included/);
+  assert.match(nodes.preview.textContent,/\+ base$/);
+  assert.equal(nodes.preview.attributes['aria-label'],nodes.price.textContent);
 });

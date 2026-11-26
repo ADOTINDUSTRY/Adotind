@@ -892,8 +892,13 @@
       const x=left+inset+(width-2*inset)*i/(columns-1);
       targets.push([x,top+inset],[x,bottom-inset]);
     }
-    if (height>1000.01) for (const x of [left+inset,right-inset]) {
-      for (const fraction of [1/3,2/3]) targets.push([x,top+height*fraction]);
+    // Add one spacer on each side from 900 mm, then two per side above
+    // 1,300 mm. The height is the finished acrylic outline, not lettering.
+    const intermediate=height>1300+1e-7 ? 2 : height>=900-1e-7 ? 1 : 0;
+    for (const x of [left+inset,right-inset]) {
+      for (let i=1;i<=intermediate;i++) {
+        targets.push([x,top+inset+(height-2*inset)*i/(intermediate+1)]);
+      }
     }
     return targets;
   }
@@ -1076,8 +1081,21 @@
       const candidates=mountArea.flat().map(({X,Y})=>[X/scale,Y/scale]);
       // Search nearer points first because contoured edges may have valleys or no acrylic at a nominal corner.
       for (const target of targets) {
-        candidates.sort((a,b)=>distance(a,target)-distance(b,target));
-        const point=candidates.find(([X,Y])=>holes.every(hole=>distance(hole,[X,Y])>=20*factor) &&
+        // Long, straight inset edges may have no vertex near a side target.
+        // Project the target onto every inset edge as well as testing the
+        // existing vertices, so the middle side spacers can actually appear.
+        const projected=[];
+        for (const path of mountArea) for (let i=0;i<path.length;i++) {
+          const a=path[i], b=path[(i+1)%path.length];
+          const ax=a.X/scale,ay=a.Y/scale,dx=(b.X-a.X)/scale,dy=(b.Y-a.Y)/scale;
+          const square=dx*dx+dy*dy;
+          if (!square) continue;
+          const t=Math.max(0,Math.min(1,((target[0]-ax)*dx+(target[1]-ay)*dy)/square));
+          projected.push([ax+t*dx,ay+t*dy]);
+        }
+        const choices=[...candidates,...projected];
+        choices.sort((a,b)=>distance(a,target)-distance(b,target));
+        const point=choices.find(([X,Y])=>holes.every(hole=>distance(hole,[X,Y])>=20*factor) &&
           art.runs.every(run=>run.every(([x,y],i)=>{
             const [ax,ay]=run[i-1] || run[i], dx=x-ax, dy=y-ay;
             const t=Math.max(0,Math.min(1,((X-ax)*dx+(Y-ay)*dy)/(dx*dx+dy*dy || 1)));
@@ -1130,10 +1148,25 @@
       }
     }
     const widthMm=right-left, heightMm=bottom-top;
-    const finishedHeight=heightMm+(board && spec.mount==='freestanding' ? 13 : 0);
+    // The base footprint is a separate part; the assembly method has not been
+    // specified, so do not add a made-up amount to the sign's height.
+    const finishedHeight=heightMm;
     const withinLimit=widthMm<=3000.00001 && finishedHeight<=2000.00001;
     const tier=widthMm<=1200.00001 ? 120 : widthMm<=2400.00001 ? 240 : 300;
     return {left,top,right,bottom,widthMm,heightMm,finishedHeight,areaMm2,withinLimit,tier};
+  }
+
+  // The automatically suggested footprint is an adjustable starting point,
+  // not a structural stability calculation or an assembly/slot design.
+  function freestandingBase(finished, spec) {
+    if (spec.mount !== 'freestanding') return null;
+    const widthMm = Number.isFinite(spec.baseWidthMm) && spec.baseWidthMm > 0 ? spec.baseWidthMm : finished.widthMm*.8;
+    const depthMm = Number.isFinite(spec.baseDepthMm) && spec.baseDepthMm > 0 ? spec.baseDepthMm : finished.heightMm*.35;
+    const gap = Math.max(100,finished.widthMm*.12);
+    const left = (finished.left+finished.right-widthMm)/2;
+    const top = finished.bottom+gap;
+    const outline = [[left,top],[left+widthMm,top],[left+widthMm,top+depthMm],[left,top+depthMm]];
+    return {widthMm,depthMm,thicknessMm:8,material:'clear acrylic',left,top,outline};
   }
 
   function svg(design, spec = {}) {
@@ -1147,16 +1180,23 @@
     if (hasCover) description.push('Indoor use only. Silicone cover: ' + cover + '. LED colour: ' + color + '.');
     const board = backboard(design,spec);
     const pad = board?.pad ?? 0;
-    const w = number(design.widthMm+2*pad), h = number(design.heightMm+2*pad);
+    const finished = finishedSize(design,board,spec);
+    const base = freestandingBase(finished,spec);
+    if (base) description.push('Separate base: '+number(base.widthMm)+' × '+number(base.depthMm)+' mm, clear acrylic 8 mm thick.');
+    const left=base ? Math.min(-pad,base.left) : -pad;
+    const right=base ? Math.max(design.widthMm+pad,base.left+base.widthMm) : design.widthMm+pad;
+    const bottom=base ? Math.max(design.heightMm+pad,base.top+base.depthMm) : design.heightMm+pad;
+    const w = number(right-left), h = number(bottom+pad);
     const boardSvg = board ? '<g id="ACRYLIC_OUTLINE" fill="none" stroke="#718398" stroke-width="0.4">' +
       board.outlines.map(outline=>'<polygon points="'+outline.map(([x,y])=>number(x)+','+number(y)).join(' ')+'"/>').join('')+'<g id="MOUNT_HOLES">'+
       board.holes.map(([x,y])=>'<circle cx="'+number(x)+'" cy="'+number(y)+'" r="'+(board.wall?5.5:2.5)+'"/>').join('')+'</g></g>' : '';
     // A CSS backdrop makes white LEDs and silicone visible in standalone proofs
     // without adding an object that a cutting program could interpret as a path.
     const backdrop = hasCover ? ' style="background-color:#25272c"' : '';
-    return '<svg xmlns="http://www.w3.org/2000/svg" width="'+w+'mm" height="'+h+'mm" viewBox="'+(-pad)+' '+(-pad)+' '+w+' '+h+'"'+backdrop+'>\n'
+    const baseSvg = base ? '<g id="BASE_CLEAR_ACRYLIC_8MM" fill="none" stroke="#718398" stroke-width="0.4"><polygon points="'+base.outline.map(([x,y])=>number(x)+','+number(y)).join(' ')+'"/></g>' : '';
+    return '<svg xmlns="http://www.w3.org/2000/svg" width="'+w+'mm" height="'+h+'mm" viewBox="'+number(left)+' '+(-pad)+' '+w+' '+h+'"'+backdrop+'>\n'
       + (description.length ? '<desc>' + description.join(' ') + '</desc>\n' : '')
-      + boardSvg + '<g id="'+layer+'" fill="none" stroke="'+stroke+'" stroke-width="6" stroke-linecap="round" stroke-linejoin="round">\n'
+      + boardSvg + baseSvg + '<g id="'+layer+'" fill="none" stroke="'+stroke+'" stroke-width="6" stroke-linecap="round" stroke-linejoin="round">\n'
       + design.paths.map(path => {
           const selected = spec.lineColors?.[path.line];
           const lineStroke = power && /^#[0-9a-f]{6}$/i.test(selected || '') ? ' stroke="'+selected+'"' : '';
@@ -1168,15 +1208,17 @@
     if (!design.valid || !design.runs) throw new Error('Complete the design before exporting it.');
     const tubeLayer = 'TUBE_CENTERLINE_6MM';
     const board = backboard(design,spec);
+    const base = freestandingBase(finishedSize(design,board,spec),spec);
     const layers = ['0',tubeLayer];
     if (board) layers.push('ACRYLIC_OUTLINE');
     if (board?.holes.length) layers.push('MOUNT_HOLES');
+    if (base) layers.push('BASE_CLEAR_ACRYLIC_8MM');
     const groups = [0,'SECTION',2,'HEADER',9,'$ACADVER',1,'AC1009',9,'$LUNITS',70,2,
       9,'$MEASUREMENT',70,1,0,'ENDSEC',
       0,'SECTION',2,'TABLES',0,'TABLE',2,'LTYPE',70,1,
       0,'LTYPE',2,'CONTINUOUS',70,0,3,'Solid line',72,65,73,0,40,0,0,'ENDTAB',
       0,'TABLE',2,'LAYER',70,layers.length];
-    for (const [index,layer] of layers.entries()) groups.push(0,'LAYER',2,layer,70,0,62,[7,7,3,4][index],6,'CONTINUOUS');
+    for (const layer of layers) groups.push(0,'LAYER',2,layer,70,0,62,({0:7,TUBE_CENTERLINE_6MM:7,ACRYLIC_OUTLINE:3,MOUNT_HOLES:4,BASE_CLEAR_ACRYLIC_8MM:5})[layer],6,'CONTINUOUS');
     groups.push(0,'ENDTAB',0,'ENDSEC',0,'SECTION',2,'BLOCKS',0,'ENDSEC',0,'SECTION',2,'ENTITIES');
     function polyline(points,layer,closed) {
       groups.push(0,'POLYLINE',8,layer,66,1,10,0,20,0,30,0,70,closed?1:0);
@@ -1193,10 +1235,11 @@
         groups.push(0,'CIRCLE',8,'MOUNT_HOLES',10,number(x),20,number(design.heightMm-y),30,0,40,board.wall?5.5:2.5);
       }
     }
+    if (base) polyline(base.outline,'BASE_CLEAR_ACRYLIC_8MM',true);
     groups.push(0,'ENDSEC',0,'EOF');
     return groups.join('\r\n')+'\r\n';
   }
 
   const countBends = paths => paths.reduce((count,path)=>count+sharpBends(readPath(path.d)),0);
-  globalThis.NeonGeometry = {fonts, layout, svg, dxf, backboard, finishedSize, acrylicMargin, inspectManufacturing, repairLayout, countBends};
+  globalThis.NeonGeometry = {fonts, layout, svg, dxf, backboard, finishedSize, freestandingBase, acrylicMargin, inspectManufacturing, repairLayout, countBends};
 })();

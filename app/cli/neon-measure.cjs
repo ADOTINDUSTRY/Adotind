@@ -14,8 +14,9 @@ const choices = {
   backing: ['clear', 'black', 'none'],
   mount: ['wall', 'suspended', 'freestanding'],
   scene: ['studio', 'brick', 'concrete', 'drawing'],
+  standSurface: ['table', 'shelf', 'floor'],
 };
-const ranges = {widthMm: [100, 3000], boardGap: [30, 150], letterSpacing: [0, 0.30], lineSpacing: [0.5, 2], brightness: [10, 100]};
+const ranges = {widthMm: [100, 3000], boardGap: [30, 150], letterSpacing: [0, 0.30], lineSpacing: [0.5, 2], brightness: [10, 100], baseWidthMm:[0,3000], baseDepthMm:[0,2000]};
 const fields = new Set(['version', 'text', 'color', 'cover', 'lineColors', 'power', ...Object.keys(choices), ...Object.keys(ranges)]);
 
 function measure(input, intent = 'production') {
@@ -43,7 +44,8 @@ function measure(input, intent = 'production') {
   }
   const design = {version: 2, text, color, cover, lineColors, power: input.power};
   for (const [key, values] of Object.entries(choices)) {
-    const value = key === 'boardShape' && input[key] === undefined ? 'rectangle' : input[key];
+    const value = key === 'boardShape' && input[key] === undefined ? 'rectangle' :
+      key === 'standSurface' && input[key] === undefined ? 'table' : input[key];
     if (!values.includes(value)) return {error: 'Choose a valid ' + key + ' option.'};
     design[key] = value;
   }
@@ -51,8 +53,10 @@ function measure(input, intent = 'production') {
     return {error: 'Cut-around acrylic is available for wall mounting only.'};
   }
   for (const [key, [min, max]] of Object.entries(ranges)) {
-    const value = key === 'boardGap' && input[key] === undefined ? 30 : input[key];
+    const value = key === 'boardGap' && input[key] === undefined ? 30 :
+      (key === 'baseWidthMm' || key === 'baseDepthMm') && input[key] === undefined ? 0 : input[key];
     if (!Number.isFinite(value) || value < min || value > max) return {error: 'Choose a value within the control limits.'};
+    if ((key === 'baseWidthMm' || key === 'baseDepthMm') && value > 0 && value < 1) return {error:'Base dimensions must be at least 1 mm.'};
     design[key] = value;
   }
   const proof = geometry.layout(design);
@@ -63,8 +67,12 @@ function measure(input, intent = 'production') {
   }
   const finished = geometry.finishedSize(proof,board,design);
   if (!finished.withinLimit) return {error:'The finished sign must fit within 3,000 × 2,000 mm.'};
+  if (design.mount === 'freestanding' && finished.widthMm > 1200.00001) {
+    return {error:'Freestanding signs are available up to 1,200 mm finished width.'};
+  }
+  const standingBase = geometry.freestandingBase(finished,design);
   return {
-    finished, reviewOnly: false, design, widthMm: proof.widthMm, heightMm: proof.heightMm, lengthMm: proof.lengthMm,
+    finished, standingBase, reviewOnly: false, design, widthMm: proof.widthMm, heightMm: proof.heightMm, lengthMm: proof.lengthMm,
     strokeCount:proof.paths.length, bendCount:proof.bendCount, spacerCount:board?.wall ? board.holes.length : 0,
     warnings: proof.warnings, svg: geometry.svg(proof, design), dxf: geometry.dxf(proof, design),
   };

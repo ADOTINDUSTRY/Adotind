@@ -532,7 +532,7 @@ test('acrylic and spacer inset scale, with width tiers and extra rows above one 
   const spec={...design,boardShape:'rectangle',mount:'wall'};
   assert.equal(geometry.acrylicMargin(456,spec),22);
   assert.equal(geometry.acrylicMargin(2912,spec),44);
-  for (const [width,height,count] of [[700,400,4],[1000,400,6],[2000,400,8],[1000,1100,10],[2400,1100,12]]) {
+  for (const [width,height,count] of [[700,400,4],[1000,400,6],[2000,400,8],[1000,1100,8],[2400,1100,10]]) {
     const board=geometry.backboard({widthMm:width,heightMm:height},spec);
     assert.equal(board.holes.length,count);
     near(board.holes[0][0]+board.pad,15*board.pad/22,.001);

@@ -54,6 +54,12 @@
     if (submit) submit.disabled = true;
     return;
   }
+  if (!root.querySelector('[data-neon-base-controls]') || !root.querySelector('[data-neon-base-measure]') ||
+      !root.querySelector('[data-neon-base-pricing]') || !root.querySelector('[data-neon-surface-note]')) {
+    output('warnings', 'The designer has been updated. Refresh this page to load the latest controls.');
+    if (submit) submit.disabled = true;
+    return;
+  }
   if (!fonts.length || !colors.length || maxWidth < minWidth) {
     output('warnings', 'The shop has no lettering options available for this project.');
     if (submit) submit.disabled = true;
@@ -70,13 +76,14 @@
     version: 2, text: 'Hello', font: fonts[0].id, widthMm: Math.min(maxWidth, Math.max(minWidth, 600)),
     align: 'center', letterSpacing: 0, lineSpacing: 1.25, color: colors[0], lineColors: [], cover: WHITE_COVER,
     boardShape: 'rectangle', boardGap: 30, backing: 'clear', mount: 'wall', scene: 'studio', power: true, brightness: 85,
+    baseWidthMm: 0, baseDepthMm: 0, standSurface: 'table',
   };
   const options = {
     font: fonts.map(f => f.id), color: colors, cover: covers, align: ['left', 'center', 'right'],
     boardShape: ['rectangle','contour'], backing: ['clear', 'black', 'none'], mount: ['wall', 'suspended', 'freestanding'],
-    scene: ['brick', 'studio', 'concrete', 'drawing'],
+    scene: ['brick', 'studio', 'concrete', 'drawing'], standSurface: ['table', 'shelf', 'floor'],
   };
-  const limits = {widthMm: [minWidth, maxWidth], boardGap: [30, 150], letterSpacing: [0, 0.3], lineSpacing: [.5, 2], brightness: [10, 100]};
+  const limits = {widthMm: [minWidth, maxWidth], boardGap: [30, 150], letterSpacing: [0, 0.3], lineSpacing: [.5, 2], brightness: [10, 100], baseWidthMm:[0,3000], baseDepthMm:[0,2000]};
   let design = {...defaults};
   let manualLineSpacing = false;
   const designStorageKey = 'adotind.neon.design.v1';
@@ -225,6 +232,7 @@
     }
     for (const [key, [lo, hi]] of Object.entries(limits)) {
       if (!Number.isFinite(value[key]) || value[key] < lo || value[key] > hi) return 'Choose a value within the control limits.';
+      if ((key === 'baseWidthMm' || key === 'baseDepthMm') && value[key] > 0 && value[key] < 1) return 'Base dimensions must be at least 1 mm.';
     }
     if (typeof value.power !== 'boolean') {
       return 'Choose a valid power setting.';
@@ -377,13 +385,17 @@
     const lit = design.power && !technical;
     const color = design.color;
     const board = currentBoard();
+    const size = engine.finishedSize(geometry,board,design);
+    const base = engine.freestandingBase(size,design);
     const padding = board?.pad ?? 22;
     const chartSize = Math.max(w / 52, h / 33, 6);
     const dimOffset = padding + chartSize * 2.4;
     const mountTop = design.backing !== 'none' && design.mount === 'suspended' ? Math.max(45, h * .21) : 0;
-    const mountBottom = design.backing !== 'none' && design.mount === 'freestanding' ? 15 : 0;
-    frame = {x: -dimOffset - chartSize, y: -dimOffset - mountTop,
-      width: w + dimOffset * 2 + chartSize * 3, height: h + dimOffset * 2 + mountTop + mountBottom + chartSize * 1.6};
+    const frameLeft=Math.min(-dimOffset-chartSize,base ? base.left-chartSize : 0);
+    const frameRight=Math.max(w+dimOffset+chartSize*2,base ? base.left+base.widthMm+chartSize*3 : w);
+    const frameTop=-dimOffset-mountTop;
+    const frameBottom=Math.max(h+dimOffset+chartSize*1.6,base ? base.top+base.depthMm+chartSize*3 : h);
+    frame = {x:frameLeft,y:frameTop,width:frameRight-frameLeft,height:frameBottom-frameTop};
     camera();
     const defs = svg('defs');
     const d = geometry.paths.map(path => path.d).join(' ');
@@ -395,6 +407,11 @@
       defs.append(filter);
     }
     canvas.append(defs);
+    if (base && !technical && window.NeonStandingScenes) {
+      for (const item of window.NeonStandingScenes.build(design.standSurface,size,base,chartSize)) {
+        canvas.append(svg(item.tag,item.attrs));
+      }
+    }
     const fixture = technical ? '#72808d' : '#c1cdd7';
     if (design.backing !== 'none') {
       for (const outline of board.outlines) canvas.append(svg('polygon', {points:outline.map(p=>p.join(',')).join(' '), fill: technical ? 'none' : design.backing === 'black' ? '#0d1017' : '#cee1f7',
@@ -404,7 +421,20 @@
         if (board.wall) canvas.append(svg('circle',{cx:x,cy:y,r:8,fill:technical?'none':'#8b939b',stroke:fixture,'stroke-width':.6}));
         if (technical || !board.wall) canvas.append(svg('circle',{cx:x,cy:y,r:board.wall?5.5:2.5,fill:'none',stroke:fixture,'stroke-width':.6}));
       }
-      if (design.mount === 'freestanding') canvas.append(svg('rect',{x:w*.09,y:h+padding-2,width:w*.82,height:mountBottom,rx:3,fill:technical?'none':'#343d47',stroke:fixture}));
+    }
+    if (base) {
+      canvas.append(svg('polygon',{points:base.outline.map(p=>p.join(',')).join(' '),
+        fill:technical?'none':'#cee1f7','fill-opacity':.12,stroke:fixture,'stroke-width':1.2}));
+      const labelY=base.top-chartSize*.55;
+      canvas.append(svg('text',{x:base.left+base.widthMm/2,y:labelY,fill:technical?'#364958':'#e2e7ea',
+        'text-anchor':'middle','font-family':'system-ui,sans-serif','font-size':chartSize*.78},'Base top view · '+mm(base.widthMm)+' × '+mm(base.depthMm)+' · 8 mm clear acrylic'));
+      const baseAxisY=base.top+base.depthMm+chartSize*.65,baseAxisX=base.left+base.widthMm+chartSize*.7;
+      canvas.append(svg('path',{d:'M'+base.left+' '+baseAxisY+'H'+(base.left+base.widthMm)+' M'+baseAxisX+' '+base.top+'V'+(base.top+base.depthMm),
+        fill:'none',stroke:fixture,'stroke-width':Math.max(.5,chartSize*.065)}));
+      canvas.append(svg('text',{x:base.left+base.widthMm/2,y:baseAxisY+chartSize,fill:technical?'#364958':'#e2e7ea',
+        'text-anchor':'middle','font-family':'system-ui,sans-serif','font-size':chartSize*.8},mm(base.widthMm)));
+      canvas.append(svg('text',{transform:'translate('+(baseAxisX+chartSize*.9)+' '+(base.top+base.depthMm/2)+') rotate(-90)',
+        fill:technical?'#364958':'#e2e7ea','text-anchor':'middle','font-family':'system-ui,sans-serif','font-size':chartSize*.8},mm(base.depthMm)));
     }
     const useTube = attrs => svg('use', {href: '#neon-tube-centerlines', 'stroke-width': 6, ...attrs});
     if (technical) {
@@ -428,9 +458,8 @@
       } else canvas.append(path());
     }
     const measure = svg('g', {stroke: technical ? '#526371' : '#d2dadf', 'stroke-width': Math.max(.5, chartSize * .065), fill: 'none', opacity: .85});
-    const size = engine.finishedSize(geometry,board,design);
     const axisLabel=board ? 'Acrylic ' : '';
-    const tick=chartSize*.33, axisY=h+dimOffset+mountBottom, axisX=w+dimOffset;
+    const tick=chartSize*.33, axisY=h+dimOffset, axisX=w+dimOffset;
     measure.append(svg('path',{d:'M'+size.left+' '+axisY+'H'+size.right+' M'+axisX+' '+size.top+'V'+size.bottom}));
     for (const x of [size.left,size.right]) measure.append(svg('path',{d:'M'+x+' '+(axisY-tick)+'v'+(2*tick)}));
     for (const y of [size.top,size.bottom]) measure.append(svg('path',{d:'M'+(axisX-tick)+' '+y+'h'+(2*tick)}));
@@ -558,7 +587,7 @@
     for (const node of fields) {
       const key = node.dataset.neonField;
       if (!(key in design)) continue;
-      if (key === 'widthMm') continue;
+      if (key === 'widthMm' || key === 'baseWidthMm' || key === 'baseDepthMm') continue;
       if (node.type === 'checkbox') node.checked = design[key];
       else if (node.type === 'radio') node.checked = node.value === String(design[key]);
       else if (!(node.type === 'number' && node === document.activeElement) && node.value !== String(design[key])) node.value = design[key];
@@ -566,6 +595,7 @@
     for (const btn of root.querySelectorAll('[data-neon-choice]')) {
       const key = btn.dataset.neonChoice;
       if (key === 'color') btn.disabled = btn.hidden || (design.cover !== WHITE_COVER && btn.dataset.value !== design.cover);
+      if (key === 'standSurface') btn.disabled = design.scene === 'drawing';
       const selected = key === 'power' ? design.power === (btn.dataset.value === 'on') :
         !(wallURL && key === 'scene') && String(design[key]) === btn.dataset.value;
       btn.setAttribute('aria-pressed', String(selected));
@@ -594,19 +624,40 @@
     output('lineSpacing', design.lineSpacing.toFixed(2) + '×');
     const board = geometry.valid ? currentBoard() : null;
     const finished = geometry.valid ? engine.finishedSize(geometry,board,design) : null;
+    const baseControls = root.querySelector('[data-neon-base-controls]');
+    const baseMeasure = root.querySelector('[data-neon-base-measure]');
+    const basePricing = root.querySelector('[data-neon-base-pricing]');
+    const standing = design.mount === 'freestanding';
+    root.querySelector('[data-neon-surface-note]').hidden = !standing || design.scene !== 'drawing';
+    baseControls.hidden = baseControls.disabled = !standing;
+    for (const input of baseControls.querySelectorAll('input')) input.disabled = !standing;
+    baseMeasure.hidden = basePricing.hidden = !standing;
+    const base = standing && finished ? engine.freestandingBase(finished,design) : null;
+    if (base) {
+      for (const [key,value] of [['baseWidthMm',base.widthMm],['baseDepthMm',base.depthMm]]) {
+        const field=root.querySelector('[data-neon-field="'+key+'"]');
+        if (field !== document.activeElement) field.value=Number(value.toFixed(1));
+      }
+      output('base-size',mm(base.widthMm)+' × '+mm(base.depthMm)+' × 8 mm');
+    } else output('base-size','—');
     widthAllowance = board ? Math.max(0,finished.widthMm-design.widthMm) : 0;
+    const freestandingOption = root.querySelector('[data-neon-field="mount"] option[value="freestanding"]');
+    freestandingOption.disabled = Boolean(finished && finished.widthMm > 1200.00001 && design.mount !== 'freestanding');
     root.querySelector('label[for="neon-width"]').textContent = design.backing === 'none' ? 'Lettering width' : 'Finished acrylic width';
     for (const control of fields.filter(field => field.dataset.neonField === 'widthMm')) {
       const allowanceCorrection=widthAllowance-2*engine.acrylicMargin(design.widthMm,design);
-      control.min = Math.floor(Math.min(3000,effectiveMin+2*engine.acrylicMargin(effectiveMin,design)+allowanceCorrection)*10)/10;
-      control.max = Math.min(3000,maxWidth+2*engine.acrylicMargin(maxWidth,design)+allowanceCorrection);
+      const maximum = Math.min(design.mount === 'freestanding' ? 1200 : 3000,maxWidth+2*engine.acrylicMargin(maxWidth,design)+allowanceCorrection);
+      control.max = maximum;
+      control.min = Math.min(maximum,Math.floor(Math.min(3000,effectiveMin+2*engine.acrylicMargin(effectiveMin,design)+allowanceCorrection)*10)/10);
       control.setAttribute('aria-label',design.backing === 'none' ? 'Lettering width in millimetres' : 'Finished acrylic width in millimetres');
       if (control.type === 'range' || control !== document.activeElement) control.value = Number((design.widthMm+widthAllowance).toFixed(1));
     }
     const limitError = finished && !finished.withinLimit ? 'The finished sign must fit within 3,000 × 2,000 mm. Reduce the lettering size or acrylic gap.' : '';
+    const freestandingError = design.mount === 'freestanding' && finished && finished.widthMm > 1200.00001
+      ? 'Freestanding signs are available up to 1,200 mm finished width. Reduce the width or choose another mounting option.' : '';
     const spacerError = board?.wall && board.requestedSpacers && board.holes.length < board.requestedSpacers
       ? 'The acrylic needs a manual spacer layout. Adjust the backing or contact the shop.' : '';
-    const structuralError = sizeError || limitError || spacerError || projectError(design);
+    const structuralError = sizeError || limitError || freestandingError || spacerError || projectError(design);
     output('acrylic-size',board ? mm(finished.widthMm)+' × '+mm(finished.heightMm) : '—');
     const ready = !structuralError && geometry.valid && fields.every(field =>
       field.type !== 'number' || field.disabled || (field.value !== '' && field.validity.valid));
@@ -641,7 +692,8 @@
   function edit(key, input, group) {
     if (!(key in defaults) || key === 'version') return;
     const value = key in limits ? Number(input) : key === 'power' ? (input === true || input === 'on') : input;
-    if (key in limits && (!Number.isFinite(value) || input === '' || value < limits[key][0] || value > limits[key][1])) {
+    if (key in limits && (!Number.isFinite(value) || input === '' || value < limits[key][0] || value > limits[key][1] ||
+        ((key === 'baseWidthMm' || key === 'baseDepthMm') && value > 0 && value < 1))) {
       render();
       return;
     }
@@ -768,6 +820,14 @@
       return;
     }
     const action = btn.dataset.neonAction;
+    if (action === 'auto-base-size') {
+      past.push({design,manualLineSpacing});
+      if (past.length > 100) past.shift();
+      future.length = 0;
+      sequence = undefined;
+      design = {...design,baseWidthMm:0,baseDepthMm:0};
+      render();
+    }
     if (action === 'auto-line-spacing') {
       const suggested = suggestedLineSpacing(design);
       if (suggested === null) {
@@ -856,6 +916,9 @@
       if (imported.boardShape === undefined) imported.boardShape = 'rectangle';
       if (imported.lineColors === undefined) imported.lineColors = [];
       if (imported.boardGap === undefined) imported.boardGap = 30;
+      if (imported.baseWidthMm === undefined) imported.baseWidthMm = 0;
+      if (imported.baseDepthMm === undefined) imported.baseDepthMm = 0;
+      if (imported.standSurface === undefined) imported.standSurface = 'table';
       if (imported.version === 1) imported = {...imported, version: 2, cover: WHITE_COVER};
       const disabledFont = !options.font.includes(imported.font) && engine.fonts.some(f => f.id === imported.font);
       if (disabledFont) {

@@ -74,8 +74,9 @@
           + Math.round(finished.areaMm2*acrylicRate/1_000_000) + rates[spec.mount] + deliveryFee
           + strokeCount*(rates.perStroke ?? 0) + bendCount*(rates.perBend ?? 0) + spacerCount*(rates.perSpacer ?? 0);
         const amount = money.format(cents/100);
-        label = 'Estimated price '+amount + (review ? ' · subject to shop review' : '');
-        estimate = 'Est. '+amount;
+        const baseExcluded = spec.mount === 'freestanding';
+        label = 'Estimated price '+amount + (baseExcluded ? ' · base material not included' : '') + (review ? ' · subject to shop review' : '');
+        estimate = 'Est. '+amount + (baseExcluded ? ' + base' : '');
       }
     }
     if (price.textContent !== label) price.textContent = label;

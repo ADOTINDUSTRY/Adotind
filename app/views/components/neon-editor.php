@@ -69,6 +69,7 @@ $neonIcon = static function (string $key) use ($neonIcons): string {
       <dl class="neon-measurements">
         <div><dt>Lettering size</dt><dd data-neon-output="size">—</dd></div>
         <div><dt>Finished acrylic size</dt><dd data-neon-output="acrylic-size">—</dd></div>
+        <div data-neon-base-measure hidden><dt>Separate base · clear acrylic</dt><dd data-neon-output="base-size">—</dd></div>
         <div><dt>Tube width</dt><dd>6 mm</dd></div>
         <div><dt>12 V strip · rated load (7.2 W/m, 120 LEDs/m)</dt><dd data-neon-output="electrical">—</dd></div>
         <div><dt>Separate strokes</dt><dd data-neon-output="strokes">—</dd></div>
@@ -156,8 +157,26 @@ $neonIcon = static function (string $key) use ($neonIcons): string {
             <label>Plexiglass shape<select data-neon-field="boardShape"><option value="rectangle">Rectangle</option><option value="contour">Cut around lettering</option></select></label>
             <label hidden>Acrylic gap from lettering (mm)<input type="number" data-neon-field="boardGap" min="30" max="150" step="any" value="30" disabled></label>
             <label>Backboard<select data-neon-field="backing"><option value="clear">Clear acrylic</option><option value="black">Black acrylic</option><option value="none">No backboard</option></select></label>
-            <label>Mounting<select data-neon-field="mount"><option value="wall">Wall mounted</option><option value="suspended">Suspended</option><option value="freestanding">Freestanding</option></select></label>
+            <label>Mounting<select data-neon-field="mount"><option value="wall">Wall mounted</option><option value="suspended">Suspended</option><option value="freestanding">Freestanding</option></select><small>Freestanding: up to 1,200 mm finished width.</small></label>
           </div>
+          <fieldset class="neon-base-controls" data-neon-base-controls hidden disabled>
+            <legend>Clear acrylic base · 8 mm thick</legend>
+            <div class="neon-standing-preview">
+              <span>Preview on</span>
+              <div class="neon-segment" role="group" aria-label="Freestanding preview surface">
+                <button type="button" data-neon-choice="standSurface" data-value="table" aria-pressed="true">Table</button>
+                <button type="button" data-neon-choice="standSurface" data-value="shelf" aria-pressed="false">Shelf</button>
+                <button type="button" data-neon-choice="standSurface" data-value="floor" aria-pressed="false">Floor</button>
+              </div>
+            </div>
+            <p data-neon-surface-note hidden>Switch to Studio, Brick or Concrete to see a surface.</p>
+            <p>Surface preview is illustrative. Starting dimensions are adjustable.</p>
+            <div class="neon-input-pair">
+              <label>Base width (mm)<input type="number" data-neon-field="baseWidthMm" min="1" max="3000" step="any"></label>
+              <label>Base depth (mm)<input type="number" data-neon-field="baseDepthMm" min="1" max="2000" step="any"></label>
+            </div>
+            <button type="button" data-neon-action="auto-base-size">Use suggested dimensions</button>
+          </fieldset>
           <details class="neon-spacing"><summary>Letter &amp; line spacing</summary>
             <div class="neon-input-pair">
               <label>Letter spacing (em)<input type="number" data-neon-field="letterSpacing" value="0" min="0" max=".3" step=".01"></label>
@@ -174,6 +193,7 @@ $neonIcon = static function (string $key) use ($neonIcons): string {
       </details>
       <div class="neon-quote">
         <p data-neon-price>Shop quote on request</p>
+        <p class="neon-base-pricing" data-neon-base-pricing hidden>The 8 mm base material is not included in the estimate; its cost will be confirmed.</p>
         <details>
           <summary><span data-neon-request-label>Request a shop quote</span> <span aria-hidden="true">→</span></summary>
           <form method="post" action="/online-quote/neon-request" data-neon-quote-form data-private>

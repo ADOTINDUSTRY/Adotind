@@ -177,7 +177,9 @@ function neon_handle_request(): never
         $acrylicRate = $area > 0 ? ($rates['acrylic'.$tier] ?? null) : 0;
         $deliveryFee = $delivery === 'delivery' ? ($rates['delivery'.$tier] ?? null) : 0;
         $breakdown = null;
-        if (!$proof['reviewOnly'] && $rates !== null && $acrylicRate !== null && $deliveryFee !== null) {
+        // There is no configured rate for the separate 8 mm base. Keep a
+        // freestanding request's final estimate unquoted until it is priced.
+        if (!$proof['reviewOnly'] && $spec['mount'] !== 'freestanding' && $rates !== null && $acrylicRate !== null && $deliveryFee !== null) {
             $breakdown = [
                 'perMetre'=>$rates['perMetre'], 'base'=>$rates['base'],
                 'tube'=>(int)round(round($proof['lengthMm']) * $rates['perMetre'] / 1000),
@@ -193,6 +195,13 @@ function neon_handle_request(): never
         $spec['strokeCount'] = $proof['strokeCount'];
         $spec['bendCount'] = $proof['bendCount'];
         $spec['spacerCount'] = $proof['spacerCount'];
+        if ($proof['standingBase'] !== null) {
+            $spec['standingBase'] = [
+                'widthMm'=>$proof['standingBase']['widthMm'],
+                'depthMm'=>$proof['standingBase']['depthMm'],
+                'thicknessMm'=>8, 'material'=>'clear acrylic',
+            ];
+        }
         $spec['delivery'] = $delivery === 'delivery' ? 'delivery'.$tier : 'pickup';
         if ($delivery === 'delivery') $spec['deliveryAddress'] = trim($address);
         $insert = $db->prepare('INSERT INTO requests(request_key,name,email,message,design,width_mm,height_mm,tube_length_mm,warnings,estimated_cents,retail_breakdown,settings_revision,svg,dxf)
