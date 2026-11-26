@@ -194,6 +194,7 @@ function neon_handle_request(): never
         $spec['bendCount'] = $proof['bendCount'];
         $spec['spacerCount'] = $proof['spacerCount'];
         $spec['manufacturing'] = $proof['manufacturing'];
+        $spec['geometryAdjustment'] = $proof['repair'];
         $spec['delivery'] = $delivery === 'delivery' ? 'delivery'.$tier : 'pickup';
         if ($delivery === 'delivery') $spec['deliveryAddress'] = trim($address);
         $insert = $db->prepare('INSERT INTO requests(request_key,name,email,message,design,width_mm,height_mm,tube_length_mm,warnings,estimated_cents,retail_breakdown,settings_revision,svg,dxf)

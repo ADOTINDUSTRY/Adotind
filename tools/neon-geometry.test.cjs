@@ -486,3 +486,34 @@ test('U-bend screening uses ten millimetres clear between tube faces', () => {
   assert.equal(geometry.inspectManufacturing([u(8)]).tightCurves,false);
   assert.equal(geometry.inspectManufacturing([u(8.1)]).requiresReview,false);
 });
+
+test('automatic repair preserves every stroke and verifies resized paths', () => {
+  for(const [font,widthMm] of [['velvet',600],['atelier',1000]]) {
+    const options={...design,font,text:'ii',widthMm,backing:'none',letterSpacing:0};
+    const original=geometry.layout(options);
+    const fixed=geometry.repairLayout(options);
+    assert.equal(geometry.inspectManufacturing(original.runs).requiresReview,true);
+    assert.equal(fixed.repair.changed,true);
+    assert.equal(fixed.paths.length,original.paths.length);
+    assert.equal(fixed.widthMm,original.widthMm);
+    assert.equal(geometry.inspectManufacturing(fixed.runs).requiresReview,false);
+    assert.equal(polylines(geometry.dxf(fixed)).length,fixed.paths.length);
+    assert.deepEqual(geometry.repairLayout(options).repair,fixed.repair);
+    assert.equal(geometry.dxf(geometry.repairLayout(options)),geometry.dxf(fixed));
+  }
+  const unresolved=geometry.repairLayout({...design,font:'signature',text:'Hello',widthMm:600,backing:'none'});
+  if (unresolved.manufacturing.requiresReview) assert.equal(unresolved.repair.changed,false);
+});
+test('nearly joined ends of a single neon loop are connected in preview and DXF', () => {
+  const options={...design,font:'studio',text:'o',widthMm:600,backing:'none'};
+  const original=geometry.layout(options);
+  const corrected=geometry.repairLayout(options);
+  assert.equal(original.runs.length,1);
+  assert.equal(corrected.runs.length,1);
+  assert.equal(corrected.repair.joinedLoops,1);
+  assert.deepEqual(corrected.runs[0][0],corrected.runs[0].at(-1));
+  assert.equal(corrected.manufacturing.requiresReview,false);
+  const cad=polylines(geometry.dxf(corrected));
+  assert.equal(cad.length,1);
+  assert.equal(cad[0].closed,true);
+});

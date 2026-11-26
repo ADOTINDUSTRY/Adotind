@@ -453,15 +453,16 @@
     const effectiveMin = Math.min(requiredWidth, maxWidth);
     const sizeError = requiredWidth > maxWidth ? 'Split the lettering over more lines to fit the maximum width of '+maxWidth+' mm.' : '';
     if (design.widthMm < effectiveMin) design = {...design,widthMm:effectiveMin};
-    const nextKey = JSON.stringify([design.text, design.font, design.widthMm, design.align, design.letterSpacing, design.lineSpacing]);
+    const nextKey = JSON.stringify([design.text, design.font, design.widthMm, design.align, design.letterSpacing, design.lineSpacing,
+      design.backing, design.boardShape, design.boardGap, design.mount]);
     if (nextKey !== geometryKey) {
-      geometry = engine.layout(design);
+      geometry = engine.repairLayout(design);
       if (geometry.valid) {
-        geometry.manufacturing=engine.inspectManufacturing(geometry.runs);
         if (geometry.manufacturing.shortStrokes) geometry.warnings.push('A neon stroke is shorter than 6 mm and needs shop review.');
         if (geometry.manufacturing.closePaths) geometry.warnings.push('Some neon paths have less than 10 mm clear space or cross and need shop review.');
         if (geometry.manufacturing.tightCurves) geometry.warnings.push('A neon curve is very tight and needs shop review.');
         if (geometry.manufacturing.incomplete) geometry.warnings.push('This design needs a manual clearance check.');
+        if (geometry.repair?.changed) geometry.warnings.push('Letter spacing or height was adjusted for neon clearance. Please review the preview and final dimensions.');
       }
       geometryKey = nextKey;
       renderFontSummary();
@@ -689,8 +690,8 @@
       try {
         for (let width = design.widthMm * 1.08; width <= maxWidth * 1.08; width *= 1.08) {
           const candidate = {...original, widthMm:Math.min(maxWidth,width)};
-          const drawing = engine.layout(candidate);
-          if (!drawing.valid || engine.inspectManufacturing(drawing.runs).requiresReview) {
+          const drawing = engine.repairLayout(candidate);
+          if (!drawing.valid || drawing.manufacturing.requiresReview) {
             if (candidate.widthMm === maxWidth) break;
             continue;
           }

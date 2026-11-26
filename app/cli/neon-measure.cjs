@@ -55,13 +55,14 @@ function measure(input, intent = 'production') {
     if (!Number.isFinite(value) || value < min || value > max) return {error: 'Choose a value within the control limits.'};
     design[key] = value;
   }
-  const proof = geometry.layout(design);
+  const proof = geometry.repairLayout(design);
   if (!proof.valid) return {error: proof.errors[0] || 'Check the lettering before sending.'};
-  const manufacturing=geometry.inspectManufacturing(proof.runs);
+  const manufacturing=proof.manufacturing;
   if (manufacturing.shortStrokes) proof.warnings.push('A neon stroke is shorter than 6 mm and needs shop review.');
   if (manufacturing.closePaths) proof.warnings.push('Some neon paths have less than 10 mm clear space or cross and need shop review.');
   if (manufacturing.tightCurves) proof.warnings.push('A neon curve is very tight and needs shop review.');
   if (manufacturing.incomplete) proof.warnings.push('This design is too complex for a complete clearance check and needs shop review.');
+  if (proof.repair?.changed) proof.warnings.push('The lettering was adjusted for neon clearance. Please review the preview and final dimensions.');
   const board = geometry.backboard(proof,design);
   if (board?.wall && board.requestedSpacers && board.holes.length < board.requestedSpacers) {
     return {error:'The acrylic needs a manual spacer layout. Please adjust the backing or contact the shop.'};
@@ -69,7 +70,7 @@ function measure(input, intent = 'production') {
   const finished = geometry.finishedSize(proof,board,design);
   if (!finished.withinLimit) return {error:'The finished sign must fit within 3,000 × 2,000 mm.'};
   return {
-    finished, manufacturing, reviewOnly: manufacturing.requiresReview, design, widthMm: proof.widthMm, heightMm: proof.heightMm, lengthMm: proof.lengthMm,
+    finished, manufacturing, repair:proof.repair, reviewOnly: manufacturing.requiresReview, design, widthMm: proof.widthMm, heightMm: proof.heightMm, lengthMm: proof.lengthMm,
     strokeCount:proof.paths.length, bendCount:proof.bendCount, spacerCount:board?.wall ? board.holes.length : 0,
     warnings: proof.warnings, svg: geometry.svg(proof, design), dxf: geometry.dxf(proof, design),
   };

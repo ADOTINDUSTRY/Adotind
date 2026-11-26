@@ -682,7 +682,55 @@
     return result;
   }
 
-  const CUT_STEP = 25;
+  // Try reshaping complete letters, never dropping or joining individual tubes.
+  // The same returned paths feed the preview, costing and CAD export.
+  function repairLayout(spec) {
+    const original = layout(spec);
+    if (!original.valid) return original;
+    original.manufacturing = inspectManufacturing(original.runs);
+    original.repair = {changed:false};
+    if (!original.manufacturing.requiresReview || original.manufacturing.incomplete ||
+        original.runs.reduce((count, run) => count + run.length, 0) > 1200) return original;
+
+    const originalSpacing = Number(spec.letterSpacing ?? 0);
+    const spacings = [...new Set([originalSpacing, Math.min(.3, originalSpacing + .15), .3])];
+    for (const spacing of spacings) {
+      const base = spacing === originalSpacing ? original : layout({...spec, letterSpacing:spacing});
+      if (!base.valid) continue;
+      for (const verticalScale of [1, 1.25, 1.5, 2]) {
+        const height = (base.heightMm - TUBE) * verticalScale + TUBE;
+        // Leave room for at least the minimum acrylic border.
+        if (height > 1940) continue;
+        const revisedRuns = base.runs.map(run => run.map(([x,y])=>[x,3+(y-3)*verticalScale]));
+        const joined = revisedRuns.map(run => {
+          const gap=distance(run[0],run.at(-1));
+          if (run.length<4 || gap<=.05 || gap>=TUBE*.75) return false;
+          run.push([...run[0]]);
+          return true;
+        });
+        if (spacing === originalSpacing && verticalScale === 1 && !joined.some(Boolean)) continue;
+        const manufacturing = inspectManufacturing(revisedRuns);
+        if (manufacturing.requiresReview) continue;
+        const candidate = {...base, heightMm:height, bounds:{...base.bounds, height}, manufacturing,
+          repair:{changed:true, letterSpacing:spacing, verticalScale, joinedLoops:joined.filter(Boolean).length}};
+        candidate.paths = base.paths.map((path,index) => ({
+          ...path,
+          d:readPath(path.d).map(([type,...coords])=>type + coords.map((value,index)=>
+            number(index%2===0 ? value : 3+(value-3)*verticalScale)).join(' ')).join('') +
+              (joined[index] ? 'L' + revisedRuns[index][0].map(number).join(' ') : '')
+        }));
+        candidate.bendCount = candidate.paths.reduce((total,path)=>total+sharpBends(readPath(path.d)),0);
+        Object.defineProperty(candidate, 'runs', {value:revisedRuns});
+        candidate.lengthMm = revisedRuns.reduce((total,run)=>total+run.slice(1).reduce(
+          (length,point,index)=>length+distance(run[index],point),0),0);
+        const board = backboard(candidate,spec);
+        if (!finishedSize(candidate,board,spec).withinLimit ||
+            (board?.requestedSpacers && board.holes.length < board.requestedSpacers)) continue;
+        return candidate;
+      }
+    }
+    return original;
+  }
   function acrylicMargin(widthMm, spec) {
     if (!spec.backing || spec.backing === 'none') return 0;
     const base = spec.boardShape === 'contour' ? (spec.boardGap ?? 30) : 22;
@@ -875,5 +923,5 @@
     return groups.join('\r\n')+'\r\n';
   }
 
-  globalThis.NeonGeometry = {fonts, layout, svg, dxf, backboard, finishedSize, acrylicMargin, inspectManufacturing};
+  globalThis.NeonGeometry = {fonts, layout, svg, dxf, backboard, finishedSize, acrylicMargin, inspectManufacturing, repairLayout};
 })();
