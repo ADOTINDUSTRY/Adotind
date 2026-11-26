@@ -11,9 +11,8 @@ for (const filename of ['neon-fonts.js', 'neon-geometry.js']) {
   require(source);
   hash.update(fs.readFileSync(source, 'utf8').replace(/\r\n/g, '\n'));
 }
-// Changes to the manufacturing planner must invalidate open designer sessions.
-hash.update(fs.readFileSync(path.join(assets, 'neon-strip-plan.js'), 'utf8').replace(/\r\n/g, '\n'));
-hash.update(fs.readFileSync(path.join(assets, 'neon-acute-fit.js'), 'utf8').replace(/\r\n/g, '\n'));
+// Changes to the quote path require a new edition even if the font geometry is unchanged.
+hash.update('unchecked-neon-drawings-v1');
 hash.update(fs.readFileSync(path.join(__dirname, '../data/neon-colors.json'), 'utf8').replace(/\r\n/g, '\n'));
 const geometry = globalThis.NeonGeometry;
 const fonts = geometry.fonts.map(font => {

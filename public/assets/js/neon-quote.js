@@ -73,12 +73,18 @@
         const cents = rates.base + Math.round(Math.round(lengthMm)*rates.perMetre/1000)
           + Math.round(finished.areaMm2*acrylicRate/1_000_000) + rates[spec.mount] + deliveryFee
           + strokeCount*(rates.perStroke ?? 0) + bendCount*(rates.perBend ?? 0) + spacerCount*(rates.perSpacer ?? 0);
-        label = estimate = 'Estimated price '+money.format(cents/100) + (review ? ' · subject to shop review' : '');
+        const amount = money.format(cents/100);
+        label = 'Estimated price '+amount + (review ? ' · subject to shop review' : '');
+        estimate = 'Est. '+amount;
       }
     }
     if (price.textContent !== label) price.textContent = label;
     previewPrice.hidden = !estimate;
     if (previewPrice.textContent !== estimate) previewPrice.textContent = estimate;
+    if (estimate) {
+      previewPrice.setAttribute('aria-label',label);
+      previewPrice.title = label;
+    }
     refreshButton();
     clearOldMessage();
   }

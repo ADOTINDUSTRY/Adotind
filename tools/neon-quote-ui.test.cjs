@@ -5,7 +5,7 @@ const vm = require('node:vm');
 
 function editor(rates) {
   const nodes = {
-    price:{textContent:''}, preview:{textContent:'',hidden:true}, label:{textContent:''},
+    price:{textContent:''}, preview:{textContent:'',hidden:true,attributes:{},setAttribute(k,v){this.attributes[k]=v;}}, label:{textContent:''},
     submit:{textContent:''}, response:{textContent:'',dataset:{}}, request:{value:'a'.repeat(32)},
     delivery:{value:'pickup',options:[{},{}],addEventListener(){}},
     address:{required:false,closest(){return {};}}
@@ -35,7 +35,8 @@ test('review designs retain a provisional live price with a clear review label',
   const {nodes,update} = editor(rates);
   update('review');
   assert.match(nodes.price.textContent,/Estimated price .*subject to shop review/);
-  assert.equal(nodes.preview.textContent,nodes.price.textContent);
+  assert.match(nodes.preview.textContent,/^Est\. /);
+  assert.equal(nodes.preview.attributes['aria-label'],nodes.price.textContent);
   assert.equal(nodes.preview.hidden,false);
   assert.equal(nodes.submit.textContent,'Send for shop review');
   assert.equal(nodes.submit.disabled,false);

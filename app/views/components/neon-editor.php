@@ -42,6 +42,7 @@ $neonIcon = static function (string $key) use ($neonIcons): string {
               <button type="button" data-neon-choice="scene" data-value="<?= $scene ?>" aria-pressed="<?= $scene === 'studio' ? 'true' : 'false' ?>"><?= $label ?></button>
             <?php endforeach; ?>
           </fieldset>
+          <output class="neon-preview-price" data-neon-preview-price hidden></output>
           <label class="neon-power" title="Toggle neon lighting">
             <input type="checkbox" data-neon-field="power" checked><span><?= $neonIcon('power') ?> Lights</span>
           </label>
@@ -49,7 +50,6 @@ $neonIcon = static function (string $key) use ($neonIcons): string {
         <div class="neon-drawing-area">
           <svg data-neon-canvas role="img" aria-label="Preview of your sign with 6 mm neon tubing"></svg>
           <div class="neon-preview-away" hidden><span>Preview is open in another window.</span><button type="button" data-neon-action="restore-preview">Bring preview back</button></div>
-          <output class="neon-preview-price" data-neon-preview-price hidden></output>
         </div>
         <div class="neon-stage-footer">
           <div class="neon-zoom">
@@ -77,12 +77,6 @@ $neonIcon = static function (string $key) use ($neonIcons): string {
         <div><dt>Tube length</dt><dd data-neon-output="length">—</dd></div>
       </dl>
       <p class="neon-warning" data-neon-output="warnings" role="status"></p>
-      <section data-neon-issues-section hidden>
-        <label><input type="checkbox" data-neon-show-issues checked> Show review areas on drawing</label>
-        <p data-neon-issues-note></p>
-        <ul data-neon-issues></ul>
-      </section>
-      <button class="neon-cut-resize" type="button" data-neon-action="find-clearance-size" hidden>Find a size that fits</button>
       <div class="neon-proof-actions">
         <label class="neon-wall-picker"><?= $neonIcon('open') ?> Try your wall
           <input type="file" data-neon-wall data-private accept="image/jpeg,image/png,image/webp" aria-label="Preview the sign on your wall photo">

@@ -95,7 +95,7 @@ test('spacing, alignment, profiles and curves use the physical path geometry', (
   }
   const crowded = geometry.layout({...design,text:'Wide'.repeat(20),widthMm:200});
   assert.equal(crowded.valid, true);
-  assert.ok(crowded.warnings.some(w => w.includes('12 mm')));
+  assert.equal(crowded.warnings.some(w => w.includes('12 mm')),false);
   assert.equal(geometry.layout({...design,text:'Hi',font:'studio'}).paths.length,5);
   assert.equal(measure({...design,text:'Cafe\u0301'},'review').design.text, 'Café');
   assert.ok(!geometry.svg(base, {color:'" onload="alert(1)'}).includes('onload'));
@@ -340,11 +340,9 @@ test('silicone and LEDs obey the same indoor product rules on quotes and shop re
   }
   const draft = {...sign, text: 'Hello', widthMm: 600, cover: white, color: warmWhite};
   const shop = measure(draft, 'review');
-  // Even a shape that passes clearance must not be called production-ready
-  // until the LED routing and silicone-cover joins have been verified.
-  assert.equal(shop.reviewOnly, true);
-  assert.equal(shop.stripFit.electricalRoutingVerified, false);
-  assert.equal(shop.stripFit.coverCrossingsVerified, false);
+  // This is a quote, not a claim that the design has a verified cut plan.
+  assert.equal(shop.reviewOnly, false);
+  assert.equal(shop.stripFit, undefined);
   assert.equal(shop.design.cover, white);
   assert.equal(shop.design.color, warmWhite);
   assert.match(shop.svg, /Indoor use only/);

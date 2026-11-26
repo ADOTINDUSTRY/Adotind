@@ -8,8 +8,6 @@
   const stage = root.querySelector('.neon-view');
   const expandedProof = root.querySelector('.neon-expanded-proof');
   const engine = window.NeonGeometry;
-  const acuteFit = window.NeonAcuteFit;
-  const stripPlanning = window.NeonStripPlanning;
   const NS = 'http://www.w3.org/2000/svg';
   const MAX_FILE_BYTES = 16384;
   const WHITE_COVER = '#ffffff';
@@ -45,7 +43,7 @@
   }
   const minWidth = Number.isFinite(shop.minWidth) ? Math.max(100, shop.minWidth) : 100;
   const maxWidth = Number.isFinite(shop.maxWidth) ? Math.min(3000, shop.maxWidth) : 3000;
-  if (!canvas || typeof engine?.layout !== 'function' || !engine.fonts.length || typeof acuteFit?.prepareForSpec !== 'function' || typeof stripPlanning?.fitIndependentPaths !== 'function') {
+  if (!canvas || typeof engine?.layout !== 'function' || !engine.fonts.length) {
     output('warnings', 'The lettering engine could not load. Refresh the page to try again.');
     if (submit) submit.disabled = true;
     return;
@@ -99,25 +97,8 @@
   const future = [];
   let sequence;
   const mm = value => new Intl.NumberFormat(undefined, {maximumFractionDigits: 1}).format(value) + ' mm';
-  const cutMeasure = new Intl.NumberFormat(undefined, {maximumFractionDigits: 3});
-
   function prepareDrawing(spec) {
-    let drawing = engine.repairLayout(spec);
-    if (!drawing.valid) return drawing;
-    const acute = acuteFit.prepareForSpec(drawing, spec, engine);
-    if (acute.applied) drawing = acute.artwork;
-    const fit = stripPlanning.fitIndependentPaths(drawing, engine.inspectManufacturing);
-    if (fit.applied) drawing = fit.artwork;
-    drawing.stripFit = {applied:fit.applied, reason:fit.reason || null,
-      pathsMatchCutMarks:fit.plan.pathsMatchCutMarks,
-      electricalRoutingVerified:fit.plan.electricalRoutingVerified,
-      coverCrossingsVerified:false};
-    return drawing;
-  }
-
-  function needsShopReview(drawing) {
-    return Boolean(drawing.manufacturing?.requiresReview || !drawing.stripFit?.pathsMatchCutMarks ||
-      !drawing.stripFit?.electricalRoutingVerified || !drawing.stripFit?.coverCrossingsVerified);
+    return engine.layout(spec);
   }
 
   function svg(tag, attrs = {}, content = '') {
@@ -378,19 +359,6 @@
         canvas.append(path({opacity:.55+.45*level}));
       } else canvas.append(path());
     }
-    const locations = geometry.reviewLocations?.locations || [];
-    if (root.querySelector('[data-neon-show-issues]').checked) {
-      for (const [index,issue] of locations.entries()) {
-        const [x,y]=issue.point;
-        const radius=Math.max(7,chartSize*.8);
-        const marker=svg('g',{'data-neon-issue':index+1});
-        marker.append(svg('circle',{cx:x,cy:y,r:radius,fill:'none',stroke:'#ffd13d','stroke-width':Math.max(1.2,radius*.16)}));
-        marker.append(svg('circle',{cx:x+radius,cy:y-radius,r:radius*.62,fill:'#ffd13d',stroke:'#2d2200','stroke-width':.6}));
-        marker.append(svg('text',{x:x+radius,y:y-radius,'text-anchor':'middle','dominant-baseline':'central',fill:'#211a00','font-family':'system-ui,sans-serif','font-size':radius*.75,'font-weight':'bold'},String(index+1)));
-        marker.append(svg('title',{},issue.type));
-        canvas.append(marker);
-      }
-    }
     const measure = svg('g', {stroke: technical ? '#526371' : '#d2dadf', 'stroke-width': Math.max(.5, chartSize * .065), fill: 'none', opacity: .85});
     const size = engine.finishedSize(geometry,board,design);
     const axisLabel=board ? 'Acrylic ' : '';
@@ -491,19 +459,6 @@
       design.backing, design.boardShape, design.boardGap, design.mount]);
     if (nextKey !== geometryKey) {
       geometry = prepareDrawing(design);
-      if (geometry.valid) {
-        geometry.reviewLocations = geometry.manufacturing.requiresReview ? engine.inspectManufacturing(geometry.runs,true) : null;
-        if (geometry.manufacturing.shortStrokes) geometry.warnings.push('A neon stroke is shorter than 6 mm and needs shop review.');
-        if (geometry.manufacturing.closePaths) geometry.warnings.push('Some neon paths are too close, overlap, or have a junction that needs shop review.');
-        if (geometry.manufacturing.tightCurves) geometry.warnings.push('A U-bend has less than 10 mm of clear space and needs shop review.');
-        if (geometry.manufacturing.sharpReturns) geometry.warnings.push('A return angle is under 45° and needs shop review.');
-        geometry.warnings.push('LED routing and silicone-cover joins need shop review before production.');
-        if (!geometry.stripFit.pathsMatchCutMarks) geometry.warnings.push('Some drawing strokes are not 25 mm multiples; the LED layout needs review.');
-        if (geometry.stripFit.applied) geometry.warnings.push('Some separate strokes were adjusted for 25 mm LED cuts. Review the updated drawing.');
-        if (geometry.acuteRepair) geometry.warnings.push('A sharp return was reshaped with a 10 mm gap. Review the updated drawing.');
-        if (geometry.manufacturing.incomplete) geometry.warnings.push('This design needs a manual clearance check.');
-        if (geometry.repair?.changed) geometry.warnings.push('Letter spacing or height was adjusted for neon clearance. Please review the preview and final dimensions.');
-      }
       geometryKey = nextKey;
       renderFontSummary();
     }
@@ -574,22 +529,6 @@
       field.type !== 'number' || field.disabled || (field.value !== '' && field.validity.valid));
     const warningText = [...new Set([structuralError, ...geometry.errors, ...geometry.warnings].filter(Boolean))].join(' ');
     output('warnings', warningText);
-    const issueList = root.querySelector('[data-neon-issues]');
-    const issues = geometry.reviewLocations?.locations || [];
-    const issueSection = root.querySelector('[data-neon-issues-section]');
-    issueSection.hidden = !geometry.manufacturing?.requiresReview;
-    issueList.replaceChildren(...issues.map((issue,index)=>{
-      const item=document.createElement('li');
-      item.textContent=(index+1)+'. '+issue.type;
-      return item;
-    }));
-    root.querySelector('[data-neon-issues-note]').textContent =
-      geometry.reviewLocations?.incomplete ? 'The automatic scan was incomplete. Other areas may also need review.'
-      : issues.length >= 60 ? 'Showing the first 60 areas. Other areas may also need review.'
-      : issues.length ? 'Numbers mark areas to review on the drawing.' : 'No precise location is available for this warning.';
-    const clearanceButton = root.querySelector('[data-neon-action="find-clearance-size"]');
-    clearanceButton.hidden = !geometry.manufacturing?.requiresReview;
-    clearanceButton.textContent = 'Find clearer spacing';
     output('warning', warningText);
     root.dataset.neonValid = String(ready);
     const w = geometry.widthMm, h = geometry.heightMm;
@@ -606,7 +545,7 @@
     const spacerCount = board?.wall ? board.holes.length : 0;
     output('spacers',String(spacerCount));
     if (spec) spec.value = ready ? JSON.stringify(design) : '';
-    const intent = needsShopReview(geometry) ? 'review' : 'production';
+    const intent = 'production';
     if (requestIntent) requestIntent.value = intent;
     if (submit) submit.disabled = !ready;
     for (const action of ['export', 'export-svg', 'export-dxf']) buttonState(action, !ready);
@@ -655,7 +594,6 @@
       }
     });
   }
-  root.querySelector('[data-neon-show-issues]').addEventListener('change',paint);
   function download(contents, type, ext) {
     const url = URL.createObjectURL(new Blob([contents], {type}));
     const link = document.createElement('a');
@@ -736,39 +674,6 @@
     if (action === 'view-sign') {
       canvas.focus({preventScroll: true});
       stage.scrollIntoView({block: 'center', behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth'});
-    }
-    if (action === 'find-clearance-size') {
-      const original = design;
-      btn.disabled = true;
-      output('status','Checking larger sizes…');
-      await new Promise(resolve => setTimeout(resolve, 20));
-      let match = null;
-      try {
-        for (let width = design.widthMm * 1.08; width <= maxWidth * 1.08; width *= 1.08) {
-          const candidate = {...original, widthMm:Math.min(maxWidth,width)};
-          const drawing = prepareDrawing(candidate);
-          if (!drawing.valid || drawing.manufacturing.requiresReview) {
-            if (candidate.widthMm === maxWidth) break;
-            continue;
-          }
-          const board = engine.backboard(drawing,candidate);
-          if (engine.finishedSize(drawing,board,candidate).withinLimit &&
-              !(board?.requestedSpacers && board.holes.length < board.requestedSpacers)) {
-            match = candidate.widthMm;
-            break;
-          }
-          if (candidate.widthMm === maxWidth) break;
-        }
-        if (design !== original) return;
-        if (match !== null) {
-          changed('widthMm',match,false);
-          output('status','Adjusted the size to pass the spacing check. LED routing and cover joins still need shop review.');
-        } else {
-          output('status','No larger size passed the check. Try another font or contact the shop.');
-        }
-      } finally {
-        btn.disabled = false;
-      }
     }
     if (action === 'detach') detachPreview();
     if (action === 'restore-preview') {

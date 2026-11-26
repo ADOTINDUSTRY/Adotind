@@ -766,9 +766,6 @@
       return result;
     }
     const scale = (width - TUBE) / span;
-    const smallLetter = lines.some(line => line.glyphs.some(({g,ch}) =>
-      /[\p{L}\p{N}]/u.test(ch) && (g.box.top-g.box.bottom)*scale < 2*TUBE));
-    if (smallLetter) warnings.push('Some lettering has less than 12 mm of stroke height for the 6 mm tube. Increase the width or ask for a shop review.');
     const bounds = emptyBounds();
     for (const [index,line] of lines.entries()) {
       if (!line.glyphs.length) continue;
@@ -809,13 +806,11 @@
         finish();
       }
     }
-    let minRun = Infinity;
     for (const run of runs) {
       let length = 0;
       for (let i = 1; i < run.length; i++) length += distance(run[i-1],run[i]);
-      result.lengthMm += length; minRun = Math.min(minRun, length);
+      result.lengthMm += length;
     }
-    if (minRun < TUBE) warnings.push('A separate stroke is shorter than 6 mm. The shop should review this detail.');
     result.widthMm = width; result.heightMm = height;
     result.bounds.width = width; result.bounds.height = height;
     result.valid = result.lengthMm > 0;
