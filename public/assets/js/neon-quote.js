@@ -52,10 +52,11 @@
   const previewPrice = root.querySelector('[data-neon-preview-price]');
   let designDetails;
   function updateEstimate() {
-    const {spec, lengthMm, finished, strokeCount, bendCount, spacerCount} = designDetails;
+    const {spec, lengthMm, finished, strokeCount, bendCount, spacerCount, intent} = designDetails;
+    const review = intent === 'review';
     valid = Boolean(spec && finished?.withinLimit && Number.isFinite(lengthMm) && lengthMm > 0);
-    requestLabel.textContent = 'Request a shop quote';
-    submit.textContent = 'Send design for quote';
+    requestLabel.textContent = review ? 'Request a shop review' : 'Request a shop quote';
+    submit.textContent = review ? 'Send for shop review' : 'Send design for quote';
     const deliveryOption = delivery.options[1];
     deliveryOption.hidden = deliveryOption.disabled = !valid;
     if (!valid) delivery.value = 'pickup';
@@ -63,9 +64,9 @@
     address.closest('label').hidden = !address.required;
     if (valid) deliveryOption.textContent = ({120:'Standard delivery',240:'Large-sign delivery',300:'Oversize delivery'})[finished.tier];
     const rates = shop.rates;
-    let label = valid ? 'Shop quote on request' : 'Complete your lettering to request a quote';
+    let label = valid ? (review ? 'Price after shop review' : 'Shop quote on request') : 'Complete your lettering to request a quote';
     let estimate = '';
-    if (valid && rates) {
+    if (valid && rates && !review) {
       const acrylicRate = finished.areaMm2 ? rates['acrylic'+finished.tier] : 0;
       const deliveryFee = delivery.value==='delivery' ? rates['delivery'+finished.tier] : 0;
       if ([rates.base,rates.perMetre,rates[spec.mount],acrylicRate,deliveryFee].every(value=>Number.isSafeInteger(value) && value>=0)) {
@@ -106,7 +107,7 @@
       attempts.set(signature, attempt);
     }
     if (attempt.reference) {
-      message((review ? 'Shop review already requested.' : 'Cut-ready design already sent.') + ' Your reference is ' + attempt.reference + '.', 'success', signature);
+      message((review ? 'Shop review already requested.' : 'Design request already sent.') + ' Your reference is ' + attempt.reference + '.', 'success', signature);
       return;
     }
     requestField.value = attempt.id;
@@ -129,7 +130,7 @@
       attempt.reference = result.reference;
       const current = signatureOf(new FormData(form));
       const edited = current !== signature ? ' Your latest edits are still in the editor.' : '';
-      message((review ? 'Shop review requested.' : 'Cut-ready design sent.') + ' Your reference is ' + attempt.reference + '.' + edited, 'success', current);
+      message((review ? 'Shop review requested.' : 'Design request sent.') + ' Your reference is ' + attempt.reference + '.' + edited, 'success', current);
     } catch {
       message('Receipt could not be confirmed. Try again with the same design to check your request.', 'error', signature);
     } finally {

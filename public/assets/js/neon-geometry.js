@@ -369,7 +369,7 @@
     }
     const decomposed = character.normalize('NFD');
     const letterDot = /^[ij]$/u.test(character) || /[\u0307\u0308]/u.test(decomposed);
-    const punctuation = /^[.!?:;…]$/u.test(character);
+    const punctuation = /^[.!?:;…¡¿¨÷]$/u.test(character);
     if (!letterDot && !punctuation) return commands;
     const bounds = parts.map(part => {
       const box = emptyBounds();
@@ -385,7 +385,6 @@
       const width=right-left,height=top-bottom;
       if (part.length<3 || Math.max(width,height)>em*.19 || Math.max(width,height)===0) return part;
       if (letterDot && (parts.length<2 || bottom<base+(crown-base)*.58)) return part;
-      if (/[!?;]/u.test(character) && (parts.length<2 || top>base+(crown-base)*.34)) return part;
       const x=(left+right)/2,y=(bottom+top)/2;
       // Retain the dot's original vertical extent and give the tool a single open stroke.
       if (height>=width*.65) return [['M',x,bottom],['L',x,top]];
@@ -478,6 +477,95 @@
     }
     closeRun();
     return bends;
+  }
+
+  // This is a screening check, not a substitute for reviewing a shop drawing.
+  // Adjacent segments and endpoint-to-endpoint junctions are intentionally
+  // excluded from clearance warnings.
+  function inspectManufacturing(runs) {
+    // A 6 mm tube with 10 mm clear space has a 16 mm centerline spacing.
+    const centerlineClearance = 16;
+    const segments = [];
+    let shortStrokes = 0;
+    let tightCurves = false;
+    for (const [runIndex, run] of runs.entries()) {
+      let total = 0;
+      // An 8 mm centerline radius is the geometric minimum for a semicircle
+      // with 10 mm clear space inside a 6 mm tube. The flex may require more.
+      for (let i=1;i<run.length-1;i++) {
+        const a=run[i-1], b=run[i], c=run[i+1];
+        const ab=distance(a,b), bc=distance(b,c), ca=distance(c,a);
+        if (ab<.05 || bc<.05 || ca<.05) continue;
+        const cross=Math.abs((b[0]-a[0])*(c[1]-a[1])-(b[1]-a[1])*(c[0]-a[0]));
+        const dot=((b[0]-a[0])*(c[0]-b[0])+(b[1]-a[1])*(c[1]-b[1]))/(ab*bc);
+        if (dot>.707 && cross>1e-7 && ab*bc*ca/(2*cross)<8-.1) tightCurves=true;
+      }
+      for (let i = 1; i < run.length; i++) {
+        const a = run[i-1], b = run[i], length = distance(a,b);
+        if (length < 1e-8) continue;
+        segments.push({a,b,runIndex,index:i,start:total,end:total+length,
+          left:Math.min(a[0],b[0]),right:Math.max(a[0],b[0]),
+          top:Math.min(a[1],b[1]),bottom:Math.max(a[1],b[1])});
+        total += length;
+      }
+      if (total < TUBE) shortStrokes++;
+      for (let i=segments.length-1; i>=0 && segments[i].runIndex===runIndex; i--) {
+        segments[i].runLength=total;
+        segments[i].closed=distance(run[0],run.at(-1))<.05;
+      }
+    }
+    if (segments.length > 12000) {
+      return {shortStrokes,closePaths:false,tightCurves,incomplete:true,requiresReview:true};
+    }
+    segments.sort((a,b)=>a.left-b.left);
+    let closePaths=false, checks=0, incomplete=false;
+    const pointToSegment=(p,a,b)=>{
+      const dx=b[0]-a[0],dy=b[1]-a[1],size=dx*dx+dy*dy;
+      const t=size ? Math.max(0,Math.min(1,((p[0]-a[0])*dx+(p[1]-a[1])*dy)/size)) : 0;
+      return distance(p,[a[0]+dx*t,a[1]+dy*t]);
+    };
+    outer: for (let i=0; i<segments.length; i++) {
+      const first=segments[i];
+      for (let j=i+1; j<segments.length && segments[j].left<first.right+centerlineClearance; j++) {
+        const second=segments[j];
+        if (first.bottom+centerlineClearance<second.top || second.bottom+centerlineClearance<first.top) continue;
+        if (++checks>500000) { incomplete=true; break outer; }
+        if (first.runIndex===second.runIndex) {
+          let along=Math.max(first.start,second.start)-Math.min(first.end,second.end);
+          if (first.closed) along=Math.min(along, first.runLength-Math.max(first.end,second.end)+Math.min(first.start,second.start));
+          // Nearby samples on the same continuous bend naturally approach
+          // each other. The separate curvature check handles these.
+          if (along<centerlineClearance*Math.PI/2) continue;
+        } else {
+          // Shared terminals are normal pen lifts at a letter junction. Overlaps
+          // beyond the shared terminal remain candidates for shop inspection.
+          const runA=runs[first.runIndex],runB=runs[second.runIndex];
+          const terminalA=[runA[0],runA.at(-1)],terminalB=[runB[0],runB.at(-1)];
+          const junction=terminalA.some(a=>terminalB.some(b=>distance(a,b)<.1 &&
+            Math.min(distance(a,first.a),distance(a,first.b))<centerlineClearance &&
+            Math.min(distance(b,second.a),distance(b,second.b))<centerlineClearance)) ||
+            terminalA.some(a=>pointToSegment(a,second.a,second.b)<.1 &&
+              Math.min(distance(a,first.a),distance(a,first.b))<centerlineClearance) ||
+            terminalB.some(b=>pointToSegment(b,first.a,first.b)<.1 &&
+              Math.min(distance(b,second.a),distance(b,second.b))<centerlineClearance);
+          if (junction) continue;
+        }
+        const dx=first.b[0]-first.a[0],dy=first.b[1]-first.a[1];
+        const ex=second.b[0]-second.a[0],ey=second.b[1]-second.a[1];
+        const cross=dx*ey-dy*ex;
+        let intersects=false;
+        if (Math.abs(cross)>1e-10) {
+          const px=second.a[0]-first.a[0],py=second.a[1]-first.a[1];
+          const t=(px*ey-py*ex)/cross, u=(px*dy-py*dx)/cross;
+          intersects=t>=0 && t<=1 && u>=0 && u<=1;
+        }
+        const gap=intersects ? 0 : Math.min(
+          pointToSegment(first.a,second.a,second.b),pointToSegment(first.b,second.a,second.b),
+          pointToSegment(second.a,first.a,first.b),pointToSegment(second.b,first.a,first.b));
+        if (gap<centerlineClearance-.05) { closePaths=true; break outer; }
+      }
+    }
+    return {shortStrokes,closePaths,tightCurves,incomplete,requiresReview:shortStrokes>0 || closePaths || tightCurves || incomplete};
   }
 
   function layout(options = {}) {
@@ -787,5 +875,5 @@
     return groups.join('\r\n')+'\r\n';
   }
 
-  globalThis.NeonGeometry = {fonts, layout, svg, dxf, backboard, finishedSize, acrylicMargin};
+  globalThis.NeonGeometry = {fonts, layout, svg, dxf, backboard, finishedSize, acrylicMargin, inspectManufacturing};
 })();

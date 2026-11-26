@@ -456,6 +456,13 @@
     const nextKey = JSON.stringify([design.text, design.font, design.widthMm, design.align, design.letterSpacing, design.lineSpacing]);
     if (nextKey !== geometryKey) {
       geometry = engine.layout(design);
+      if (geometry.valid) {
+        geometry.manufacturing=engine.inspectManufacturing(geometry.runs);
+        if (geometry.manufacturing.shortStrokes) geometry.warnings.push('A neon stroke is shorter than 6 mm and needs shop review.');
+        if (geometry.manufacturing.closePaths) geometry.warnings.push('Some neon paths have less than 10 mm clear space or cross and need shop review.');
+        if (geometry.manufacturing.tightCurves) geometry.warnings.push('A neon curve is very tight and needs shop review.');
+        if (geometry.manufacturing.incomplete) geometry.warnings.push('This design needs a manual clearance check.');
+      }
       geometryKey = nextKey;
       renderFontSummary();
     }
@@ -512,7 +519,7 @@
     root.querySelector('label[for="neon-width"]').textContent = design.backing === 'none' ? 'Lettering width' : 'Finished acrylic width';
     for (const control of fields.filter(field => field.dataset.neonField === 'widthMm')) {
       const allowanceCorrection=widthAllowance-2*engine.acrylicMargin(design.widthMm,design);
-      control.min = Math.min(3000,effectiveMin+2*engine.acrylicMargin(effectiveMin,design)+allowanceCorrection);
+      control.min = Math.floor(Math.min(3000,effectiveMin+2*engine.acrylicMargin(effectiveMin,design)+allowanceCorrection)*10)/10;
       control.max = Math.min(3000,maxWidth+2*engine.acrylicMargin(maxWidth,design)+allowanceCorrection);
       control.setAttribute('aria-label',design.backing === 'none' ? 'Lettering width in millimetres' : 'Finished acrylic width in millimetres');
       if (control.type === 'range' || control !== document.activeElement) control.value = Number((design.widthMm+widthAllowance).toFixed(1));
@@ -526,6 +533,7 @@
       field.type !== 'number' || field.disabled || (field.value !== '' && field.validity.valid));
     const warningText = [...new Set([structuralError, ...geometry.errors, ...geometry.warnings].filter(Boolean))].join(' ');
     output('warnings', warningText);
+    root.querySelector('[data-neon-action="find-clearance-size"]').hidden = !geometry.manufacturing?.requiresReview;
     output('warning', warningText);
     root.dataset.neonValid = String(ready);
     const w = geometry.widthMm, h = geometry.heightMm;
@@ -542,7 +550,7 @@
     const spacerCount = board?.wall ? board.holes.length : 0;
     output('spacers',String(spacerCount));
     if (spec) spec.value = ready ? JSON.stringify(design) : '';
-    const intent = 'production';
+    const intent = geometry.manufacturing?.requiresReview ? 'review' : 'production';
     if (requestIntent) requestIntent.value = intent;
     if (submit) submit.disabled = !ready;
     for (const action of ['export', 'export-svg', 'export-dxf']) buttonState(action, !ready);
@@ -648,7 +656,7 @@
       if (attempt === wallGeneration) output('status', 'This photo could not be displayed. Try a smaller JPG, PNG or WebP.');
     }
   });
-  root.addEventListener('click', ev => {
+  root.addEventListener('click', async ev => {
     const btn = ev.target.closest('[data-neon-choice],[data-neon-action]');
     if (!btn || btn.disabled) return;
     if (btn.hasAttribute('data-neon-choice')) {
@@ -671,6 +679,39 @@
     if (action === 'view-sign') {
       canvas.focus({preventScroll: true});
       stage.scrollIntoView({block: 'center', behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth'});
+    }
+    if (action === 'find-clearance-size') {
+      const original = design;
+      btn.disabled = true;
+      output('status','Checking larger sizes…');
+      await new Promise(resolve => setTimeout(resolve, 20));
+      let match = null;
+      try {
+        for (let width = design.widthMm * 1.08; width <= maxWidth * 1.08; width *= 1.08) {
+          const candidate = {...original, widthMm:Math.min(maxWidth,width)};
+          const drawing = engine.layout(candidate);
+          if (!drawing.valid || engine.inspectManufacturing(drawing.runs).requiresReview) {
+            if (candidate.widthMm === maxWidth) break;
+            continue;
+          }
+          const board = engine.backboard(drawing,candidate);
+          if (engine.finishedSize(drawing,board,candidate).withinLimit &&
+              !(board?.requestedSpacers && board.holes.length < board.requestedSpacers)) {
+            match = candidate.widthMm;
+            break;
+          }
+          if (candidate.widthMm === maxWidth) break;
+        }
+        if (design !== original) return;
+        if (match !== null) {
+          changed('widthMm',match,false);
+          output('status','Adjusted the size to pass the spacing check. Please review the new dimensions.');
+        } else {
+          output('status','No larger size passed the check. Try another font or contact the shop.');
+        }
+      } finally {
+        btn.disabled = false;
+      }
     }
     if (action === 'detach') detachPreview();
     if (action === 'restore-preview') {

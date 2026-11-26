@@ -340,7 +340,7 @@ test('silicone and LEDs obey the same indoor product rules on quotes and shop re
   }
   const draft = {...sign, text: 'Hello', widthMm: 600, cover: white, color: warmWhite};
   const shop = measure(draft, 'review');
-  assert.equal(shop.reviewOnly, false);
+  assert.equal(shop.reviewOnly, shop.manufacturing.requiresReview);
   assert.equal(shop.design.cover, white);
   assert.equal(shop.design.color, warmWhite);
   assert.match(shop.svg, /Indoor use only/);
@@ -466,4 +466,23 @@ test('labour counts separate pen paths and sharp joins without charging for a sm
   assert.equal(h.bendCount,0);
   assert.equal(o.bendCount,0);
   assert.equal(l.bendCount,1);
+});
+test('manufacturing screening flags tight separate paths and short strokes while allowing terminal junctions', () => {
+  const audit=geometry.inspectManufacturing;
+  assert.equal(audit([[[0,0],[50,0]],[[0,5],[50,5]]]).closePaths,true);
+  assert.equal(audit([[[0,0],[50,0]],[[0,15],[50,15]]]).requiresReview,true);
+  assert.equal(audit([[[0,0],[50,0]],[[0,16],[50,16]]]).requiresReview,false);
+  assert.equal(audit([[[0,0],[50,0]],[[50,0],[50,50]]]).requiresReview,false);
+  assert.equal(audit([[[0,0],[2,0]]]).shortStrokes,1);
+  assert.equal(audit([[[0,0],[50,50]],[[0,50],[50,0]]]).requiresReview,true);
+});
+
+test('U-bend screening uses ten millimetres clear between tube faces', () => {
+  const u=radius=>Array.from({length:101},(_,i)=>{
+    const angle=Math.PI*i/100;
+    return [radius*Math.cos(angle),radius*Math.sin(angle)];
+  });
+  assert.equal(geometry.inspectManufacturing([u(7)]).requiresReview,true);
+  assert.equal(geometry.inspectManufacturing([u(8)]).tightCurves,false);
+  assert.equal(geometry.inspectManufacturing([u(8.1)]).requiresReview,false);
 });

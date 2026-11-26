@@ -77,6 +77,7 @@ $neonIcon = static function (string $key) use ($neonIcons): string {
         <div><dt>Tube length</dt><dd data-neon-output="length">—</dd></div>
       </dl>
       <p class="neon-warning" data-neon-output="warnings" role="status"></p>
+      <button class="neon-cut-resize" type="button" data-neon-action="find-clearance-size" hidden>Find a size that fits</button>
       <div class="neon-proof-actions">
         <label class="neon-wall-picker"><?= $neonIcon('open') ?> Try your wall
           <input type="file" data-neon-wall data-private accept="image/jpeg,image/png,image/webp" aria-label="Preview the sign on your wall photo">
