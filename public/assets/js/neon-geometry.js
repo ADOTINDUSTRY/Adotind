@@ -913,9 +913,9 @@
     function nearest(paths, remaining) {
       let closest, shortest = Infinity;
       for (const [index,island] of remaining.entries()) {
-        for (const path of paths) for (const a of path) for (const b of island) {
+        for (const [pathIndex,path] of paths.entries()) for (const a of path) for (const b of island) {
           const squared = (a.X-b.X)**2+(a.Y-b.Y)**2;
-          if (squared < shortest) { shortest = squared; closest = {index,a,b}; }
+          if (squared < shortest) { shortest = squared; closest = {index,pathIndex,a,b}; }
         }
       }
       return closest;
@@ -929,6 +929,32 @@
       const connection = [];
       bridge.Execute(connection,radius*scale);
       return connection;
+    }
+    // An arched centreline adds material above the straight bridge while the
+    // original bridge keeps the lower edge in place.
+    function archedBridge(a,b,radius) {
+      const rise=Math.min(radius*scale*.65,Math.hypot(b.X-a.X,b.Y-a.Y)*.22);
+      const curve=Array.from({length:17},(_,i)=>{
+        const t=i/16;
+        return {X:Math.round(a.X+(b.X-a.X)*t),Y:Math.round(a.Y+(b.Y-a.Y)*t-4*t*(1-t)*rise)};
+      });
+      const offset=new clipper.ClipperOffset(2,0.05*scale), out=[];
+      offset.AddPath(curve,clipper.JoinType.jtRound,clipper.EndType.etOpenRound);
+      offset.Execute(out,radius*scale);
+      return out;
+    }
+    // Fill the overlap between text rows, with rounded corners. The basic
+    // connector remains in the union as a fallback for staggered rows.
+    function rowPanel(left,right,top,bottom,radius) {
+      if (right-left<2 || bottom-top<2) return [];
+      const r=Math.min(radius*scale,(right-left)/2,(bottom-top)/2), out=[];
+      const corners=[[left+r,top+r,Math.PI],[right-r,top+r,-Math.PI/2],
+        [right-r,bottom-r,0],[left+r,bottom-r,Math.PI/2]];
+      for (const [cx,cy,start] of corners) for (let i=0;i<=8;i++) {
+        const angle=start+Math.PI/2*i/8;
+        out.push({X:Math.round(cx+r*Math.cos(angle)),Y:Math.round(cy+r*Math.sin(angle))});
+      }
+      return [out];
     }
     function unite(paths) {
       const union = new clipper.Clipper();
@@ -957,12 +983,23 @@
       // Use evenly sampled centreline points per word to keep nearest-neighbour
       // work bounded for long text. The generous connector overlaps each word's
       // own offset, so sub-millimetre nearest-point precision is not required.
-      const words=[...groups.values()].filter(points=>points.length).map(points=>{
+      const rowBounds=new Map();
+      const words=[...groups.entries()].filter(([,points])=>points.length).map(([id,points])=>{
+        const line=Number(id.split(':')[0]);
+        const bounds=rowBounds.get(line) || {left:Infinity,right:-Infinity};
+        for (const p of points) {bounds.left=Math.min(bounds.left,p.X);bounds.right=Math.max(bounds.right,p.X);}
+        rowBounds.set(line,bounds);
         const step=Math.max(1,Math.ceil(points.length/64));
-        return points.filter((_,i)=>i%step===0 || i===points.length-1);
+        const sample=points.filter((_,i)=>i%step===0 || i===points.length-1);
+        sample.line=line;
+        return sample;
       });
       const connected=words.splice(0,1), bridges=[];
-      const best=words.map(word=>nearest(connected,[word]));
+      const best=words.map(word=>{
+        const candidate=nearest(connected,[word]);
+        candidate.fromLine=connected[candidate.pathIndex].line;
+        return candidate;
+      });
       while (words.length && connected.length) {
         let choice=0, shortest=Infinity;
         for (const [i,entry] of best.entries()) {
@@ -971,9 +1008,18 @@
         }
         const edge=best.splice(choice,1)[0], added=words.splice(choice,1)[0];
         bridges.push(...bridgeBetween(edge.a,edge.b,gap+1));
+        if (edge.fromLine===added.line) {
+          bridges.push(...archedBridge(edge.a,edge.b,gap+1));
+        } else {
+          const first=rowBounds.get(edge.fromLine),second=rowBounds.get(added.line);
+          const left=Math.max(first.left,second.left),right=Math.min(first.right,second.right);
+          if (right>left) bridges.push(...rowPanel(left,right,
+            Math.min(edge.a.Y,edge.b.Y),Math.max(edge.a.Y,edge.b.Y),gap*.5));
+        }
         connected.push(added);
         for (const [i,word] of words.entries()) {
           const candidate=nearest([added],[word]);
+          candidate.fromLine=added.line;
           const newer=(candidate.a.X-candidate.b.X)**2+(candidate.a.Y-candidate.b.Y)**2;
           const older=(best[i].a.X-best[i].b.X)**2+(best[i].a.Y-best[i].b.Y)**2;
           if (newer<older) best[i]=candidate;

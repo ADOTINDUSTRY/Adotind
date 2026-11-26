@@ -447,6 +447,49 @@ test('contoured acrylic reinforces spaces while preserving one-word lettering', 
   }
 });
 
+test('word connections arch upward and text rows share a broad acrylic panel', () => {
+  const spec={...design,backing:'clear',boardShape:'contour',boardGap:30,mount:'wall',font:'signature'};
+  // Scan the actual outline, rather than relying on the connector algorithm.
+  function intersections(outlines, axis, value) {
+    const result=[];
+    for (const outline of outlines) for (let i=0;i<outline.length;i++) {
+      const a=outline[i],b=outline[(i+1)%outline.length],other=1-axis;
+      if ((a[axis]-value)*(b[axis]-value)<0) {
+        result.push(a[other]+(b[other]-a[other])*(value-a[axis])/(b[axis]-a[axis]));
+      }
+    }
+    return result.sort((a,b)=>a-b);
+  }
+  // With two spaced words on the same baseline, the top of the bridge rises
+  // towards its midpoint while the lower edge stays at its original height.
+  const spaced={widthMm:200,heightMm:100,runs:[[[30,50],[30,50.1]],[[130,50],[130,50.1]]],runWords:['0:0','0:1']};
+  const board=geometry.backboard(spaced,spec),middle=intersections(board.outlines,0,80);
+  const left=intersections(board.outlines,0,55),right=intersections(board.outlines,0,105);
+  assert.equal(middle.length,2);
+  assert.ok(middle[0]<left[0]-2 && middle[0]<right[0]-2, 'the upper edge should be curved upwards');
+  assert.ok(middle[1]>=80, 'the lower edge should retain its thickness');
+
+  // The lower line in the pictured design joins across nearly its full width,
+  // not just through one narrow vertical post.
+  const drawing=geometry.layout({...spec,text:'Hello Hello\nHello',widthMm:1000});
+  const rows=[0,1].map(line=>drawing.runs.flatMap((run,index)=>drawing.runWords[index].startsWith(line+':')?run:[]));
+  const upperBottom=Math.max(...rows[0].map(p=>p[1]));
+  const lowerTop=Math.min(...rows[1].map(p=>p[1]));
+  const lowerWidth=Math.max(...rows[1].map(p=>p[0]))-Math.min(...rows[1].map(p=>p[0]));
+  const united=geometry.backboard(drawing,spec);
+  assert.equal(united.outlines.length,1);
+  const across=intersections(united.outlines,1,(upperBottom+lowerTop)/2);
+  assert.equal(across.length,2);
+  assert.ok(across[1]-across[0]>=lowerWidth*.9, 'the row connection should span the lower word');
+  const cad=polylines(geometry.dxf(drawing,spec)).filter(item=>item.layer==='ACRYLIC_OUTLINE');
+  assert.equal(cad.length,1);
+  assert.equal(cad[0].points.length,united.outlines[0].length);
+  for(let i=0;i<cad[0].points.length;i++) {
+    near(cad[0].points[i][0],united.outlines[0][i][0],.00011);
+    near(cad[0].points[i][1],drawing.heightMm-united.outlines[0][i][1],.00011);
+  }
+});
+
 test('Hello across two lines exports original strokes at non-multiple lengths', () => {
   const spec={...design,text:'Hello   Hello\\nHello',font:'signature',widthMm:1000};
   const drawing=geometry.layout(spec);
