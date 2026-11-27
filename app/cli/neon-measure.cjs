@@ -1,6 +1,7 @@
 'use strict';
 
 require('../../public/assets/js/neon-fonts.js');
+require('../../public/assets/js/neon-font-overrides.js');
 require('../../public/assets/js/neon-geometry.js');
 const geometry = globalThis.NeonGeometry;
 const palette = require('../data/neon-colors.json');
@@ -84,8 +85,8 @@ async function main() {
   let bytes = 0;
   for await (const chunk of process.stdin) {
     bytes += chunk.length;
-    if (bytes > 8192) {
-      process.stdout.write(JSON.stringify({error: 'Choose a design under 8 KB.'}));
+    if (bytes > 5000000) {
+      process.stdout.write(JSON.stringify({error: 'Design data is too large.'}));
       return;
     }
     chunks.push(chunk);
@@ -96,6 +97,12 @@ async function main() {
   } catch {
     process.stdout.write(JSON.stringify({error: 'Choose a valid design.'}));
     return;
+  }
+  if (input && typeof input === 'object' && Object.hasOwn(input, 'design')) {
+    globalThis.applyNeonFontOverrides(input.fontOverrides);
+    input = input.design;
+  } else if (bytes > 8192) {
+    process.stdout.write(JSON.stringify({error: 'Choose a design under 8 KB.'})); return;
   }
   process.stdout.write(JSON.stringify(measure(input, process.argv[2] || 'production')));
 }

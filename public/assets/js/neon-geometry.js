@@ -396,9 +396,11 @@
     const cacheKey = fontId + ch;
     if (parsed.has(cacheKey)) return parsed.get(cacheKey);
     let commands = readPath(glyph[1]);
-    if (fontId === 'studio') commands = cleanStudioTerminals(commands);
-    commands = simplifyDots(commands, ch, globalThis.NeonStrokeFonts[fontId].em);
-    if (fontId !== 'orbit') commands = smoothPenPaths(commands, globalThis.NeonStrokeFonts[fontId].em);
+    if (!globalThis.NeonStrokeFonts[fontId].customGlyphs?.[ch]) {
+      if (fontId === 'studio') commands = cleanStudioTerminals(commands);
+      commands = simplifyDots(commands, ch, globalThis.NeonStrokeFonts[fontId].em);
+      if (fontId !== 'orbit') commands = smoothPenPaths(commands, globalThis.NeonStrokeFonts[fontId].em);
+    }
     const box = emptyBounds();
     let x = 0, y = 0;
     for (const c of commands) {
@@ -1241,5 +1243,11 @@
   }
 
   const countBends = paths => paths.reduce((count,path)=>count+sharpBends(readPath(path.d)),0);
-  globalThis.NeonGeometry = {fonts, layout, svg, dxf, backboard, finishedSize, freestandingBase, acrylicMargin, inspectManufacturing, repairLayout, countBends};
+  function editingGlyph(fontId, ch) {
+    const font = globalThis.NeonStrokeFonts[fontId], raw = font?.glyphs?.[ch];
+    if (!raw) return null;
+    const g = glyphGeometry(fontId, ch, raw);
+    return {advance:g.advance, em:font.em, commands:g.commands.map(command => [...command])};
+  }
+  globalThis.NeonGeometry = {fonts, layout, svg, dxf, backboard, finishedSize, freestandingBase, acrylicMargin, inspectManufacturing, repairLayout, countBends, editingGlyph};
 })();

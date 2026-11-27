@@ -101,12 +101,19 @@ function neon_reply(int $status, array $data): never
     exit;
 }
 
-function neon_measure(string $design, string $intent = 'production'): array
+function neon_measure(string $design, string $intent = 'production', array $fontOverrides = []): array
 {
+    if (strlen($design) > 8192) throw new InvalidArgumentException('Design is too large.');
+    $payload = json_encode(['design'=>json_decode($design, true, 16, JSON_THROW_ON_ERROR), 'fontOverrides'=>$fontOverrides], JSON_THROW_ON_ERROR);
+    if (strlen($payload) > 5000000) throw new InvalidArgumentException('Font data is too large.');
     $command = ['/usr/bin/timeout','8','/usr/local/bin/node','--max-old-space-size=96',dirname(__DIR__) . '/cli/neon-measure.cjs',$intent];
     $proc = proc_open($command, [0=>['pipe','r'],1=>['pipe','w'],2=>['file','/dev/null','a']], $pipes);
     if (!is_resource($proc)) throw new RuntimeException('Geometry service unavailable');
-    fwrite($pipes[0], $design);
+    for ($offset=0, $length=strlen($payload); $offset<$length;) {
+        $written = fwrite($pipes[0], substr($payload, $offset));
+        if ($written === false || $written === 0) throw new RuntimeException('Geometry service unavailable');
+        $offset += $written;
+    }
     fclose($pipes[0]);
     $json = stream_get_contents($pipes[1], 12000000);
     fclose($pipes[1]);
@@ -155,7 +162,7 @@ function neon_handle_request(): never
         if ($shop['edition'] !== ($_POST['edition'] ?? '') || (string)$shop['revision'] !== ($_POST['revision'] ?? '')) {
             neon_reply(409, ['error'=>'The designer or shop settings changed. Save your design, reload and review it before sending.']);
         }
-        $proof = neon_measure($design, $intent);
+        $proof = neon_measure($design, $intent, is_array($shop['fontOverrides'] ?? null) ? $shop['fontOverrides'] : []);
         if (isset($proof['error'])) neon_reply(422, ['error'=>$proof['error']]);
         $spec = $proof['design'];
         $lineCounts = array_map(static fn($line) => preg_match_all('/[^\s]/u', $line), explode("\n",$spec['text']));

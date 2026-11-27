@@ -1,0 +1,19 @@
+const {test}=require('node:test');
+const assert=require('node:assert/strict');
+const {spawnSync}=require('node:child_process');
+const cli=require.resolve('../app/cli/neon-measure.cjs');
+const design={version:1,text:'A',font:'studio',widthMm:700,align:'center',letterSpacing:0,lineSpacing:1.25,color:'#ff488d',backing:'none',mount:'wall',brightness:85,scene:'studio',power:true};
+const run=(payload)=>{const p=spawnSync(process.execPath,[cli,'production'],{input:JSON.stringify(payload),encoding:'utf8'});assert.equal(p.status,0,p.stderr);return JSON.parse(p.stdout);};
+test('edited glyph appears identically in browser geometry and server DXF',()=>{
+  const original=run(design);assert.ok(!original.error,original.error);
+  const overrides={studio:{'g:A':[['M',0,0],['C',100,500,400,900,500,900],['L',1000,0],['M',200,250],['L',800,250]]}};
+  const edited=run({design,fontOverrides:overrides});assert.ok(!edited.error,edited.error);
+  assert.notEqual(edited.dxf,original.dxf);
+  require('../public/assets/js/neon-fonts.js');require('../public/assets/js/neon-font-overrides.js');
+  globalThis.applyNeonFontOverrides(overrides);require('../public/assets/js/neon-geometry.js');
+  const geometry=globalThis.NeonGeometry;
+  const preview=geometry.layout(edited.design);
+  assert.ok(preview.valid);
+  assert.equal(geometry.dxf(preview,edited.design),edited.dxf);
+  assert.deepEqual(geometry.editingGlyph('studio','A').commands,overrides.studio['g:A']);
+});
