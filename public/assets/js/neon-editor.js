@@ -74,7 +74,7 @@
   }
   const defaults = {
     version: 2, text: 'Hello', font: fonts[0].id, widthMm: Math.min(maxWidth, Math.max(minWidth, 600)),
-    align: 'center', letterSpacing: 0, lineSpacing: 1.25, color: colors[0], lineColors: [], cover: WHITE_COVER,
+    align: 'center', letterSpacing: 0, lineSpacing: 1.25, color: colors[0], lineColors: [], lineFonts: [], lineTransforms: [], cover: WHITE_COVER,
     boardShape: 'rectangle', boardGap: 30, backing: 'clear', mount: 'wall', scene: 'studio', power: true, brightness: 85,
     baseWidthMm: 0, baseDepthMm: 0, standSurface: 'table',
   };
@@ -103,9 +103,11 @@
       if (design.cover !== WHITE_COVER) {
         design.color = design.cover;
         design.lineColors = [];
-      } else if (Array.isArray(saved.lineColors) && saved.lineColors.length <= 4) {
+      } else if (Array.isArray(saved.lineColors) && saved.lineColors.length <= 8) {
         design.lineColors = saved.lineColors.map(color => colors.includes(color) ? color : null);
       }
+      if (Array.isArray(saved.lineFonts) && saved.lineFonts.length<=8) design.lineFonts=saved.lineFonts.map(id=>fonts.some(f=>f.id===id)?id:null);
+      if (Array.isArray(saved.lineTransforms) && saved.lineTransforms.length<=8) design.lineTransforms=saved.lineTransforms.map(t=>t && ['x','y','rotation'].every(k=>Number.isFinite(t[k])) && Math.abs(t.x)<=200 && Math.abs(t.y)<=200 && Math.abs(t.rotation)<=180 ? {x:t.x,y:t.y,rotation:t.rotation} : null);
       if (design.mount !== 'wall' && design.boardShape === 'contour') design.boardShape = 'rectangle';
       manualLineSpacing = stored.manualLineSpacing === true;
       restoredDesign = true;
@@ -137,6 +139,7 @@
   let compatibleFonts = fonts;
   let pendingImport;
   let returnFocus;
+  let moveLinesMode=false, lineDrag=null;
   let zoom = 1;
   const maxZoom = 3;
   const minZoom = () => wallURL ? .25 : .65;
@@ -176,6 +179,9 @@
   function buttonState(action, disabled) {
     for (const el of root.querySelectorAll('[data-neon-action="' + action + '"]')) el.disabled = disabled;
   }
+  function greekLineFonts(spec) {
+    return window.NeonLines.autoGreek(spec,fonts,window.NeonStrokeFonts);
+  }
   for (const select of root.querySelectorAll('[data-neon-line-color]')) {
     for (const option of select.options) {
       option.disabled = Boolean(option.value && !colors.includes(option.value));
@@ -185,6 +191,41 @@
       const next = Array.from({length:Math.max(line+1,design.lineColors.length)},(_,index)=>
         index===line ? select.value || null : design.lineColors[index] || null);
       changed('lineColors',next,false);
+    });
+  }
+  for (const select of root.querySelectorAll('[data-neon-line-font]')) {
+    for(const font of fonts) select.add(new Option(font.label,font.id));
+    select.addEventListener('change',()=>{
+      const line=Number(select.dataset.neonLineFont), next=design.lineFonts.slice();
+      next[line]=select.value || null;changed('lineFonts',next,false);
+    });
+  }
+  for (const input of root.querySelectorAll('[data-neon-line-text]')) {
+    input.addEventListener('input',()=>{
+      const line=Number(input.dataset.neonLineText), rows=design.text.split('\n');
+      if(line>=rows.length)return;
+      rows[line]=input.value;
+      if([...rows.join('\n')].length>80){input.value=design.text.split('\n')[line] || '';output('status','Use up to 80 characters across the sign.');return;}
+      changed('text',rows.join('\n'),true);
+    });
+    input.addEventListener('blur',()=>{sequence=undefined;});
+  }
+  for (const button of root.querySelectorAll('[data-neon-remove-line]')) {
+    button.addEventListener('click',()=>{
+      const index=Number(button.dataset.neonRemoveLine), rows=design.text.split('\n');if(rows.length<=1 || index>=rows.length)return;
+      past.push({design,manualLineSpacing});if(past.length>100)past.shift();future.length=0;sequence=undefined;
+      rows.splice(index,1);const fields={};
+      for(const key of ['lineFonts','lineColors','lineTransforms']){fields[key]=design[key].slice();fields[key].splice(index,1);}
+      design={...design,...fields,text:rows.join('\n')};
+      if(!manualLineSpacing){const suggested=suggestedLineSpacing(design);if(suggested!==null)design.lineSpacing=suggested;}
+      render();
+    });
+  }
+  for (const key of ['x','y','rotation']) for (const input of root.querySelectorAll('[data-neon-line-'+key+']')) {
+    input.addEventListener('change',()=>{
+      const line=Number(input.getAttribute('data-neon-line-'+key)), value=Number(input.value), max=key==='rotation'?180:200;
+      if(input.value==='' || !Number.isFinite(value) || Math.abs(value)>max){render();return;}
+      const next=design.lineTransforms.slice();next[line]={x:0,y:0,rotation:0,...next[line],[key]:value};changed('lineTransforms',next,false);
     });
   }
   function changed(key, value, group) {
@@ -202,13 +243,21 @@
     }
     sequence = group ? {key, at: now} : undefined;
     future.length = 0;
+    const oldText=design.text;
     design = {...design, [key]: value};
+    if (key === 'text') {
+      // Keep settings attached to their line when the user inserts or removes a newline.
+      [design.lineFonts,design.lineColors,design.lineTransforms]=window.NeonLines.reconcile(oldText,value,[design.lineFonts,design.lineColors,design.lineTransforms]);
+      const greek=greekLineFonts(design);
+      if(greek.switched){design.lineFonts=greek.next;output('auto-font','Greek lettering switched to Aegean Greek. You can choose another compatible font for each line.');}
+      else if(!/\p{Script=Greek}/u.test(value))output('auto-font','');
+    }
     if (design.mount !== 'wall' && design.boardShape === 'contour') design.boardShape = 'rectangle';
     if (key === 'cover' && value !== WHITE_COVER) {
       design.color = value;
       design.lineColors = [];
     }
-    if (!manualLineSpacing && ['text','font','widthMm','letterSpacing'].includes(key)) {
+    if (!manualLineSpacing && ['text','font','lineFonts','widthMm','letterSpacing'].includes(key)) {
       const suggested = suggestedLineSpacing(design);
       if (suggested !== null) design.lineSpacing = suggested;
     }
@@ -217,16 +266,18 @@
   }
   function projectError(value) {
     if (!value || value.version !== 2 || typeof value.text !== 'string' || [...value.text].length > 80 ||
-        value.text.split('\n').length > 4 || /[\x00-\x09\x0b-\x1f\x7f]/.test(value.text)) {
-      return 'Use up to 80 characters and four lines of text.';
+        value.text.split('\n').length > 8 || /[\x00-\x09\x0b-\x1f\x7f]/.test(value.text)) {
+      return 'Use up to 80 characters and eight lines of text.';
     }
     for (const [key, values] of Object.entries(options)) {
       if (!values.includes(value[key])) return 'Choose one of the available ' + key + ' options.';
     }
-    if (!Array.isArray(value.lineColors) || value.lineColors.length > 4 ||
+    if (!Array.isArray(value.lineColors) || value.lineColors.length > 8 ||
         value.lineColors.some(color => color !== null && (!colors.includes(color) || value.cover !== WHITE_COVER))) {
       return 'Choose available line colours with a white silicone cover.';
     }
+    if (!Array.isArray(value.lineFonts) || value.lineFonts.length>8 || value.lineFonts.some(id=>id!==null&&!options.font.includes(id))) return 'Choose an available font for each line.';
+    if (!Array.isArray(value.lineTransforms) || value.lineTransforms.length>8 || value.lineTransforms.some(t=>t!==null && (!t || typeof t!=='object' || Array.isArray(t) || Object.keys(t).some(k=>!['x','y','rotation'].includes(k)) || ['x','y','rotation'].some(k=>!Number.isFinite(t[k])) || Math.abs(t.x)>200 || Math.abs(t.y)>200 || Math.abs(t.rotation)>180))) return 'Choose valid line positions and rotation.';
     if (value.cover !== WHITE_COVER && value.cover !== value.color) {
       return 'A coloured silicone cover requires a matching LED. Choose a white cover to use a different LED.';
     }
@@ -295,10 +346,13 @@
     const letters = [...new Set(text.normalize('NFC').replace(/\n/g, ''))];
     return fonts.filter(font => letters.every(ch => Object.hasOwn(window.NeonStrokeFonts[font.id].glyphs, ch)));
   }
+  function mainStyleText(spec) {
+    return spec.text.split('\n').filter((_,index)=>!spec.lineFonts?.[index]).join('\n');
+  }
   function filterFontCards() {
     const query = fontSearch.value.trim().toLowerCase();
     const target = pendingImport || design;
-    const compatible = pendingImport ? compatibleStyles(target.text) : compatibleFonts;
+    const compatible = pendingImport ? compatibleStyles(mainStyleText(target)) : compatibleFonts;
     let matches = 0;
     for (const font of fonts) {
       const card = fontCards.get(font.id);
@@ -311,7 +365,7 @@
       const fits = compatible.includes(font);
       btn.disabled = !fits;
       btn.style.order = fits ? 0 : 1;
-      const text = fits ? previewText(font, target.text) : font.sample || 'Neon';
+      const text = fits ? previewText(font, mainStyleText(target)) : font.sample || 'Neon';
       if (card.sample !== text) {
         drawSpecimen(specimen, font, text);
         card.sample = text;
@@ -325,9 +379,9 @@
   }
   function renderFontSummary() {
     const active = fonts.find(font => font.id === design.font);
-    compatibleFonts = compatibleStyles(design.text);
+    compatibleFonts = compatibleStyles(mainStyleText(design));
     const matches = compatibleFonts.includes(active);
-    const sample = matches ? previewText(active, design.text) : active.sample || 'Neon';
+    const sample = matches ? previewText(active, mainStyleText(design)) : active.sample || 'Neon';
     const key = active.id + '/' + sample;
     if (key !== currentSampleKey) {
       drawSpecimen(root.querySelector('[data-neon-current-sample]'), active, sample);
@@ -456,6 +510,7 @@
         canvas.append(path({'stroke-width':8+2*previewSpread,opacity:.9*level,filter:'url(#neon-bloom)'}));
         canvas.append(path({opacity:.55+.45*level}));
       } else canvas.append(path());
+      if(moveLinesMode) canvas.append(svg('path',{d:pathData,fill:'none',stroke:'transparent','stroke-width':20,'stroke-linecap':'round','stroke-linejoin':'round','pointer-events':'stroke','data-neon-move-line':line,style:'cursor:move'}));
     }
     const measure = svg('g', {stroke: technical ? '#526371' : '#d2dadf', 'stroke-width': Math.max(.5, chartSize * .065), fill: 'none', opacity: .85});
     const axisLabel=board ? 'Acrylic ' : '';
@@ -567,7 +622,7 @@
       window.sessionStorage.setItem(designStorageKey,JSON.stringify({version:1,design,manualLineSpacing}));
       window.sessionStorage.setItem(textStorageKey,design.text);
     } catch { /* Storage can be disabled without breaking the editor. */ }
-    const nextKey = JSON.stringify([design.text, design.font, design.widthMm, design.align, design.letterSpacing, design.lineSpacing,
+    const nextKey = JSON.stringify([design.text, design.font, design.lineFonts, design.lineTransforms, design.widthMm, design.align, design.letterSpacing, design.lineSpacing,
       design.backing, design.boardShape, design.boardGap, design.mount]);
     if (nextKey !== geometryKey) {
       geometry = prepareDrawing(design);
@@ -603,11 +658,23 @@
     }
     for (const select of root.querySelectorAll('[data-neon-line-color]')) {
       const line = Number(select.dataset.neonLineColor);
-      const active = design.cover === WHITE_COVER && Boolean(design.text.split('\n')[line]?.trim());
+      const active = design.cover === WHITE_COVER && line < design.text.split('\n').length;
       select.disabled = !active;
       select.closest('label').hidden = !active;
       select.value = design.lineColors[line] || '';
     }
+    const rows=design.text.split('\n');
+    for(const fieldset of root.querySelectorAll('[data-neon-line-options]')) {
+      const line=Number(fieldset.dataset.neonLineOptions), present=line<rows.length;
+      fieldset.hidden=!present;
+      if(!present)continue;
+      const lineText=fieldset.querySelector('[data-neon-line-text]');if(lineText!==document.activeElement)lineText.value=rows[line];
+      fieldset.querySelector('[data-neon-remove-line]').disabled=rows.length<=1;
+      const select=fieldset.querySelector('[data-neon-line-font]');select.value=design.lineFonts[line] || '';
+      for(const option of select.options) if(option.value) option.disabled=!compatibleStyles(rows[line]).some(f=>f.id===option.value);
+      for(const key of ['x','y','rotation']) {const input=fieldset.querySelector('[data-neon-line-'+key+']');if(input!==document.activeElement)input.value=design.lineTransforms[line]?.[key] ?? 0;}
+    }
+    buttonState('add-line',rows.length>=8 || [...design.text].length>=80);
     const ledLabel = swatches.find(el => el.dataset.value === design.color).dataset.label;
     const coverLabel = coverSwatches.find(el => el.dataset.value === design.cover).dataset.label;
     output('color', ledLabel);
@@ -820,6 +887,8 @@
       return;
     }
     const action = btn.dataset.neonAction;
+    if(action==='move-lines'){moveLinesMode=!moveLinesMode;btn.setAttribute('aria-pressed',String(moveLinesMode));btn.textContent='Move lines: '+(moveLinesMode?'on':'off');paint();return;}
+    if (action === 'add-line') { if(design.text.split('\n').length<8 && [...design.text].length<80) { changed('text',design.text+'\n',false); root.querySelector('[data-neon-line-text="'+(design.text.split('\n').length-1)+'"]')?.focus(); } return; }
     if (action === 'auto-base-size') {
       past.push({design,manualLineSpacing});
       if (past.length > 100) past.shift();
@@ -898,6 +967,7 @@
     future.length = 0;
     sequence = undefined;
     design = Object.fromEntries(Object.keys(defaults).map(key => [key, imported[key]]));
+    const greek=greekLineFonts(design);if(greek.switched)design.lineFonts=greek.next;
     manualLineSpacing = true;
     clearWall();
     render();
@@ -915,6 +985,8 @@
       }
       if (imported.boardShape === undefined) imported.boardShape = 'rectangle';
       if (imported.lineColors === undefined) imported.lineColors = [];
+      if (imported.lineFonts === undefined) imported.lineFonts = [];
+      if (imported.lineTransforms === undefined) imported.lineTransforms = [];
       if (imported.boardGap === undefined) imported.boardGap = 30;
       if (imported.baseWidthMm === undefined) imported.baseWidthMm = 0;
       if (imported.baseDepthMm === undefined) imported.baseDepthMm = 0;
@@ -966,6 +1038,13 @@
     gesture = pose && {anchor: signPoint(pose.point), distance: pose.distance, zoom};
   }
   canvas.addEventListener('pointerdown', ev => {
+    const lineTarget=moveLinesMode && ev.target.closest?.('[data-neon-move-line]');
+    if(lineTarget && frame && ev.button===0 && geometry?.lineOffsetMmPerPercent>0) {
+      const matrix=canvas.getScreenCTM();if(!matrix)return;
+      const inverse=matrix.inverse(),point=new DOMPoint(ev.clientX,ev.clientY).matrixTransform(inverse), index=Number(lineTarget.getAttribute('data-neon-move-line'));
+      lineDrag={pointer:ev.pointerId,index,inverse,point,original:{x:0,y:0,rotation:0,...design.lineTransforms[index]},factor:geometry.lineOffsetMmPerPercent};
+      canvas.setPointerCapture(ev.pointerId);ev.preventDefault();return;
+    }
     if (!frame || ev.button !== 0 || (ev.pointerType !== 'touch' && !wallURL && zoom <= 1)) return;
     nativePinch = null;
     pointers.set(ev.pointerId, clientPoint(ev));
@@ -973,6 +1052,12 @@
     startGesture();
   });
   canvas.addEventListener('pointermove', ev => {
+    if(lineDrag && lineDrag.pointer===ev.pointerId){
+      const point=new DOMPoint(ev.clientX,ev.clientY).matrixTransform(lineDrag.inverse), next=design.lineTransforms.slice();
+      const clamp=v=>Math.max(-200,Math.min(200,Math.round(v*10)/10));
+      next[lineDrag.index]={...lineDrag.original,x:clamp(lineDrag.original.x+(point.x-lineDrag.point.x)/lineDrag.factor),y:clamp(lineDrag.original.y+(point.y-lineDrag.point.y)/lineDrag.factor)};
+      changed('lineTransforms',next,true);ev.preventDefault();return;
+    }
     if (!gesture || !pointers.has(ev.pointerId)) return;
     pointers.set(ev.pointerId, clientPoint(ev));
     const pose = pointerPose();
@@ -982,6 +1067,7 @@
     cameraAt(gesture.zoom * scale, gesture.anchor, pose.point);
   });
   function endPointer(ev) {
+    if(lineDrag?.pointer===ev.pointerId){lineDrag=null;sequence=undefined;return;}
     if (pointers.delete(ev.pointerId)) startGesture();
   }
   for (const type of ['pointerup', 'pointercancel', 'lostpointercapture']) canvas.addEventListener(type, endPointer);
@@ -1045,6 +1131,8 @@
     expand.setAttribute('aria-label', expand.title);
     expand.focus({preventScroll: true});
   });
+  const initialGreek=greekLineFonts(design);
+  if(initialGreek.switched){design.lineFonts=initialGreek.next;output('auto-font','Greek lettering switched to Aegean Greek.');}
   initFontBrowser();
   render();
 })();

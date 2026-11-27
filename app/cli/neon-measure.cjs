@@ -18,7 +18,7 @@ const choices = {
   standSurface: ['table', 'shelf', 'floor'],
 };
 const ranges = {widthMm: [100, 3000], boardGap: [30, 150], letterSpacing: [0, 0.30], lineSpacing: [0.5, 2], brightness: [10, 100], baseWidthMm:[0,3000], baseDepthMm:[0,2000]};
-const fields = new Set(['version', 'text', 'color', 'cover', 'lineColors', 'power', ...Object.keys(choices), ...Object.keys(ranges)]);
+const fields = new Set(['version', 'text', 'color', 'cover', 'lineColors', 'lineFonts', 'lineTransforms', 'power', ...Object.keys(choices), ...Object.keys(ranges)]);
 
 function measure(input, intent = 'production') {
   if (!['production', 'review'].includes(intent)) return {error: 'Choose a valid request type.'};
@@ -28,8 +28,8 @@ function measure(input, intent = 'production') {
   }
   if (typeof input.text !== 'string') return {error: 'Enter the lettering for your sign.'};
   const text = input.text.replace(/\r\n?/g, '\n').normalize('NFC');
-  if (!text.trim() || [...text].length > 80 || text.split('\n').length > 4 ||
-      /[\u0000-\u0009\u000b-\u001f\u007f]/u.test(text)) return {error: 'Use up to 80 characters on a maximum of four lines.'};
+  if (!text.trim() || [...text].length > 80 || text.split('\n').length > 8 ||
+      /[\u0000-\u0009\u000b-\u001f\u007f]/u.test(text)) return {error: 'Use up to 80 characters on a maximum of eight lines.'};
   const color = typeof input.color === 'string' ? input.color.toLowerCase() : '';
   const cover = input.version === 1 ? white : typeof input.cover === 'string' ? input.cover.toLowerCase() : '';
   if (!Object.hasOwn(palette, color) || !Object.hasOwn(palette, cover) || typeof input.power !== 'boolean') {
@@ -39,11 +39,14 @@ function measure(input, intent = 'production') {
     return {error: 'Use a white silicone cover with any LED colour, or match the cover to the LED. Warm white requires a white cover.'};
   }
   const lineColors = input.lineColors === undefined ? [] : input.lineColors;
-  if (!Array.isArray(lineColors) || lineColors.length > 4 || lineColors.some(value =>
+  if (!Array.isArray(lineColors) || lineColors.length > 8 || lineColors.some(value =>
       value !== null && (typeof value !== 'string' || !Object.hasOwn(palette,value) || cover !== white))) {
     return {error:'Choose available line colours with a white silicone cover.'};
   }
-  const design = {version: 2, text, color, cover, lineColors, power: input.power};
+  const lineFonts=input.lineFonts ?? [], lineTransforms=input.lineTransforms ?? [];
+  if (!Array.isArray(lineFonts) || lineFonts.length>8 || lineFonts.some(v=>v!==null && !choices.font.includes(v))) return {error:'Choose a valid font for each line.'};
+  if (!Array.isArray(lineTransforms) || lineTransforms.length>8 || lineTransforms.some(t=>t!==null && (!t || typeof t!=='object' || Array.isArray(t) || Object.keys(t).some(k=>!['x','y','rotation'].includes(k)) || ['x','y','rotation'].some(k=>!Number.isFinite(t[k])) || Math.abs(t.x)>200 || Math.abs(t.y)>200 || Math.abs(t.rotation)>180))) return {error:'Choose valid line positions and rotation.'};
+  const design = {version: 2, text, color, cover, lineColors, lineFonts, lineTransforms, power: input.power};
   for (const [key, values] of Object.entries(choices)) {
     const value = key === 'boardShape' && input[key] === undefined ? 'rectangle' :
       key === 'standSurface' && input[key] === undefined ? 'table' : input[key];

@@ -93,8 +93,8 @@ $neonIcon = static function (string $key) use ($neonIcons): string {
       <details class="neon-group" open>
         <summary>Lettering</summary>
         <div class="neon-group-body">
-          <div class="neon-label-pair"><label for="neon-message">Sign text</label><output data-neon-output="chars">5 / 80</output></div>
-          <textarea id="neon-message" data-neon-field="text" data-private rows="2" maxlength="160" placeholder="Enter your sign text" spellcheck="false">Hello</textarea>
+          <textarea id="neon-message" data-neon-field="text" data-private hidden maxlength="160">Hello</textarea>
+          <p class="neon-pairing-help" data-neon-output="auto-font" aria-live="polite"></p>
           <fieldset class="neon-type"><legend>Letter style</legend>
             <button class="neon-type-current" type="button" data-neon-action="browse-fonts" aria-haspopup="dialog" aria-controls="neon-font-dialog" aria-label="Browse letter styles">
               <span class="neon-type-current-sample" data-neon-current-sample aria-hidden="true"></span>
@@ -108,6 +108,23 @@ $neonIcon = static function (string $key) use ($neonIcons): string {
             </div>
             <button class="neon-type-match" type="button" data-neon-action="match-font" hidden></button>
           </fieldset>
+          <div class="neon-line-options">
+            <div class="neon-label-pair"><h3>Sign text and individual lines</h3><output data-neon-output="chars">5 / 80</output></div>
+            <p>Choose a style and position for each line. Dragging is available in Move lines mode.</p>
+            <button type="button" data-neon-action="move-lines" aria-pressed="false">Move lines: off</button>
+            <?php for ($line = 0; $line < 8; $line++): ?>
+            <fieldset data-neon-line-options="<?= $line ?>" hidden><legend>Line <?= $line + 1 ?></legend>
+              <label class="neon-line-text">Text <input type="text" data-neon-line-text="<?= $line ?>" data-private maxlength="80" placeholder="Enter line <?= $line + 1 ?>" spellcheck="false"></label>
+              <label>Font <select data-neon-line-font="<?= $line ?>"><option value="">Use main style</option></select></label>
+              <label>LED colour <select data-neon-line-color="<?= $line ?>" disabled><option value="">Use main colour</option><?php foreach ($neonColours as $hex=>$name): ?><option value="<?= e($hex) ?>"><?= e($name) ?></option><?php endforeach; ?></select></label>
+              <label>Rotate (°) <input type="number" data-neon-line-rotation="<?= $line ?>" min="-180" max="180" step="1" value="0"></label>
+              <label>Horizontal position (%) <input type="number" data-neon-line-x="<?= $line ?>" min="-200" max="200" step="1" value="0"></label>
+              <label>Vertical position (%) <input type="number" data-neon-line-y="<?= $line ?>" min="-200" max="200" step="1" value="0"></label>
+              <button type="button" data-neon-remove-line="<?= $line ?>">Remove line</button>
+            </fieldset>
+            <?php endfor; ?>
+            <button type="button" class="neon-add-line" data-neon-action="add-line">+ Add another line</button>
+          </div>
           <div class="neon-align-row"><span id="neon-align-label">Alignment</span>
             <div class="neon-segment" role="group" aria-labelledby="neon-align-label">
               <?php foreach (['left','center','right'] as $alignment): ?>
@@ -130,18 +147,6 @@ $neonIcon = static function (string $key) use ($neonIcons): string {
               </div>
             </fieldset>
           <?php endforeach; ?>
-          <div class="neon-line-colours">
-            <?php for ($line = 0; $line < 4; $line++): ?>
-              <label hidden>Line <?= $line + 1 ?> LED colour
-                <select data-neon-line-color="<?= $line ?>" disabled>
-                  <option value="">Use main colour</option>
-                  <?php foreach ($neonColours as $hex=>$name): ?>
-                    <option value="<?= e($hex) ?>"><?= e($name) ?></option>
-                  <?php endforeach; ?>
-                </select>
-              </label>
-            <?php endfor; ?>
-          </div>
           <p class="neon-pairing-help" id="neon-pairing-help" data-neon-output="pairing" aria-live="polite"></p>
           <div class="neon-label-pair"><label for="neon-brightness">Preview brightness</label><output data-neon-output="brightness">85%</output></div>
           <input id="neon-brightness" type="range" data-neon-field="brightness" min="10" max="100" value="85" step="1">

@@ -171,7 +171,7 @@ function neon_handle_request(): never
         $db->exec('BEGIN IMMEDIATE');
         $shop = neon_settings($db);
         if ($shop['edition'] !== ($_POST['edition'] ?? '') || (string)$shop['revision'] !== ($_POST['revision'] ?? '') ||
-            !in_array($spec['font'], $shop['fonts'], true) || !in_array($spec['color'], $shop['colors'], true)
+            !in_array($spec['font'], $shop['fonts'], true) || array_diff(array_filter($spec['lineFonts']), $shop['fonts']) || !in_array($spec['color'], $shop['colors'], true)
             || array_diff(array_filter($spec['lineColors']), $shop['colors'])
             || $spec['widthMm'] < $shop['minWidth'] || $spec['widthMm'] > $shop['maxWidth']) {
             $db->exec('ROLLBACK');

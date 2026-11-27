@@ -727,14 +727,18 @@
     function fail(message) { errors.push(message); warnings.push(message); }
     if (!font) fail('Choose a supported lettering style.');
     if (!text.trim()) fail('Enter the lettering for your sign.');
-    if (Array.from(text).length > 80 || rows.length > 4) fail('Use up to 80 characters on a maximum of four lines.');
+    if (Array.from(text).length > 80 || rows.length > 8) fail('Use up to 80 characters on a maximum of eight lines.');
+    const lineFonts = options.lineFonts ?? [], transforms = options.lineTransforms ?? [];
+    if (!Array.isArray(lineFonts) || lineFonts.length > 8 || lineFonts.some(id => id !== null && (typeof id !== 'string' || !Object.hasOwn(globalThis.NeonStrokeFonts,id)))) fail('Choose an available font for each line.');
+    if (!Array.isArray(transforms) || transforms.length > 8 || transforms.some(t => t !== null && (!t || typeof t !== 'object' || Array.isArray(t) || Object.keys(t).some(k=>!['x','y','rotation'].includes(k)) || ['x','y','rotation'].some(k=>!Number.isFinite(t[k])) || Math.abs(t.x)>200 || Math.abs(t.y)>200 || Math.abs(t.rotation)>180))) fail('Choose valid line positions and rotation.');
     if (!(width >= 100 && width <= 3000)) fail('Choose a width from 100 to 3000 mm.');
     if (!(tracking >= 0 && tracking <= 0.30 && leading >= 0.5 && leading <= 2)) fail('Choose a valid letter and line spacing.');
     if (!['left','center','right'].includes(align)) fail('Choose left, centre or right alignment.');
     if (errors.length) return result;
 
-    const kern = kerning(fontId, font);
-    const lines = rows.map(row => {
+    const lines = rows.map((row,index) => {
+      const lineFontId=lineFonts[index] || fontId, lineFont=globalThis.NeonStrokeFonts[lineFontId];
+      const factor=font.em/lineFont.em, kern=kerning(lineFontId,lineFont);
       const glyphs = [], box = emptyBounds();
       let x = 0, previous = '', word = 0, inWord = false;
       for (const ch of row) {
@@ -742,13 +746,14 @@
           if (inWord) word++;
           inWord = false;
         } else inWord = true;
-        const raw = font.glyphs[ch];
+        const raw = lineFont.glyphs[ch];
         if (!raw) {
           if (!unsupported.includes(ch)) unsupported.push(ch);
           continue;
         }
-        if (previous) x += tracking * font.em - (kern.get(previous + ch) || 0);
-        const g = glyphGeometry(fontId, ch, raw);
+        if (previous) x += tracking * font.em - (kern.get(previous + ch) || 0)*factor;
+        const original = glyphGeometry(lineFontId, ch, raw);
+        const g = factor===1 ? original : {advance:original.advance*factor,box:Object.fromEntries(Object.entries(original.box).map(([k,v])=>[k,v*factor])),commands:original.commands.map(c=>[c[0],...c.slice(1).map(n=>n*factor)])};
         if (Number.isFinite(g.box.left)) {
           glyphs.push({x, g, ch, word});
           include(box, x+g.box.left, g.box.bottom); include(box, x+g.box.right, g.box.top);
@@ -771,16 +776,25 @@
       fail('This lettering has no measurable horizontal stroke span. Add a character to set its width.');
       return result;
     }
-    const scale = (width - TUBE) / span;
     const bounds = emptyBounds();
     for (const [index,line] of lines.entries()) {
       if (!line.glyphs.length) continue;
       const spare = span - line.span;
       line.x = -line.box.left + (align === 'left' ? 0 : align === 'right' ? spare : spare/2);
       line.y = -index * leading * font.em;
-      include(bounds, 0, line.y + line.box.bottom);
-      include(bounds, span, line.y + line.box.top);
+      const t=transforms[index] || {x:0,y:0,rotation:0}, angle=-t.rotation*Math.PI/180, cos=Math.cos(angle), sin=Math.sin(angle);
+      const cx=line.x+(line.box.left+line.box.right)/2, cy=line.y+(line.box.bottom+line.box.top)/2;
+      line.glyphs=line.glyphs.map(({x,g,word})=>{
+        const commands=g.commands.map(c=>{const out=[c[0]];for(let j=1;j<c.length;j+=2){const dx=line.x+x+c[j]-cx,dy=line.y+c[j+1]-cy;out.push(cx+dx*cos-dy*sin+t.x*span/100,cy+dx*sin+dy*cos-t.y*span/100);}return out;});
+        let px=0,py=0;
+        for(const c of commands){if(c[0]!=='M'){include(bounds,px,py);include(bounds,c.at(-2),c.at(-1));}if(c[0]==='C')for(const u of [...extrema(px,c[1],c[3],c[5]),...extrema(py,c[2],c[4],c[6])])if(u>0&&u<1)include(bounds,cubicAt(px,c[1],c[3],c[5],u),cubicAt(py,c[2],c[4],c[6],u));px=c.at(-2);py=c.at(-1);}
+        return {g:{commands},word};
+      });
     }
+    const finalSpan=bounds.right-bounds.left;
+    if (!(finalSpan>0)) {fail('This lettering has no measurable horizontal stroke span.');return result;}
+    const scale = (width - TUBE) / finalSpan;
+    result.lineOffsetMmPerPercent = span * scale / 100;
     const height = (bounds.top - bounds.bottom) * scale + TUBE;
     // Limit pathological aspect ratios (e.g. a nearly vertical glyph at 3 m wide).
     // The shop machine dimensions are independent of this numerical safeguard.
@@ -790,7 +804,7 @@
     }
     const runs = [], runWords = [];
     for (const [index, line] of lines.entries()) {
-      for (const {x, g, word} of line.glyphs) {
+      for (const {g, word} of line.glyphs) {
         result.bendCount += sharpBends(g.commands);
         let run = null, d = '';
         function finish() {
@@ -803,7 +817,7 @@
         for (const cmd of g.commands) {
           const type = cmd[0], coords = [];
           for (let j = 1; j < cmd.length; j += 2) {
-            coords.push((line.x+x+cmd[j])*scale+TUBE/2, (bounds.top-line.y-cmd[j+1])*scale+TUBE/2);
+            coords.push((cmd[j]-bounds.left)*scale+TUBE/2, (bounds.top-cmd[j+1])*scale+TUBE/2);
           }
           if (type === 'M') { finish(); run = [coords]; d = ''; }
           if (type === 'L' && distance(run.at(-1),coords) > 1e-8) run.push(coords);

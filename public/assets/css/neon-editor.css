@@ -330,3 +330,16 @@ body:has(.neon-studio dialog[open]) { overflow: hidden; }
   .neon-font-dialog :is(input,select) { font-size: 16px; }
   .neon-type-nav button { min-height: 42px; }
 }
+.neon-add-line { margin:.6rem 0; }
+.neon-line-options { margin-top:1rem; display:grid; gap:.6rem; }
+.neon-line-options h3 { margin:0; font-size:1rem; }
+.neon-line-options p { margin:0; font-size:.85rem; }
+.neon-line-options fieldset:not([hidden]) { border:1px solid #687189; border-radius:.6rem; padding:.6rem; display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:.5rem; }
+.neon-line-options fieldset label { min-width:0; }
+.neon-line-options .neon-line-text { grid-column:1 / -1; }
+.neon-line-options input,.neon-line-options select { box-sizing:border-box; width:100%; min-width:0; }
+.neon-controls textarea[hidden] { display:none; }
+.neon-add-line,.neon-line-options button { min-height:40px; padding:.45rem .75rem; border:1px solid #b7c3d1; border-radius:7px; background:#f5f8fc; color:#244365; font-size:.83rem; font-weight:650; }
+.neon-add-line:hover:not(:disabled),.neon-line-options button:hover:not(:disabled) { border-color:#537299; background:#edf4fc; }
+.neon-line-options button[aria-pressed="true"] { background:#243652; color:#fff; border-color:#243652; }
+.neon-add-line:disabled,.neon-line-options button:disabled { opacity:.5; }
