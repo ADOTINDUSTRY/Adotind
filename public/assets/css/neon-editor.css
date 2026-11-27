@@ -338,6 +338,9 @@ body:has(.neon-studio dialog[open]) { overflow: hidden; }
 .neon-line-options fieldset label { min-width:0; }
 .neon-line-options .neon-line-text { grid-column:1 / -1; }
 .neon-line-options input,.neon-line-options select { box-sizing:border-box; width:100%; min-width:0; }
+.neon-line-options input[type="range"] { display:block; margin-top:.35rem; }
+.neon-line-clearance:not(:empty) { color:#a23c19; background:#fff2e8; border-radius:6px; padding:.55rem; }
+.neon-line-note { grid-column:1 / -1; }
 .neon-controls textarea[hidden] { display:none; }
 .neon-add-line,.neon-line-options button { min-height:40px; padding:.45rem .75rem; border:1px solid #b7c3d1; border-radius:7px; background:#f5f8fc; color:#244365; font-size:.83rem; font-weight:650; }
 .neon-add-line:hover:not(:disabled),.neon-line-options button:hover:not(:disabled) { border-color:#537299; background:#edf4fc; }

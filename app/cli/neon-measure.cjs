@@ -65,6 +65,8 @@ function measure(input, intent = 'production') {
   }
   const proof = geometry.layout(design);
   if (!proof.valid) return {error: proof.errors[0] || 'Check the lettering before sending.'};
+  const clearance=geometry.lineClearance(proof,22.02);
+  if (clearance.lines && clearance.distance < 22.02-1e-7) return {error:'Keep at least 16 mm between neon on different lines. Move the lines apart or increase line spacing.'};
   const board = geometry.backboard(proof,design);
   if (board?.wall && board.requestedSpacers && board.holes.length < board.requestedSpacers) {
     return {error:'The acrylic needs a manual spacer layout. Please adjust the backing or contact the shop.'};

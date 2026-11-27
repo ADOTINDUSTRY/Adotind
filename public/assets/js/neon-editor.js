@@ -225,9 +225,19 @@
     input.addEventListener('input',()=>{
       const line=Number(input.getAttribute('data-neon-line-'+key)), value=Number(input.value), max=key==='rotation'?180:200;
       if(input.value==='' || !Number.isFinite(value) || Math.abs(value)>max)return;
-      const next=design.lineTransforms.slice();next[line]={x:0,y:0,rotation:0,...next[line],[key]:value};changed('lineTransforms',next,true);
+      const next=design.lineTransforms.slice();next[line]={x:0,y:0,rotation:0,...next[line],[key]:value};
+      if(changed('lineTransforms',next,true)===false) input.value=Number((design.lineTransforms[line]?.[key] ?? 0).toFixed(1));
     });
     input.addEventListener('blur',()=>{sequence=undefined;input.value=design.lineTransforms[Number(input.getAttribute('data-neon-line-'+key))]?.[key] ?? 0;});
+  }
+  for (const slider of root.querySelectorAll('[data-neon-line-slider]')) {
+    slider.addEventListener('input',()=>{
+      const line=Number(slider.dataset.line),key=slider.dataset.neonLineSlider,next=design.lineTransforms.slice();
+      next[line]={x:0,y:0,rotation:0,...next[line],[key]:Number(slider.value)};
+      changed('lineTransforms',next,true);
+      slider.value=Number((design.lineTransforms[line]?.[key] ?? 0).toFixed(1));
+    });
+    slider.addEventListener('change',()=>{sequence=undefined;});
   }
   function changed(key, value, group) {
     const beforeManual = manualLineSpacing;
@@ -238,12 +248,15 @@
     }
     if (key === 'color' && design.cover !== WHITE_COVER && value !== design.cover) return;
     let candidate = {...design, [key]: value};
-    let previousView, referenceLine, previousPoint;
+    let previousView, referenceLine, previousPoint, movementBlocked=false, editedLine;
     if (key === 'lineTransforms') {
-      candidate = window.NeonLines.preserveScale(design,value,prepareDrawing,{min:minWidth,max:maxWidth});
-      if (!candidate) { output('status','That position exceeds the available sign width. Reduce the lettering size first.'); return; }
       const edited=Array.from({length:Math.max(value.length,design.lineTransforms.length)},(_,i)=>i)
         .find(i=>JSON.stringify(value[i] || null)!==JSON.stringify(design.lineTransforms[i] || null));
+      if (edited===undefined) return;
+      editedLine=edited;
+      const movement=window.NeonLines.limitMovement(design,value,edited,engine,{min:minWidth,max:maxWidth});
+      candidate=movement.design;movementBlocked=movement.blocked;
+      if (!candidate) { output('line-clearance','This position is outside the available sign width.'); return false; }
       referenceLine=geometry?.paths.find(p=>p.line!==edited)?.line;
       previousPoint=lineAnchor(geometry,referenceLine);
       previousView=(canvas.getAttribute('viewBox') || '').split(/[ ,]+/).map(Number);
@@ -275,15 +288,22 @@
     }
     output('status', '');
     render();
+    if(movementBlocked) {
+      const notice='Stopped to keep at least 16 mm between neon lines, or to stay within the sign size limit.';
+      output('line-clearance',notice);
+      const local=root.querySelector('[data-neon-line-notice="'+editedLine+'"]');if(local)local.textContent=notice;
+    }
     // Keep an unchanged line in place on screen while positioning another one,
     // provided the updated sign still fits. Larger signs automatically fit again.
     const nextPoint=lineAnchor(geometry,referenceLine);
     if (previousPoint && nextPoint && previousView?.length===4 && previousView.every(Number.isFinite) && frame) {
       const [x,y,w,h]=previousView, vx=x+nextPoint.x-previousPoint.x, vy=y+nextPoint.y-previousPoint.y;
       const padding=design.text.includes('\n') ? .12/1.24 : 0, px=frame.width*padding, py=frame.height*padding;
-      if (frame.x+px>=vx && frame.y+py>=vy && frame.x+frame.width-px<=vx+w && frame.y+frame.height-py<=vy+h)
+      const rect=canvas.getBoundingClientRect(), oldScale=Math.min(rect.width/w,rect.height/h), fittedScale=Math.min(rect.width/frame.width,rect.height/frame.height);
+      if (oldScale>=fittedScale*.75 && frame.x+px>=vx && frame.y+py>=vy && frame.x+frame.width-px<=vx+w && frame.y+frame.height-py<=vy+h)
         canvas.setAttribute('viewBox',[vx,vy,w,h].join(' '));
     }
+    return !movementBlocked;
   }
   function lineAnchor(drawing,line) {
     if (line===undefined) return null;
@@ -695,6 +715,7 @@
       select.value = design.lineColors[line] || '';
     }
     const rows=design.text.split('\n');
+    for(const note of root.querySelectorAll('[data-neon-line-notice]'))note.textContent='';
     for(const fieldset of root.querySelectorAll('[data-neon-line-options]')) {
       const line=Number(fieldset.dataset.neonLineOptions), present=line<rows.length;
       fieldset.hidden=!present;
@@ -703,7 +724,12 @@
       fieldset.querySelector('[data-neon-remove-line]').disabled=rows.length<=1;
       const select=fieldset.querySelector('[data-neon-line-font]');select.value=design.lineFonts[line] || '';
       for(const option of select.options) if(option.value) option.disabled=!compatibleStyles(rows[line]).some(f=>f.id===option.value);
-      for(const key of ['x','y','rotation']) {const input=fieldset.querySelector('[data-neon-line-'+key+']');if(input!==document.activeElement)input.value=design.lineTransforms[line]?.[key] ?? 0;}
+      for(const key of ['x','y','rotation']) {
+        const value=Number((design.lineTransforms[line]?.[key] ?? 0).toFixed(1));
+        const input=fieldset.querySelector('[data-neon-line-'+key+']'),slider=fieldset.querySelector('[data-neon-line-slider="'+key+'"]');
+        if(input!==document.activeElement)input.value=value;
+        if(slider!==document.activeElement)slider.value=value;
+      }
     }
     buttonState('add-line',rows.length>=8 || [...design.text].length>=80);
     const ledLabel = swatches.find(el => el.dataset.value === design.color).dataset.label;
@@ -755,7 +781,10 @@
       ? 'Freestanding signs are available up to 1,200 mm finished width. Reduce the width or choose another mounting option.' : '';
     const spacerError = board?.wall && board.requestedSpacers && board.holes.length < board.requestedSpacers
       ? 'The acrylic needs a manual spacer layout. Adjust the backing or contact the shop.' : '';
-    const structuralError = sizeError || limitError || freestandingError || spacerError || projectError(design);
+    const clearance = geometry.valid ? engine.lineClearance(geometry,22.02) : null;
+    const clearanceError = clearance?.lines && clearance.distance < 22.02-1e-7 ? 'Keep at least 16 mm between neon on different lines. Move the lines apart or increase line spacing.' : '';
+    output('line-clearance',clearanceError);
+    const structuralError = sizeError || limitError || freestandingError || spacerError || clearanceError || projectError(design);
     output('acrylic-size',board ? mm(finished.widthMm)+' × '+mm(finished.heightMm) : '—');
     const ready = !structuralError && geometry.valid && fields.every(field =>
       field.type !== 'number' || field.disabled || (field.value !== '' && field.validity.valid));

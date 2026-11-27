@@ -112,16 +112,18 @@ $neonIcon = static function (string $key) use ($neonIcons): string {
           <div class="neon-line-options">
             <div class="neon-label-pair"><h3>Sign text and individual lines</h3><output data-neon-output="chars">5 / 80</output></div>
             <p>Choose a style and position for each line. Dragging is available in Move lines mode.</p>
+            <p class="neon-line-clearance" data-neon-output="line-clearance" role="status" aria-live="polite"></p>
             <button type="button" data-neon-action="move-lines" aria-pressed="false">Move lines: off</button>
             <?php for ($line = 0; $line < 8; $line++): ?>
             <fieldset data-neon-line-options="<?= $line ?>" hidden><legend>Line <?= $line + 1 ?></legend>
               <label class="neon-line-text">Text <input type="text" data-neon-line-text="<?= $line ?>" data-private maxlength="80" placeholder="Enter line <?= $line + 1 ?>" spellcheck="false"></label>
               <label>Font <select data-neon-line-font="<?= $line ?>"><option value="">Use main style</option></select></label>
               <label>LED colour <select data-neon-line-color="<?= $line ?>" disabled><option value="">Use main colour</option><?php foreach ($neonColours as $hex=>$name): ?><option value="<?= e($hex) ?>"><?= e($name) ?></option><?php endforeach; ?></select></label>
-              <label>Rotate (°) <input type="number" data-neon-line-rotation="<?= $line ?>" min="-180" max="180" step="1" value="0"></label>
-              <label>Horizontal position (%) <input type="number" data-neon-line-x="<?= $line ?>" min="-200" max="200" step="1" value="0"></label>
-              <label>Vertical position (%) <input type="number" data-neon-line-y="<?= $line ?>" min="-200" max="200" step="1" value="0"></label>
+              <label>Rotate (°) <input type="number" data-neon-line-rotation="<?= $line ?>" min="-180" max="180" step="0.1" value="0"><input type="range" data-neon-line-slider="rotation" data-line="<?= $line ?>" min="-180" max="180" step="0.1" value="0" aria-label="Rotate line <?= $line + 1 ?>"></label>
+              <label>Horizontal position (%) <input type="number" data-neon-line-x="<?= $line ?>" min="-200" max="200" step="0.1" value="0"><input type="range" data-neon-line-slider="x" data-line="<?= $line ?>" min="-200" max="200" step="0.1" value="0" aria-label="Move line <?= $line + 1 ?> horizontally"></label>
+              <label>Vertical position (%) <input type="number" data-neon-line-y="<?= $line ?>" min="-200" max="200" step="0.1" value="0"><input type="range" data-neon-line-slider="y" data-line="<?= $line ?>" min="-200" max="200" step="0.1" value="0" aria-label="Move line <?= $line + 1 ?> vertically"></label>
               <button type="button" data-neon-remove-line="<?= $line ?>">Remove line</button>
+              <p class="neon-line-clearance neon-line-note" data-neon-line-notice="<?= $line ?>" role="status" aria-live="polite"></p>
             </fieldset>
             <?php endfor; ?>
             <button type="button" class="neon-add-line" data-neon-action="add-line">+ Add another line</button>

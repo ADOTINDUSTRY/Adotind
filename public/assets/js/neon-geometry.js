@@ -1256,6 +1256,38 @@
     return groups.join('\r\n')+'\r\n';
   }
 
+  // Minimum distance between centreline segments belonging to different text
+  // rows. Curves are already flattened to within 0.01 mm for the DXF.
+  function lineClearance(drawing, limit=40) {
+    if (!drawing.valid || !drawing.runs || !drawing.runWords) return {distance:Infinity,lines:null};
+    const segments=[];
+    for (const [r,run] of drawing.runs.entries()) {
+      const line=Number(drawing.runWords[r].split(':')[0]);
+      for(let i=1;i<run.length;i++) {
+        const a=run[i-1], b=run[i];
+        segments.push({a,b,line,left:Math.min(a[0],b[0]),right:Math.max(a[0],b[0]),top:Math.min(a[1],b[1]),bottom:Math.max(a[1],b[1])});
+      }
+    }
+    segments.sort((a,b)=>a.left-b.left);
+    let nearest=limit, lines=null;
+    const pointDist=(p,a,b)=>{const dx=b[0]-a[0],dy=b[1]-a[1],n=dx*dx+dy*dy,t=n?Math.max(0,Math.min(1,((p[0]-a[0])*dx+(p[1]-a[1])*dy)/n)):0;return Math.hypot(p[0]-a[0]-t*dx,p[1]-a[1]-t*dy);};
+    for(let i=0;i<segments.length;i++) {
+      const a=segments[i];
+      for(let j=i+1;j<segments.length && segments[j].left<=a.right+nearest;j++) {
+        const b=segments[j];
+        if(a.line===b.line || a.bottom+nearest<b.top || b.bottom+nearest<a.top)continue;
+        const ux=a.b[0]-a.a[0],uy=a.b[1]-a.a[1],vx=b.b[0]-b.a[0],vy=b.b[1]-b.a[1],den=ux*vy-uy*vx;
+        let d;
+        if(Math.abs(den)>1e-12) {
+          const dx=b.a[0]-a.a[0],dy=b.a[1]-a.a[1],t=(dx*vy-dy*vx)/den,u=(dx*uy-dy*ux)/den;
+          if(t>=0&&t<=1&&u>=0&&u<=1)d=0;
+        }
+        if(d===undefined)d=Math.min(pointDist(a.a,b.a,b.b),pointDist(a.b,b.a,b.b),pointDist(b.a,a.a,a.b),pointDist(b.b,a.a,a.b));
+        if(d<nearest){nearest=d;lines=[a.line,b.line];if(d===0)return {distance:0,lines};}
+      }
+    }
+    return {distance:nearest,lines};
+  }
   const countBends = paths => paths.reduce((count,path)=>count+sharpBends(readPath(path.d)),0);
   function editingGlyph(fontId, ch) {
     const font = globalThis.NeonStrokeFonts[fontId], raw = font?.glyphs?.[ch];
@@ -1263,5 +1295,5 @@
     const g = glyphGeometry(fontId, ch, raw);
     return {advance:g.advance, em:font.em, commands:g.commands.map(command => [...command])};
   }
-  globalThis.NeonGeometry = {fonts, layout, svg, dxf, backboard, finishedSize, freestandingBase, acrylicMargin, inspectManufacturing, repairLayout, countBends, editingGlyph};
+  globalThis.NeonGeometry = {fonts, layout, svg, dxf, backboard, finishedSize, freestandingBase, acrylicMargin, inspectManufacturing, lineClearance, repairLayout, countBends, editingGlyph};
 })();

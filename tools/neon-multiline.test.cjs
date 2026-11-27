@@ -52,3 +52,29 @@ test('moving either line preserves the size of the other and updates the DXF',()
   }
   assert.equal(lines.preserveScale({...original,widthMm:3000},[null,{x:100,y:0,rotation:0}],geometry.layout,{min:100,max:3000}),null);
 });
+test('clearance detects crossings and parallel strokes only between different rows',()=>{
+  const drawing=(runs,words)=>({valid:true,runs,runWords:words});
+  assert.equal(geometry.lineClearance(drawing([[[0,0],[100,0]],[[50,-50],[50,50]]],['0:0','1:0'])).distance,0);
+  assert.equal(geometry.lineClearance(drawing([[[0,0],[100,0]],[[0,22],[100,22]]],['0:0','1:0'])).distance,22);
+  assert.equal(geometry.lineClearance(drawing([[[0,0],[100,0]],[[0,1],[100,1]]],['0:0','0:1'])).lines,null);
+});
+test('a large movement stops at the 16 mm clear gap and can move away again',()=>{
+  const s={...base,text:'Hello\nHello',widthMm:600,lineFonts:[],lineColors:[],lineTransforms:[]};
+  const moved=lines.limitMovement(s,[null,{x:0,y:-200,rotation:0}],1,geometry,{min:100,max:3000});
+  assert.ok(moved.blocked);
+  const clear=geometry.lineClearance(geometry.layout(moved.design));
+  assert.ok(clear.distance>=lines.CLEARANCE-1e-7);
+  assert.ok(clear.distance<lines.CLEARANCE+.05);
+  const away=lines.limitMovement(moved.design,[null,{x:0,y:0,rotation:0}],1,geometry,{min:100,max:3000});
+  assert.equal(away.blocked,false);
+  assert.ok(geometry.lineClearance(geometry.layout(away.design)).distance>clear.distance);
+  assert.ok(!measure(moved.design).error);
+  assert.match(measure({...s,lineTransforms:[null,{x:0,y:-30,rotation:0}]}).error,/16 mm/);
+});
+test('rotation also stops before a different line comes within the required gap',()=>{
+  const s={...base,text:'Hello\nHello',widthMm:600,lineFonts:[],lineColors:[],lineTransforms:[]};
+  const moved=lines.limitMovement(s,[null,{x:0,y:0,rotation:180}],1,geometry,{min:100,max:3000});
+  assert.ok(moved.blocked);
+  assert.ok(moved.design.lineTransforms[1].rotation>0 && moved.design.lineTransforms[1].rotation<180);
+  assert.ok(geometry.lineClearance(geometry.layout(moved.design)).distance>=lines.CLEARANCE-1e-7);
+});
