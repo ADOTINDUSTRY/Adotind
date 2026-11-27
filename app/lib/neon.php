@@ -101,10 +101,10 @@ function neon_reply(int $status, array $data): never
     exit;
 }
 
-function neon_measure(string $design, string $intent = 'production', array $fontOverrides = []): array
+function neon_measure(string $design, string $intent = 'production', array $fontOverrides = [], array $fontDisabled = []): array
 {
     if (strlen($design) > 8192) throw new InvalidArgumentException('Design is too large.');
-    $payload = json_encode(['design'=>json_decode($design, true, 16, JSON_THROW_ON_ERROR), 'fontOverrides'=>$fontOverrides], JSON_THROW_ON_ERROR);
+    $payload = json_encode(['design'=>json_decode($design, true, 16, JSON_THROW_ON_ERROR), 'fontOverrides'=>$fontOverrides, 'fontDisabled'=>$fontDisabled], JSON_THROW_ON_ERROR);
     if (strlen($payload) > 5000000) throw new InvalidArgumentException('Font data is too large.');
     $command = ['/usr/bin/timeout','8','/usr/local/bin/node','--max-old-space-size=96',dirname(__DIR__) . '/cli/neon-measure.cjs',$intent];
     $proc = proc_open($command, [0=>['pipe','r'],1=>['pipe','w'],2=>['file','/dev/null','a']], $pipes);
@@ -162,7 +162,7 @@ function neon_handle_request(): never
         if ($shop['edition'] !== ($_POST['edition'] ?? '') || (string)$shop['revision'] !== ($_POST['revision'] ?? '')) {
             neon_reply(409, ['error'=>'The designer or shop settings changed. Save your design, reload and review it before sending.']);
         }
-        $proof = neon_measure($design, $intent, is_array($shop['fontOverrides'] ?? null) ? $shop['fontOverrides'] : []);
+        $proof = neon_measure($design, $intent, is_array($shop['fontOverrides'] ?? null) ? $shop['fontOverrides'] : [], is_array($shop['fontDisabled'] ?? null) ? $shop['fontDisabled'] : []);
         if (isset($proof['error'])) neon_reply(422, ['error'=>$proof['error']]);
         $spec = $proof['design'];
         $lineCounts = array_map(static fn($line) => preg_match_all('/[^\s]/u', $line), explode("\n",$spec['text']));

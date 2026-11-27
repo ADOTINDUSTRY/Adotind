@@ -100,6 +100,7 @@ async function main() {
   }
   if (input && typeof input === 'object' && Object.hasOwn(input, 'design')) {
     globalThis.applyNeonFontOverrides(input.fontOverrides);
+    globalThis.applyNeonDisabledGlyphs(input.fontDisabled);
     input = input.design;
   } else if (bytes > 8192) {
     process.stdout.write(JSON.stringify({error: 'Choose a design under 8 KB.'})); return;

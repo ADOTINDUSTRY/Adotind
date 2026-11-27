@@ -16,4 +16,16 @@ test('edited glyph appears identically in browser geometry and server DXF',()=>{
   assert.ok(preview.valid);
   assert.equal(geometry.dxf(preview,edited.design),edited.dxf);
   assert.deepEqual(geometry.editingGlyph('studio','A').commands,overrides.studio['g:A']);
+  globalThis.applyNeonDisabledGlyphs({studio:{'g:A':true}});
+  assert.equal(geometry.layout(edited.design).valid,false,'browser preview must reject disabled letters');
+});
+test('disabled glyph is rejected by server and other fonts remain available',()=>{
+  const disabled={studio:{'g:A':true}};
+  const blocked=run({design,fontDisabled:disabled});assert.match(blocked.error,/does not contain/i);
+  const other=run({design:{...design,font:'signature'},fontDisabled:disabled});assert.ok(!other.error,other.error);
+});
+test('a joined loop exports as a closed neon polyline',()=>{
+  const proof=run({design,fontOverrides:{studio:{'g:A':[['M',0,0],['L',800,0],['L',800,800],['L',0,800],['L',0,0]]}}});
+  assert.ok(!proof.error,proof.error);
+  assert.match(proof.dxf,/POLYLINE\r\n8\r\nTUBE_CENTERLINE_6MM\r\n66\r\n1\r\n10\r\n0\r\n20\r\n0\r\n30\r\n0\r\n70\r\n1\r\n/);
 });

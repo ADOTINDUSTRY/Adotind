@@ -19,8 +19,19 @@
     }
   }
   globalThis.applyNeonFontOverrides = apply;
+  function disable(disabled) {
+    if (!disabled || typeof disabled !== 'object' || Array.isArray(disabled)) return;
+    for (const [id, glyphs] of Object.entries(disabled)) {
+      const font=globalThis.NeonStrokeFonts?.[id];
+      if (!font || !glyphs || typeof glyphs !== 'object' || Array.isArray(glyphs)) continue;
+      for (const [key, value] of Object.entries(glyphs)) {
+        if (value === true && key.startsWith('g:')) delete font.glyphs[key.slice(2)];
+      }
+    }
+  }
+  globalThis.applyNeonDisabledGlyphs = disable;
   if (typeof document !== 'undefined') {
-    try { apply(JSON.parse(document.getElementById('neon-retail-rates')?.textContent || '{}').fontOverrides); }
+    try { const settings=JSON.parse(document.getElementById('neon-retail-rates')?.textContent || '{}'); apply(settings.fontOverrides); disable(settings.fontDisabled); }
     catch (_) { /* The designer will still show the original fonts. */ }
   }
 })();
