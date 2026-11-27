@@ -30,6 +30,7 @@ $neonIcon = static function (string $key) use ($neonIcons): string {
     <div class="neon-file-actions">
       <button type="button" data-neon-action="import-project"><?= $neonIcon('open') ?> Open design</button>
       <button type="button" data-neon-action="export-project"><?= $neonIcon('save') ?> Save design</button>
+      <button type="button" data-neon-action="start-over">Start over</button>
       <input type="file" data-neon-import data-private accept=".json,application/json" hidden>
     </div>
   </header>
@@ -239,4 +240,12 @@ $neonIcon = static function (string $key) use ($neonIcons): string {
     <div class="neon-font-list"><div class="neon-fonts" data-neon-fonts></div></div>
   </dialog>
   <dialog class="neon-expanded-proof" id="neon-expanded-proof" aria-label="Expanded sign preview"></dialog>
+  <dialog class="neon-reset-dialog" data-neon-reset-dialog aria-labelledby="neon-reset-title">
+    <h3 id="neon-reset-title">Start over?</h3>
+    <p>This clears the current design, its settings and any wall photo.</p>
+    <div class="neon-file-actions">
+      <button type="button" data-neon-action="cancel-reset">Cancel</button>
+      <button type="button" data-neon-action="confirm-reset">Start over</button>
+    </div>
+  </dialog>
 </section>

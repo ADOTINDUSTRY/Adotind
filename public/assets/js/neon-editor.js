@@ -222,11 +222,12 @@
     });
   }
   for (const key of ['x','y','rotation']) for (const input of root.querySelectorAll('[data-neon-line-'+key+']')) {
-    input.addEventListener('change',()=>{
+    input.addEventListener('input',()=>{
       const line=Number(input.getAttribute('data-neon-line-'+key)), value=Number(input.value), max=key==='rotation'?180:200;
-      if(input.value==='' || !Number.isFinite(value) || Math.abs(value)>max){render();return;}
-      const next=design.lineTransforms.slice();next[line]={x:0,y:0,rotation:0,...next[line],[key]:value};changed('lineTransforms',next,false);
+      if(input.value==='' || !Number.isFinite(value) || Math.abs(value)>max)return;
+      const next=design.lineTransforms.slice();next[line]={x:0,y:0,rotation:0,...next[line],[key]:value};changed('lineTransforms',next,true);
     });
+    input.addEventListener('blur',()=>{sequence=undefined;input.value=design.lineTransforms[Number(input.getAttribute('data-neon-line-'+key))]?.[key] ?? 0;});
   }
   function changed(key, value, group) {
     const beforeManual = manualLineSpacing;
@@ -236,6 +237,17 @@
       return;
     }
     if (key === 'color' && design.cover !== WHITE_COVER && value !== design.cover) return;
+    let candidate = {...design, [key]: value};
+    let previousView, referenceLine, previousPoint;
+    if (key === 'lineTransforms') {
+      candidate = window.NeonLines.preserveScale(design,value,prepareDrawing,{min:minWidth,max:maxWidth});
+      if (!candidate) { output('status','That position exceeds the available sign width. Reduce the lettering size first.'); return; }
+      const edited=Array.from({length:Math.max(value.length,design.lineTransforms.length)},(_,i)=>i)
+        .find(i=>JSON.stringify(value[i] || null)!==JSON.stringify(design.lineTransforms[i] || null));
+      referenceLine=geometry?.paths.find(p=>p.line!==edited)?.line;
+      previousPoint=lineAnchor(geometry,referenceLine);
+      previousView=(canvas.getAttribute('viewBox') || '').split(/[ ,]+/).map(Number);
+    }
     const now = performance.now();
     if (!group || !sequence || sequence.key !== key || now - sequence.at > 850) {
       past.push({design,manualLineSpacing:beforeManual});
@@ -244,7 +256,7 @@
     sequence = group ? {key, at: now} : undefined;
     future.length = 0;
     const oldText=design.text;
-    design = {...design, [key]: value};
+    design = candidate;
     if (key === 'text') {
       // Keep settings attached to their line when the user inserts or removes a newline.
       [design.lineFonts,design.lineColors,design.lineTransforms]=window.NeonLines.reconcile(oldText,value,[design.lineFonts,design.lineColors,design.lineTransforms]);
@@ -263,6 +275,21 @@
     }
     output('status', '');
     render();
+    // Keep an unchanged line in place on screen while positioning another one,
+    // provided the updated sign still fits. Larger signs automatically fit again.
+    const nextPoint=lineAnchor(geometry,referenceLine);
+    if (previousPoint && nextPoint && previousView?.length===4 && previousView.every(Number.isFinite) && frame) {
+      const [x,y,w,h]=previousView, vx=x+nextPoint.x-previousPoint.x, vy=y+nextPoint.y-previousPoint.y;
+      const padding=design.text.includes('\n') ? .12/1.24 : 0, px=frame.width*padding, py=frame.height*padding;
+      if (frame.x+px>=vx && frame.y+py>=vy && frame.x+frame.width-px<=vx+w && frame.y+frame.height-py<=vy+h)
+        canvas.setAttribute('viewBox',[vx,vy,w,h].join(' '));
+    }
+  }
+  function lineAnchor(drawing,line) {
+    if (line===undefined) return null;
+    const d=drawing?.paths.find(path=>path.line===line)?.d || '';
+    const match=/^\s*M\s*([-+\d.eE]+)[ ,]+([-+\d.eE]+)/.exec(d);
+    return match ? {x:Number(match[1]),y:Number(match[2])} : null;
   }
   function projectError(value) {
     if (!value || value.version !== 2 || typeof value.text !== 'string' || [...value.text].length > 80 ||
@@ -450,6 +477,10 @@
     const frameTop=-dimOffset-mountTop;
     const frameBottom=Math.max(h+dimOffset+chartSize*1.6,base ? base.top+base.depthMm+chartSize*3 : h);
     frame = {x:frameLeft,y:frameTop,width:frameRight-frameLeft,height:frameBottom-frameTop};
+    if (design.text.includes('\n')) {
+      const extraX=frame.width*.12,extraY=frame.height*.12;
+      frame={x:frame.x-extraX,y:frame.y-extraY,width:frame.width+extraX*2,height:frame.height+extraY*2};
+    }
     camera();
     const defs = svg('defs');
     const d = geometry.paths.map(path => path.d).join(' ');
@@ -887,6 +918,16 @@
       return;
     }
     const action = btn.dataset.neonAction;
+    if (action === 'start-over') {root.querySelector('[data-neon-reset-dialog]').showModal();return;}
+    if (action === 'cancel-reset') {root.querySelector('[data-neon-reset-dialog]').close();return;}
+    if (action === 'confirm-reset') {
+      root.querySelector('[data-neon-reset-dialog]').close();
+      past.push({design,manualLineSpacing}); if(past.length>100)past.shift(); future.length=0; sequence=undefined;
+      design={...defaults,lineColors:[],lineFonts:[],lineTransforms:[]}; manualLineSpacing=false;
+      moveLinesMode=false; const move=root.querySelector('[data-neon-action="move-lines"]');
+      if(move){move.setAttribute('aria-pressed','false');move.textContent='Move lines: off';}
+      clearWall(); render(); output('status','Started a new design.'); return;
+    }
     if(action==='move-lines'){moveLinesMode=!moveLinesMode;btn.setAttribute('aria-pressed',String(moveLinesMode));btn.textContent='Move lines: '+(moveLinesMode?'on':'off');paint();return;}
     if (action === 'add-line') { if(design.text.split('\n').length<8 && [...design.text].length<80) { changed('text',design.text+'\n',false); root.querySelector('[data-neon-line-text="'+(design.text.split('\n').length-1)+'"]')?.focus(); } return; }
     if (action === 'auto-base-size') {

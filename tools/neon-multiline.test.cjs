@@ -36,3 +36,19 @@ test('inserting and removing a line retains settings on the remaining lines',()=
   const removed=lines.reconcile('Hello\nNew\nWorld','Hello\nWorld',inserted);
   assert.deepEqual(removed,original);
 });
+test('moving either line preserves the size of the other and updates the DXF',()=>{
+  const original={...base,text:'Hello\nHello',lineFonts:[],lineColors:[],lineTransforms:[]};
+  const before=geometry.layout(original);
+  for(const index of [0,1]) for(const transform of [{x:20,y:0,rotation:0},{x:0,y:20,rotation:0},{x:0,y:0,rotation:25}]) {
+    const changes=[];changes[index]=transform;
+    const adjusted=lines.preserveScale(original,changes,geometry.layout,{min:100,max:3000});
+    assert.ok(adjusted);
+    const after=geometry.layout(adjusted);
+    assert.ok(Math.abs(after.lineOffsetMmPerPercent-before.lineOffsetMmPerPercent)<1e-8);
+    const other=index===0?1:0;
+    const size=proof=>proof.runs.filter((_,i)=>proof.runWords[i].startsWith(other+':')).reduce((n,run)=>n+run.slice(1).reduce((sum,p,i)=>sum+Math.hypot(p[0]-run[i][0],p[1]-run[i][1]),0),0);
+    assert.ok(Math.abs(size(before)-size(after))<1e-6);
+    assert.notEqual(measure(original).dxf,measure(adjusted).dxf);
+  }
+  assert.equal(lines.preserveScale({...original,widthMm:3000},[null,{x:100,y:0,rotation:0}],geometry.layout,{min:100,max:3000}),null);
+});

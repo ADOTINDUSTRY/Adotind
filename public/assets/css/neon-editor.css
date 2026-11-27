@@ -343,3 +343,7 @@ body:has(.neon-studio dialog[open]) { overflow: hidden; }
 .neon-add-line:hover:not(:disabled),.neon-line-options button:hover:not(:disabled) { border-color:#537299; background:#edf4fc; }
 .neon-line-options button[aria-pressed="true"] { background:#243652; color:#fff; border-color:#243652; }
 .neon-add-line:disabled,.neon-line-options button:disabled { opacity:.5; }
+.neon-reset-dialog { max-width:min(90vw,420px); padding:1.5rem; border:1px solid #c9d5e4; border-radius:12px; color:#182b45; box-shadow:0 16px 60px #0b162b66; }
+.neon-reset-dialog::backdrop { background:#0b162b99; }
+.neon-reset-dialog h3 { margin:0 0 .5rem; }
+.neon-reset-dialog .neon-file-actions { display:flex; justify-content:flex-end; gap:.5rem; margin-top:1rem; }

@@ -22,5 +22,13 @@
     const position=startLine+(atLineStart?0:1);
     return arrays.map(values=>{const result=values.slice();if(delta>0)result.splice(position,0,...Array(delta).fill(null));else if(delta<0)result.splice(position,-delta);return result.slice(0,8);});
   }
-  return {autoGreek,reconcile};
+  // Changing the bounds should not resize the other lines.
+  function preserveScale(spec, transforms, layout, limits) {
+    const before=layout(spec), candidate={...spec,lineTransforms:transforms}, after=layout(candidate);
+    if (!before.valid || !after.valid || !(before.lineOffsetMmPerPercent>0) || !(after.lineOffsetMmPerPercent>0)) return candidate;
+    const width=6+(spec.widthMm-6)*before.lineOffsetMmPerPercent/after.lineOffsetMmPerPercent;
+    if (width < limits.min-1e-7 || width > limits.max+1e-7) return null;
+    return {...candidate,widthMm:Math.max(limits.min,Math.min(limits.max,width))};
+  }
+  return {autoGreek,reconcile,preserveScale};
 });
