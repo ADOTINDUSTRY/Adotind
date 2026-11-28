@@ -16,6 +16,34 @@ server.listen(0,'127.0.0.1',async()=>{try{
  const first=await evaluate(`(async()=>await window.r.update(${JSON.stringify([line('O8B')])}))()`);assert.equal(first.rendered,true,'Solid letters must render');
  const shot=await send('Page.captureScreenshot',{format:'png'});fs.writeFileSync(path.join(os.tmpdir(),'adotind-letter3d-webgl.png'),Buffer.from(shot.data,'base64'));
  const coloured=await evaluate(`(async()=>{const i=new Image();i.src='data:image/png;base64,${shot.data}';await i.decode();const c=document.createElement('canvas');c.width=i.width;c.height=i.height;const ctx=c.getContext('2d');ctx.drawImage(i,0,0);const p=ctx.getImageData(0,0,c.width,c.height).data;let n=0;for(let k=0;k<p.length;k+=4)if(p[k]>120&&p[k]>p[k+2]*1.25&&p[k+1]>45)n++;return n})()`);assert.ok(coloured>100,'Rendered O8B should produce visible coloured pixels; count='+coloured);
+ // Orbit changes only the preview. It must survive regenerating the same text,
+ // reset precisely to the starting angle, and reject non-finite drag deltas.
+ await evaluate('window.r.orbitBy(75,35)');
+ const orbited=await send('Page.captureScreenshot',{format:'png'});
+ assert.notEqual(orbited.data,shot.data,'Dragging should visibly rotate the extrusion');
+ await evaluate(`(async()=>await window.r.update(${JSON.stringify([line('O8B')])}))()`);
+ const rebuilt=await send('Page.captureScreenshot',{format:'png'});
+ assert.equal(rebuilt.data,orbited.data,'An edit/update must preserve the preview orbit');
+ await evaluate('window.r.orbitBy(Infinity,NaN)');
+ const invalidDrag=await send('Page.captureScreenshot',{format:'png'});
+ assert.equal(invalidDrag.data,rebuilt.data,'Non-finite drag coordinates must have no effect');
+ await evaluate('window.r.resetOrbit()');
+ const reset=await send('Page.captureScreenshot',{format:'png'});
+ assert.equal(reset.data,shot.data,'Reset view must restore the original orbit');
+ await evaluate('window.r.orbitBy(0,100000)');
+ const clamped=await send('Page.captureScreenshot',{format:'png'});
+ await evaluate('window.r.orbitBy(0,100000)');
+ const stillClamped=await send('Page.captureScreenshot',{format:'png'});
+ assert.equal(clamped.data,stillClamped.data,'Pitch must stop at its upper bound');
+ await evaluate('window.r.resetOrbit()');
+ // Separate face and side colours must be simultaneously visible in actual WebGL.
+ const colourDesign={...line('O8B'),colour:'#ff1800',side_colour:'#0044ff'};
+ assert.equal((await evaluate(`(async()=>await window.r.update(${JSON.stringify([colourDesign])}))()`)).rendered,true);
+ await evaluate('window.r.orbitBy(55,0)');
+ const dual=await send('Page.captureScreenshot',{format:'png'});
+ const pixels=await evaluate(`(async()=>{const image=new Image();image.src='data:image/png;base64,${dual.data}';await image.decode();const canvas=document.createElement('canvas');canvas.width=image.width;canvas.height=image.height;const ctx=canvas.getContext('2d');ctx.drawImage(image,0,0);const data=ctx.getImageData(0,0,canvas.width,canvas.height).data;let front=0,side=0;for(let i=0;i<data.length;i+=4){let r=data[i],g=data[i+1],b=data[i+2];if(r>100&&r>b*1.5&&r>g*1.2)front++;if(b>90&&b>r*1.5&&b>g*1.2)side++}return {front,side}})()`);
+ assert.ok(pixels.front>100 && pixels.side>25,'Both chosen face and side colours should be visible: '+JSON.stringify(pixels));
+ await evaluate('window.r.resetOrbit()');
  for(const font of ['serif','script']){const result=await evaluate(`(async()=>await window.r.update(${JSON.stringify([{...line('O8B'),font}])}))()`);assert.equal(result.rendered,true,font+' must render');const picture=await send('Page.captureScreenshot',{format:'png'});fs.writeFileSync(path.join(os.tmpdir(),'adotind-letter3d-'+font+'.png'),Buffer.from(picture.data,'base64'));}
  const greek=await evaluate(`(async()=>await window.r.update(${JSON.stringify([line('Καλημέρα')])}))()`);assert.equal(greek.rendered,true,'Greek must render in the sans font');
  const bad=await evaluate(`(async()=>{try{await window.r.update(${JSON.stringify([{...line('Αθήνα'),font:'script'}])});return 'not-rejected'}catch(e){return e.code}})()`);assert.equal(bad,'glyph','Unsupported script glyphs must raise a fallback signal');

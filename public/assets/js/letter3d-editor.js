@@ -16,11 +16,12 @@
   let threeRenderer = null, threeInit = null, threeTimer = 0, threeGeneration = 0, threeUnavailable = false;
   // The legacy fields remain as a compatibility mirror for older saved drafts.
   const lineSets = root.querySelectorAll ? [...root.querySelectorAll('[data-letter-line]')] : [];
-  const lineFields = ['text','font','colour','x','y','rotation'];
+  const lineFields = ['text','font','colour','side_colour','x','y','rotation'];
   const lineControls = lineSets.map((fieldset, index) => ({fieldset, index,
-    inputs:Object.fromEntries(lineFields.map(key => [key, fieldset.querySelector(`[data-letter-line-${key}]`)])),
+    inputs:Object.fromEntries(lineFields.map(key => [key, fieldset.querySelector(`[data-letter-line-${key === 'side_colour' ? 'side-colour' : key}]`)])),
     sliders:Object.fromEntries(['x','y','rotation'].map(key => [key, fieldset.querySelector(`[data-letter-line-slider="${key}"]`)])),
-    remove:fieldset.querySelector('[data-letter-remove-line]')
+    remove:fieldset.querySelector('[data-letter-remove-line]'),
+    sideAutoButton:fieldset.querySelector('[data-letter-line-side-auto]'), sideAuto:true
   }));
   const addLine = find('add-line');
   const hasLines = lineControls.length > 0 && lineControls.every(line => lineFields.every(key => line.inputs[key]));
@@ -31,24 +32,39 @@
   let timer = 0, generation = 0, estimate = null, sending = false, requestKey = '';
   let scene = 'studio', zoom = 1;
   const clamp = (value, min, max) => Number.isFinite(Number(value)) ? Math.max(min, Math.min(max, Number(value))) : 0;
+  // Three.js shades in linear light. Convert back to sRGB for the native color
+  // input so the automatic swatch matches the existing visual appearance.
+  function automaticSideColour(face) {
+    if (!/^#[0-9a-f]{6}$/i.test(face)) face = '#e6e9ed';
+    const shade = channel => {
+      const s = parseInt(channel, 16) / 255;
+      const linear = s <= 0.04045 ? s / 12.92 : Math.pow((s + 0.055) / 1.055, 2.4);
+      const shaded = linear * 0.55;
+      const result = shaded <= 0.0031308 ? 12.92 * shaded : 1.055 * Math.pow(shaded, 1 / 2.4) - 0.055;
+      return Math.round(result * 255).toString(16).padStart(2, '0');
+    };
+    return '#' + shade(face.slice(1,3)) + shade(face.slice(3,5)) + shade(face.slice(5,7));
+  }
   function setLine(index, data) {
     const control = lineControls[index]; if (!control) return;
-    const values = {text:'', font:'sans', colour:'#e6e9ed', x:0, y:0, rotation:0, ...data};
+    const values = {text:'', font:'sans', colour:'#e6e9ed', side_colour:null, x:0, y:0, rotation:0, ...data};
     values.text = String(values.text).replace(/[\r\n]/g, '').slice(0,200);
     if (!['sans','serif','script'].includes(values.font)) values.font = 'sans';
     if (!/^#[0-9a-f]{6}$/i.test(values.colour)) values.colour = '#e6e9ed';
+    control.sideAuto = !/^#[0-9a-f]{6}$/i.test(values.side_colour || '');
+    values.side_colour = control.sideAuto ? automaticSideColour(values.colour) : values.side_colour;
     values.x=clamp(values.x,-200,200); values.y=clamp(values.y,-200,200); values.rotation=clamp(values.rotation,-180,180);
     for (const key of lineFields) control.inputs[key].value = String(values[key]);
     for (const key of ['x','y','rotation']) if (control.sliders[key]) control.sliders[key].value=String(values[key]);
   }
   function readLines() {
     if (!hasLines) return null;
-    return lineControls.slice(0,lineCount).map(({inputs}) => ({text:inputs.text.value, font:inputs.font.value, colour:inputs.colour.value,
+    return lineControls.slice(0,lineCount).map(({inputs,sideAuto}) => ({text:inputs.text.value, font:inputs.font.value, colour:inputs.colour.value, side_colour:sideAuto ? null : inputs.side_colour.value,
       x:clamp(inputs.x.value,-200,200), y:clamp(inputs.y.value,-200,200), rotation:clamp(inputs.rotation.value,-180,180)}));
   }
   function syncLines() {
     if (!hasLines) return;
-    lineControls.forEach(({fieldset,remove},index) => {fieldset.hidden=index>=lineCount; if(remove) remove.disabled=lineCount===1;});
+    lineControls.forEach(({fieldset,remove,sideAutoButton,sideAuto},index) => {fieldset.hidden=index>=lineCount; if(remove) remove.disabled=lineCount===1; if(sideAutoButton) sideAutoButton.setAttribute('aria-pressed',String(sideAuto));});
     if (addLine) addLine.disabled=lineCount>=lineControls.length;
     const lines=readLines(); text.value=lines.map(line=>line.text).join('\n'); font.value=lines[0].font; colour.value=lines[0].colour;
   }
@@ -153,6 +169,8 @@
         item.textContent=line.text || '\u00a0'; item.style.display='block'; item.style.whiteSpace='pre';
         item.style.width='max-content'; item.style.marginInline='auto';
         item.style.color=line.colour; item.style.fontFamily=fontStyles[line.font] || fontStyles.sans;
+        const side=line.side_colour || automaticSideColour(line.colour);
+        item.style.textShadow=`1px 1px ${side},2px 2px ${side},3px 3px ${side},4px 4px 7px #0009`;
         item.style.transform=`translate(${line.x}%, ${line.y}%) rotate(${line.rotation}deg)`;
         preview.appendChild(item);
       });
@@ -197,7 +215,43 @@
   for (const button of zoomButtons) button.addEventListener('click', () => {
     if (button.dataset.letterZoom === 'in') setZoom(zoom * 1.2);
     if (button.dataset.letterZoom === 'out') setZoom(zoom / 1.2);
-    if (button.dataset.letterZoom === 'fit') setZoom(1);
+    if (button.dataset.letterZoom === 'fit') { setZoom(1); threeRenderer?.resetOrbit?.(); }
+  });
+  // Turn only the dimensional preview. Track every touch pointer so a second
+  // finger cancels orbit immediately and remains available for pinch zoom.
+  const touchPointers = new Set();
+  let orbitDrag = null;
+  function stopOrbit(pointerId) {
+    if (!orbitDrag || (pointerId != null && orbitDrag.id !== pointerId)) return;
+    orbitDrag = null;
+    viewport.classList?.remove('is-orbiting');
+  }
+  viewport.addEventListener?.('pointerdown', event => {
+    if (event.pointerType === 'touch') touchPointers.add(event.pointerId);
+    if (touchPointers.size > 1) { stopOrbit(); return; }
+    if (viewport.dataset?.render !== 'three' || !threeRenderer || typeof threeRenderer.orbitBy !== 'function') return;
+    if (event.pointerType !== 'touch' && event.button !== 0) return;
+    orbitDrag = {id:event.pointerId, x:event.clientX, y:event.clientY};
+    viewport.classList?.add('is-orbiting');
+    try { viewport.setPointerCapture?.(event.pointerId); } catch (_) { /* Capture can fail if a pointer was cancelled. */ }
+  });
+  viewport.addEventListener?.('pointermove', event => {
+    if (!orbitDrag || orbitDrag.id !== event.pointerId || touchPointers.size > 1 || viewport.dataset?.render !== 'three') return;
+    if (event.pointerType === 'mouse' && event.buttons === 0) { stopOrbit(event.pointerId); return; }
+    const dx = event.clientX - orbitDrag.x, dy = event.clientY - orbitDrag.y;
+    orbitDrag.x = event.clientX; orbitDrag.y = event.clientY;
+    if (dx || dy) threeRenderer?.orbitBy(dx, dy);
+    if (event.cancelable) event.preventDefault();
+  });
+  for (const type of ['pointerup', 'pointercancel', 'lostpointercapture']) viewport.addEventListener?.(type, event => {
+    if (event.pointerType === 'touch' || touchPointers.has(event.pointerId)) touchPointers.delete(event.pointerId);
+    stopOrbit(event.pointerId);
+  });
+  viewport.addEventListener?.('keydown', event => {
+    if (viewport.dataset?.render !== 'three' || !threeRenderer || typeof threeRenderer.orbitBy !== 'function') return;
+    const movement = {ArrowLeft:[-18,0], ArrowRight:[18,0], ArrowUp:[0,-18], ArrowDown:[0,18]}[event.key];
+    if (!movement) return;
+    event.preventDefault(); threeRenderer.orbitBy(...movement);
   });
   // Zoom affects only the preview and never changes the quoted dimensions.
   viewport.addEventListener?.('wheel', event => {
@@ -215,17 +269,19 @@
     const distance = Math.hypot(event.touches[0].clientX-event.touches[1].clientX, event.touches[0].clientY-event.touches[1].clientY);
     setZoom(pinch.zoom * distance / pinch.distance);
   }, {passive:false});
-  viewport.addEventListener?.('touchend', () => { pinch = null; }, {passive:true});
-  viewport.addEventListener?.('touchcancel', () => { pinch = null; }, {passive:true});
+  viewport.addEventListener?.('touchend', event => { pinch = null; if (!event.touches.length) { touchPointers.clear(); stopOrbit(); } }, {passive:true});
+  viewport.addEventListener?.('touchcancel', () => { pinch = null; touchPointers.clear(); stopOrbit(); }, {passive:true});
   reset?.addEventListener('click', () => {
     if (sending) return;
     for (const [key, element] of Object.entries(fields)) element.value = defaults[key];
-    fromLegacy(); scene = 'studio'; zoom = 1; paintScene(); changed();
+    fromLegacy(); scene = 'studio'; zoom = 1; threeRenderer?.resetOrbit?.(); paintScene(); changed();
   });
   Object.values(fields).forEach(el => el.addEventListener('input', changed));
   if (hasLines) {
     lineControls.forEach((line,index) => {
       for (const key of lineFields) line.inputs[key].addEventListener('input', () => {
+        if (key==='side_colour') line.sideAuto=false;
+        if (key==='colour' && line.sideAuto) line.inputs.side_colour.value=automaticSideColour(line.inputs.colour.value);
         if (['x','y','rotation'].includes(key)) {
           const max=key==='rotation'?180:200, raw=line.inputs[key].value, value=clamp(raw,-max,max);
           // Keep a typed out-of-range value in sync with the actual preview and quote.
@@ -241,6 +297,11 @@
       for (const key of ['x','y','rotation']) line.sliders[key]?.addEventListener('input', () => {
         line.inputs[key].value=line.sliders[key].value; syncLines(); changed();
       });
+      line.sideAutoButton?.addEventListener('click', () => {
+        if (sending) return;
+        line.sideAuto=true; line.inputs.side_colour.value=automaticSideColour(line.inputs.colour.value);
+        syncLines(); changed();
+      });
       line.remove?.addEventListener('click', () => {
         if (sending || lineCount<=1 || index>=lineCount) return;
         const values=readLines(); values.splice(index,1); lineCount=values.length;
@@ -249,7 +310,7 @@
     });
     addLine?.addEventListener('click', () => {
       if (sending || lineCount>=lineControls.length) return;
-      const last=readLines()[lineCount-1]; setLine(lineCount,{font:last.font,colour:last.colour}); lineCount++;
+      const last=readLines()[lineCount-1]; setLine(lineCount,{font:last.font,colour:last.colour,side_colour:last.side_colour}); lineCount++;
       syncLines(); changed(); lineControls[lineCount-1].inputs.text.focus?.();
     });
   }
@@ -261,7 +322,7 @@
       status.textContent = 'Enter your name, a valid email and phone number.'; return;
     }
     const current = generation;
-    const controls = [product,text,font,colour,width,height,quantity,name,email,phone,...(hasLines ? lineControls.flatMap(line=>[...Object.values(line.inputs), ...Object.values(line.sliders), line.remove]).filter(Boolean) : []),...(addLine?[addLine]:[])];
+    const controls = [product,text,font,colour,width,height,quantity,name,email,phone,...(hasLines ? lineControls.flatMap(line=>[...Object.values(line.inputs), ...Object.values(line.sliders), line.remove, line.sideAutoButton]).filter(Boolean) : []),...(addLine?[addLine]:[])];
     sending = true; send.disabled = true; controls.forEach(el => { el.disabled = true; }); status.textContent = 'Sending…';
     try {
       const body = {...payload(), customer_name:name.value, email:email.value, phone:phone.value,

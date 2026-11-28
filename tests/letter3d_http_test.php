@@ -142,7 +142,7 @@ try {
     $modern=$design;
     $modern['lines']=[
         ['text'=>'A','font'=>'sans','colour'=>'#ff00aa','x'=>0,'y'=>0,'rotation'=>0],
-        ['text'=>'B','font'=>'script','colour'=>'#123456','x'=>12,'y'=>-15,'rotation'=>25],
+        ['text'=>'B','font'=>'script','colour'=>'#123456','side_colour'=>'#f0ab12','x'=>12,'y'=>-15,'rotation'=>25],
     ];
     [$status,$modernResult] = http3d_request($base . '/estimate', 'POST', $modern, $cookie);
     http3d_assert($status === 200 && ($modernResult['estimate']['total'] ?? null)==60.0, 'Per-line design must be priced.');
@@ -150,12 +150,15 @@ try {
     $tampered=$lineRequest; $tampered['lines'][1]['rotation']=26;
     [$status] = http3d_request($base . '/request', 'POST', $tampered, $cookie);
     http3d_assert($status===409 && (int)$db->query('SELECT COUNT(*) FROM website_inbox')->fetchColumn()===1, 'Tampering with line transforms must require fresh confirmation.');
+    $tamperedSide=$lineRequest; $tamperedSide['lines'][1]['side_colour']='#f0ab13';
+    [$status] = http3d_request($base . '/request', 'POST', $tamperedSide, $cookie);
+    http3d_assert($status===409 && (int)$db->query('SELECT COUNT(*) FROM website_inbox')->fetchColumn()===1, 'Changing side colour must require fresh confirmation.');
     [$status,$sent] = http3d_request($base . '/request', 'POST', $lineRequest, $cookie);
     http3d_assert($status===200 && !empty($sent['ok']), 'A reviewed multi-line design should submit.');
     $saved=json_decode((string)$db->query('SELECT payload FROM website_inbox ORDER BY id DESC LIMIT 1')->fetchColumn(),true,512,JSON_THROW_ON_ERROR);
-    http3d_assert(($saved['estimate']['lines'][1]['font'] ?? '')==='script' && ($saved['estimate']['lines'][1]['colour'] ?? '')==='#123456'
+    http3d_assert(($saved['estimate']['lines'][1]['font'] ?? '')==='script' && ($saved['estimate']['lines'][1]['colour'] ?? '')==='#123456' && ($saved['estimate']['lines'][1]['side_colour'] ?? '')==='#f0ab12'
         && ($saved['estimate']['lines'][1]['x'] ?? null)==12 && ($saved['estimate']['lines'][1]['y'] ?? null)==-15 && ($saved['estimate']['lines'][1]['rotation'] ?? null)==25
-        && str_contains($saved['fields']['project_description'] ?? '', 'Line 2: B | style script | colour #123456 | position 12%, -15% | rotation 25°'),
+        && str_contains($saved['fields']['project_description'] ?? '', 'Line 2: B | style script | front colour #123456 | side colour #f0ab12 | position 12%, -15% | rotation 25°'),
         'The structured design and readable inquiry must contain the exact confirmed line details.');
     echo "3D lettering isolated HTTP checks passed.\n";
 } finally {

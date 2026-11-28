@@ -10,6 +10,11 @@ rejects3d(fn()=>letter3d_calculate($db,$input,19), 'An unconfigured product must
 $db->exec("INSERT INTO quote_letter3d_products(name,description,setup_eur,letter_eur,area_eur_m2,minimum_eur,min_width_mm,max_width_mm,min_height_mm,max_height_mm,max_characters,max_quantity,enabled,reviewed) VALUES ('Acrylic letters','',10,5,20,0,100,3000,50,2000,50,10,1,1)");
 $result = letter3d_calculate($db,$input,19);
 check3d($result['characters']===2 && $result['subtotal']===50.0 && $result['vat']===9.5 && $result['total']===59.5, 'Shop-defined prices and VAT must be calculated correctly.');
+check3d($result['lines'][0]['side_colour'] === null, 'Legacy designs must retain automatic side shading.');
+$product = $db->query('SELECT * FROM quote_letter3d_products WHERE id=1')->fetch(PDO::FETCH_ASSOC);
+$legacyLines = array_map(static function(array $line): array { unset($line['side_colour']); return $line; }, $result['lines']);
+$legacyToken = hash('sha256', json_encode([$product, $legacyLines, 1000.0, 500.0, 2, 19.0], JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE | JSON_PRESERVE_ZERO_FRACTION));
+check3d($result['quote_token'] === $legacyToken, 'Old pending confirmations must remain valid for automatic side shading.');
 check3d(letter3d_vat(['vat_percent'=>'0'])===0.0, 'An explicitly configured zero VAT rate must be allowed.');
 rejects3d(fn()=>letter3d_vat([]), 'Missing VAT must fail closed.');
 rejects3d(fn()=>letter3d_vat(['vat_percent'=>'not a number']), 'Invalid VAT must fail closed.');
@@ -35,6 +40,15 @@ $modern['text']='IGNORED'; $modern['font']='invalid'; $modern['colour']='invalid
 $priced=letter3d_calculate($db,$modern,19);
 check3d($priced['text']==="A\nB" && $priced['characters']===2 && $priced['total']===59.5 && $priced['lines'][1]['font']==='serif'
     && $priced['lines'][1]['rotation']===45.0 && $priced['lines'][0]['colour']==='#ff00aa', 'The validated lines must drive pricing and saved design, not legacy globals.');
+$explicitAuto=$modern; $explicitAuto['lines'][0]['side_colour']=null;
+check3d(letter3d_calculate($db,$explicitAuto,19)['quote_token']===$priced['quote_token'], 'Explicit null and omitted side colour both mean automatic shading.');
+$coloured=$modern; $coloured['lines'][1]['side_colour']='#0AE1F2';
+$colouredResult=letter3d_calculate($db,$coloured,19);
+check3d($colouredResult['lines'][1]['side_colour']==='#0ae1f2' && $colouredResult['quote_token']!==$priced['quote_token'], 'An explicit side colour must be normalized, saved and bound to confirmation.');
+$changedSide=$coloured; $changedSide['lines'][1]['side_colour']='#0ae1f3';
+check3d(letter3d_calculate($db,$changedSide,19)['quote_token']!==$colouredResult['quote_token'], 'Changing side colour must invalidate confirmation even at the same price.');
+$bad=$modern; $bad['lines'][0]['side_colour']='#123'; rejects3d(fn()=>letter3d_calculate($db,$bad,19), 'Invalid side colour must fail.');
+$bad=$modern; $bad['lines'][0]['side_colour']=['red']; rejects3d(fn()=>letter3d_calculate($db,$bad,19), 'Non-string side colour must fail.');
 foreach (['text'=>'C','font'=>'script','colour'=>'#ffffff','x'=>26,'y'=>-19,'rotation'=>46] as $key=>$value) {
     $changed=$modern; $changed['lines'][1][$key]=$value;
     check3d(letter3d_calculate($db,$changed,19)['quote_token']!==$priced['quote_token'], "Changes to $key must invalidate the confirmation token.");

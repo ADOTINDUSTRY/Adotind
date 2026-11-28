@@ -45,6 +45,7 @@ function validateLines(lines) {
   return lines.map(line=>{
     if (!line || typeof line.text!=='string' || /[\r\n]/.test(line.text) || !Object.hasOwn(FONT_URLS,line.font)
       || !/^#[0-9a-f]{6}$/i.test(line.colour || '')) throw unavailable('design');
+    if (line.side_colour != null && (typeof line.side_colour !== 'string' || !/^#[0-9a-f]{6}$/i.test(line.side_colour))) throw unavailable('design');
     glyphs+=Array.from(line.text).length;
     if (glyphs>MAX_GLYPHS) throw unavailable('complexity');
     // Complex shaping is intentionally left to the 2D browser fallback.
@@ -53,7 +54,7 @@ function validateLines(lines) {
     for (const [key,limit] of [['x',200],['y',200],['rotation',180]]) {
       const n=Number(line[key]); if (!Number.isFinite(n) || Math.abs(n)>limit) throw unavailable('design'); values[key]=n;
     }
-    return {text:line.text,font:line.font,colour:line.colour.toLowerCase(),...values};
+    return {text:line.text,font:line.font,colour:line.colour.toLowerCase(),side_colour:line.side_colour == null ? null : line.side_colour.toLowerCase(),...values};
   });
 }
 function assertGlyphs(font, text) {
@@ -72,7 +73,7 @@ function buildLine(font,line,index) {
     geometry.computeBoundingBox();
     if (geometry.boundingBox) geometry.translate(0,-(geometry.boundingBox.min.y+geometry.boundingBox.max.y)/2,0);
     const front=new THREE.MeshPhongMaterial({color:line.colour,shininess:40});
-    const side=new THREE.MeshPhongMaterial({color:new THREE.Color(line.colour).multiplyScalar(.55),shininess:22});
+    const side=new THREE.MeshPhongMaterial({color:line.side_colour === null ? new THREE.Color(line.colour).multiplyScalar(.55) : new THREE.Color(line.side_colour),shininess:22});
     group.add(new THREE.Mesh(geometry,[front,side]));
   }
   group.position.set(width*line.x/100,-(index*LINE_HEIGHT+LINE_HEIGHT*line.y/100),0);
@@ -90,6 +91,9 @@ export async function createLetter3DRenderer(container, {onUnavailable} = {}) {
   canvas.setAttribute('aria-hidden','true'); canvas.style.width='100%'; canvas.style.height='100%';
   canvas.style.display='block'; canvas.style.pointerEvents='none';
   let disposed=false, lost=false, generation=0, current=null, zoom=1, observer=null;
+  // Camera-style preview orbit: drag deltas are CSS pixels. Angles are visual only.
+  const initialPitch=.08, initialYaw=-.24, pitchLimit=80*Math.PI/180, radiansPerPixel=.008;
+  let orbitPitch=initialPitch, orbitYaw=initialYaw;
   const scene=new THREE.Scene();
   scene.add(new THREE.AmbientLight(0xffffff,1.45));
   const key=new THREE.DirectionalLight(0xffffff,2.2); key.position.set(-2,4,8); scene.add(key);
@@ -133,13 +137,28 @@ export async function createLetter3DRenderer(container, {onUnavailable} = {}) {
       const fonts=new Map(loaded), group=new THREE.Group();
       try {
         for (let i=0;i<lines.length;i++) {assertGlyphs(fonts.get(lines[i].font),lines[i].text);group.add(buildLine(fonts.get(lines[i].font),lines[i],i));}
-        group.rotation.set(.08,-.24,0);
+        group.rotation.set(orbitPitch,orbitYaw,0);
         if (disposed || lost || mine!==generation) {disposeObject(group);return {stale:true};}
         if (current) {scene.remove(current);disposeObject(current);}
         current=group;scene.add(group);reframe();return {rendered:true};
       } catch(error) {disposeObject(group);throw error;}
     },
     resize:reframe,
+    // Rotate the visual preview by pointer displacement in CSS pixels.
+    orbitBy(dx,dy) {
+      if (disposed || lost || !Number.isFinite(dx) || !Number.isFinite(dy)) return;
+      orbitPitch=Math.max(-pitchLimit,Math.min(pitchLimit,orbitPitch+dy*radiansPerPixel));
+      orbitYaw=((orbitYaw+dx*radiansPerPixel+Math.PI)%(2*Math.PI)+2*Math.PI)%(2*Math.PI)-Math.PI;
+      if (current) current.rotation.set(orbitPitch,orbitYaw,0);
+      reframe();
+    },
+    // Restore only the view angle; Fit remains responsible for preview zoom.
+    resetOrbit() {
+      if (disposed || lost) return;
+      orbitPitch=initialPitch;orbitYaw=initialYaw;
+      if (current) current.rotation.set(orbitPitch,orbitYaw,0);
+      reframe();
+    },
     setZoom(value) { if (Number.isFinite(Number(value))) zoom=Math.min(3,Math.max(.5,Number(value)));reframe(); },
     destroy() {
       if (disposed) return; disposed=true;generation++;observer?.disconnect();

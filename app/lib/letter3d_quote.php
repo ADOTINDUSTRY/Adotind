@@ -57,7 +57,13 @@ function letter3d_calculate(PDO $db, array $input, float $vatPercent): array
         }
         $font = $rawLine['font'] ?? null; $colour = $rawLine['colour'] ?? null;
         if (!is_string($font) || !isset($fonts[$font])) throw new DomainException('Choose a lettering style for each line.');
-        if (!is_string($colour) || !preg_match('/\A#[0-9a-fA-F]{6}\z/D', $colour)) throw new DomainException('Choose a valid colour for each line.');
+        if (!is_string($colour) || !preg_match('/\A#[0-9a-fA-F]{6}\z/D', $colour)) throw new DomainException('Choose a valid front colour for each line.');
+        // Missing/null side colour keeps the pre-existing automatic shading.
+        $sideColour = $rawLine['side_colour'] ?? null;
+        if ($sideColour !== null && (!is_string($sideColour) || !preg_match('/\A#[0-9a-fA-F]{6}\z/D', $sideColour))) {
+            throw new DomainException('Choose a valid side colour for each line.');
+        }
+        if (is_string($sideColour)) $sideColour = strtolower($sideColour);
         $transforms = [];
         foreach (['x'=>200, 'y'=>200, 'rotation'=>180] as $key=>$limit) {
             $number = filter_var($rawLine[$key] ?? null, FILTER_VALIDATE_FLOAT);
@@ -68,7 +74,7 @@ function letter3d_calculate(PDO $db, array $input, float $vatPercent): array
         $count = is_string($compact) ? preg_match_all('/\X/u', $compact) : false;
         if ($count === false) throw new DomainException('The lettering could not be read.');
         $characters += $count;
-        $lines[] = ['text'=>$lineText, 'font'=>$font, 'colour'=>strtolower($colour), 'x'=>$transforms['x'], 'y'=>$transforms['y'], 'rotation'=>$transforms['rotation']];
+        $lines[] = ['text'=>$lineText, 'font'=>$font, 'colour'=>strtolower($colour), 'side_colour'=>$sideColour, 'x'=>$transforms['x'], 'y'=>$transforms['y'], 'rotation'=>$transforms['rotation']];
     }
     $text = implode("\n", array_column($lines, 'text'));
     if ($characters < 1 || $characters > (int)$product['max_characters']) throw new DomainException('The lettering is outside the allowed character count.');
@@ -94,7 +100,13 @@ function letter3d_calculate(PDO $db, array $input, float $vatPercent): array
     $vat = round($subtotal * $vatPercent / 100, 2);
     // Bind a submitted request to both the design and the reviewed terms, even
     // when a settings change happens to produce the same total.
-    $quoteToken = hash('sha256', json_encode([$product, $lines, (float)$width, (float)$height, $quantity, $vatPercent], JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE | JSON_PRESERVE_ZERO_FRACTION));
+    // Auto side colour has the same meaning as before this option existed.
+    // Omitting it from token material preserves a pending legacy confirmation.
+    $tokenLines = array_map(static function (array $line): array {
+        if ($line['side_colour'] === null) unset($line['side_colour']);
+        return $line;
+    }, $lines);
+    $quoteToken = hash('sha256', json_encode([$product, $tokenLines, (float)$width, (float)$height, $quantity, $vatPercent], JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE | JSON_PRESERVE_ZERO_FRACTION));
     return ['product_id'=>(int)$product['id'], 'product_name'=>$product['name'], 'text'=>$text, 'width_mm'=>(float)$width,
         'height_mm'=>(float)$height, 'quantity'=>$quantity, 'colour'=>$colour, 'font'=>$font, 'font_name'=>$fonts[$font], 'lines'=>$lines, 'characters'=>$characters,
         'subtotal'=>$subtotal, 'vat_percent'=>$vatPercent, 'vat'=>$vat, 'total'=>round($subtotal+$vat, 2), 'quote_token'=>$quoteToken];
@@ -182,8 +194,9 @@ function letter3d_handle_request(array $siteConfig): never
             }
             $lineSummary = [];
             foreach ($estimate['lines'] as $index => $line) {
-                $lineSummary[] = sprintf('Line %d: %s | style %s | colour %s | position %s%%, %s%% | rotation %s°',
-                    $index + 1, $line['text'], $line['font'], $line['colour'], $line['x'], $line['y'], $line['rotation']);
+                $sideDescription = $line['side_colour'] ?? 'automatic shade of front';
+                $lineSummary[] = sprintf('Line %d: %s | style %s | front colour %s | side colour %s | position %s%%, %s%% | rotation %s°',
+                    $index + 1, $line['text'], $line['font'], $line['colour'], $sideDescription, $line['x'], $line['y'], $line['rotation']);
             }
             $summary = "Text: {$estimate['text']}\nOption: {$estimate['product_name']}\n" . implode("\n", $lineSummary)
                 . "\nSize: {$estimate['width_mm']} × {$estimate['height_mm']} mm\nQuantity: {$estimate['quantity']}\nPreliminary estimate including VAT: €" . number_format($estimate['total'], 2, '.', '');
