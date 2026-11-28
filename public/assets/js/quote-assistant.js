@@ -66,8 +66,8 @@
     const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
     sitTimer = setTimeout(() => {
       assistant.dataset.mascotState = 'sitting';
-    }, reduced ? 0 : 2300);
-    farewellTimer = setTimeout(() => { if (prompt.dataset.mode === 'farewell') prompt.hidden = true; }, reduced ? 2500 : 4000);
+    }, reduced ? 0 : 3200);
+    farewellTimer = setTimeout(() => { if (prompt.dataset.mode === 'farewell') prompt.hidden = true; }, reduced ? 2500 : 4800);
   });
   assistant.querySelector('[data-assistant-close]').addEventListener('click', close);
   promptOpen.addEventListener('click', open);
