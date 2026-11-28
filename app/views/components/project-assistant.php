@@ -36,7 +36,7 @@
         <img class="mascot-settling" src="/public/assets/images/quote-assistant-seated.webp" alt="" width="360" height="440" />
       </span>
     </button>
-    <button class="quote-assistant-bye" type="button" data-assistant-bye aria-label="Ask the assistant to sit down">Bye</button>
+    <button class="quote-assistant-bye" type="button" data-assistant-bye aria-label="Ask the assistant to sit down" title="Ask the assistant to sit down"><span aria-hidden="true">×</span></button>
     <button class="quote-assistant-chair" type="button" data-assistant-chair aria-label="Call the project assistant">
       <img class="assistant-empty-chair" src="/public/assets/images/quote-assistant-empty-chair.webp" alt="" width="360" height="440" />
       <img class="assistant-seated" src="/public/assets/images/quote-assistant-seated.webp" alt="" width="360" height="440" />
