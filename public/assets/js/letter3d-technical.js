@@ -25,7 +25,7 @@ export function prepareLetter3DAcrylicLayers(plan,C){
   if(!Number.isFinite(thickness)||!Number.isFinite(depth)||!Number.isFinite(width)||thickness<=0||depth<=0||depth>=thickness||width<=0||width>100)fail('Invalid acrylic or groove dimensions.');
   const pieces=plan.pieces.map(piece=>{
     if(!piece || !Number.isInteger(piece.line) || piece.line<0 || piece.line>7)fail('Invalid lettering line.');
-    const face=toPaths(piece.face,'face'),center=toPaths(piece.groove,'groove');
+    const face=toPaths(piece.face,'face'),center=toPaths(piece.groove_center,'groove cutter centre');
     const stroker=new C.ClipperOffset(2,.005*SCALE),raw=[];
     stroker.AddPaths(center,C.JoinType.jtRound,C.EndType.etClosedLine);stroker.Execute(raw,width*SCALE/2);
     if(!raw.length)fail('The groove preview could not be created.');

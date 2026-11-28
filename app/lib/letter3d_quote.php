@@ -368,7 +368,7 @@ function letter3d_handle_request(array $siteConfig): never
             }
             $summary = "Text: {$estimate['text']}\nOption: {$estimate['product_name']}\n" . implode("\n", $lineSummary)
                 . "\nSize: {$estimate['width_mm']} × {$estimate['height_mm']} mm\nQuantity: {$estimate['quantity']}"
-                . sprintf("\nShop construction standard (revision %d; film/lighting compatibility and production subject to review): %g mm %s front; %g mm overhang from %s; %g mm %s side in %g mm deep acrylic groove, nominal cutter %s mm; %g mm %s back; %s.",
+                . sprintf("\nShop construction standard (revision %d; film/lighting compatibility and production subject to review): %g mm %s front; stored ERP overhang %g mm from %s (not used by the 0.8 mm edge groove method); %g mm %s side in %g mm deep acrylic groove, nominal cutter %s mm; %g mm %s back; %s.",
                     $estimate['construction']['version'], $estimate['construction']['front']['thickness_mm'], $estimate['construction']['front']['material'],
                     $estimate['construction']['front']['offset_outside_mm'], $estimate['construction']['front']['overhang_reference'] ?? 'not specified',
                     $estimate['construction']['side']['thickness_mm'], $estimate['construction']['side']['material'], $estimate['construction']['side']['acrylic_groove_depth_mm'],

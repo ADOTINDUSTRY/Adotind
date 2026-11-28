@@ -5,7 +5,7 @@
  const rect=(x,y,w,h)=>[{x,y},{x:x+w,y},{x:x+w,y:y+h},{x,y:y+h}];
  const face=[rect(0,0,100,50)],groove=[rect(1.3,1.3,97.4,47.4)];
  const settings={face_thickness_mm:3,groove_depth_mm:1.2,groove_width_mm:1.2,overhang_mm:1,side_thickness_mm:.6,overhang_reference:'outside'};
- const plan={face,groove,pieces:[{line:0,face,groove}],settings,bounds_mm:{width:100,height:50}};
+ const plan={face,groove,pieces:[{line:0,face,groove,groove_center:groove}],settings,bounds_mm:{width:100,height:50}};
  const prepared=prepareLetter3DAcrylicLayers(plan,C);assert.equal(prepared.face_thickness_mm,3);assert.equal(prepared.groove_depth_mm,1.2);assert.equal(prepared.groove_width_mm,1.2);assert.ok(prepared.pieces[0].back.length>=2,'Slot removes material from rear');
  const lines=[{text:'O',font:'sans',colour:'#ff0000',side_colour:'#0000ff',x:0,y:0,rotation:0}],model=buildLetter3DTechnicalModel(plan,lines,C,{lightsOn:true});model.updateMatrixWorld(true);
  const ray=(x,y,side)=>{let r=new THREE.Raycaster(new THREE.Vector3(x,y,side==='back'?-10:10),new THREE.Vector3(0,0,side==='back'?1:-1));return r.intersectObject(model,true).filter(h=>h.object.isMesh).map(h=>h.point.z).sort((a,b)=>side==='back'?a-b:b-a)[0]};
@@ -17,10 +17,10 @@
  assert.ok(Math.abs(ray(1.3+.61,25,'back'))<.001,'Inside groove width back is intact');
  assert.ok(model.children[0].children.some(o=>o.isLineLoop),'Groove centreline is marked');
  const wideFace=[rect(0,0,400,200)],wideGroove=[rect(51,51,298,98)];
- const widePlan={face:wideFace,groove:wideGroove,pieces:[{line:0,face:wideFace,groove:wideGroove}],settings:{...settings,overhang_mm:50.7,groove_width_mm:20},bounds_mm:{width:400,height:200}};
+ const widePlan={face:wideFace,groove:wideGroove,pieces:[{line:0,face:wideFace,groove:wideGroove,groove_center:wideGroove}],settings:{...settings,overhang_mm:50.7,groove_width_mm:20},bounds_mm:{width:400,height:200}};
  assert.equal(prepareLetter3DAcrylicLayers(widePlan,C).groove_width_mm,20,'Preview accepts valid ERP groove widths over 10 mm');
  const bad=structuredClone(plan);bad.settings.groove_depth_mm=3;assert.throws(()=>prepareLetter3DAcrylicLayers(bad,C));
- const breakthrough=structuredClone(plan);breakthrough.pieces[0].groove=[rect(.2,.2,99.6,49.6)];assert.throws(()=>prepareLetter3DAcrylicLayers(breakthrough,C),/break through/i);
+ const breakthrough=structuredClone(plan);breakthrough.pieces[0].groove_center=[rect(.2,.2,99.6,49.6)];assert.throws(()=>prepareLetter3DAcrylicLayers(breakthrough,C),/break through/i);
  // An actual O glyph has a separate outside and counter groove; check both,
  // sampling segment midpoints to avoid assuming rectangle-like geometry.
  const opentype=require('../public/assets/js/quote-vendor/opentype-1.3.4.min.js');
@@ -32,7 +32,7 @@
  assert.equal(realPlan.groove.length,2,'The real O has both outside and inside groove contours');
  const realModel=buildLetter3DTechnicalModel(realPlan,realLines,C);realModel.updateMatrixWorld(true);
  let checked=0;
- for(const contour of realPlan.groove){
+ for(const contour of realPlan.pieces[0].groove_center){
    const stride=Math.max(1,Math.floor(contour.length/25));
    for(let i=0;i<contour.length;i+=stride){
      const a=contour[i],b=contour[(i+1)%contour.length];

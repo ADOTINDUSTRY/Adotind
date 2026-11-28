@@ -40,14 +40,15 @@ try {
       <details class="letter3d-cutting" data-letter-cutting>
         <summary>Face and groove cutting preview</summary>
         <div class="letter3d-cutting-body">
-          <p>Top view of the front acrylic. Blue is the face cut; orange is the groove centreline on the back of the face.</p>
-          <svg data-letter-cutting-svg role="img" aria-label="Front acrylic outline and groove centreline. Drag to move the drawing." hidden></svg>
+          <p>Blue is the acrylic cut; orange is the groove reference on the back. Cut toward the blue edge: outside outer contours and inside openings.</p>
+          <p>This method fixes the reference 2 mm from the face edge and does not use the ERP's separate face-overhang setting. Confirm the aluminium fit before production.</p>
+          <svg data-letter-cutting-svg role="img" aria-label="Acrylic cut and groove reference. Drag to move the drawing." hidden></svg>
           <div class="letter3d-cutting-zoom" role="group" aria-label="Cutting preview zoom"><button type="button" data-letter-cutting-zoom="out" aria-label="Zoom cutting preview out">−</button><output data-letter-cutting-zoom-level>100%</output><button type="button" data-letter-cutting-zoom="in" aria-label="Zoom cutting preview in">+</button><button type="button" data-letter-cutting-zoom="fit">Fit</button><small>Drag drawing to move</small></div>
           <p data-letter-cutting-dimensions></p>
           <p data-letter-cutting-status role="status">Enter a finished width to prepare the cutting preview.</p>
           <p data-letter-cutting-instructions></p>
           <button type="button" class="btn" data-letter-tech-view aria-pressed="false" disabled>Inspect grooved acrylic in 3D</button>
-          <small>The 3D inspection hides the aluminium and PVC so you can turn the acrylic over and see the rear groove. A cyan line marks the groove centreline. The groove is shown as an ideal straight-sided channel; check your cutter profile in Aspire.</small>
+          <small>The 3D inspection hides the aluminium and PVC so you can turn the acrylic over and see the rear groove. Cyan marks the cutter centre. Check the toolpath in Aspire.</small>
           <button type="button" class="btn" data-letter-export-dxf disabled>Export cutting vectors (DXF)</button>
           <small>DXF contains 2D vectors only. Set groove depth and cutter in Aspire, and check the back-face orientation before cutting.</small>
         </div>

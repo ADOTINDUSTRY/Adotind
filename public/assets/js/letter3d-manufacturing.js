@@ -1,8 +1,8 @@
 import * as THREE from './quote-vendor/three-0.160.1.module.min.js';
 import {fontPathToShapes} from './letter3d-geometry.js';
 
-// The letter outlines denote the aluminium wall centreline. The face is an
-// offset of those outlines; the groove is a centreline, not a cutter toolpath.
+// The letter outlines are the groove reference. The cutter runs outside that
+// reference, toward the acrylic edge, leaving 0.8 mm beyond the cut.
 const FONT_SIZE=100, LINE_HEIGHT=120, CLIP_SCALE=10000, MAX_POINTS=180000;
 const TOLERANCE_MM=0.01;
 const fail = message => { throw new Error(message); };
@@ -21,8 +21,9 @@ function checkedSettings(value) {
     face_thickness_mm:finite(value.face_thickness_mm ?? value.front_thickness_mm,.1,100,'face thickness')};
   if (s.groove_width_mm < s.side_thickness_mm) fail('The groove width is smaller than the aluminium thickness.');
   if (s.groove_depth_mm >= s.face_thickness_mm) fail('The groove must be shallower than the acrylic face.');
-  const faceOffset=s.overhang_mm+(s.overhang_reference==='outside'?s.side_thickness_mm/2:0);
-  if (faceOffset <= s.groove_width_mm/2) fail('The groove would extend beyond the acrylic face.');
+  if (Math.abs(s.groove_width_mm-1.2)>1e-7 || Math.abs(s.groove_depth_mm-1.2)>1e-7) fail('This cutting method requires a 1.2 mm bit and 1.2 mm groove depth. Check the ERP settings.');
+  s.edge_remaining_mm=0.8;
+  const faceOffset=s.groove_width_mm+s.edge_remaining_mm;
   return {s,faceOffset};
 }
 function distanceToSegment(p,a,b) {
@@ -190,8 +191,8 @@ export function buildLetter3DManufacturing({lines,width_mm,settings,fonts,clippe
   if(total-merged>.002 || after.outer<before.outer || after.holes<before.holes) fail('Some lettering overlaps or touches; adjust the design before preparing cutting files.');
   const face=offset(clipper,groove,faceOffset), fc=counts(clipper,face);
   if(!face.length || fc.outer!==after.outer || fc.holes!==after.holes) fail('The face offset closes a letter opening or joins separate letters. Increase the size or adjust the design.');
-  const inside=offset(clipper,groove,-s.groove_width_mm/2), ic=counts(clipper,inside);
-  if(!inside.length || ic.outer!==after.outer || ic.holes!==after.holes) fail('A letter is too narrow for the specified groove. Increase the size or adjust the design.');
+  const centre=offset(clipper,groove,s.groove_width_mm/2), ic=counts(clipper,centre);
+  if(!centre.length || ic.outer!==after.outer || ic.holes!==after.holes) fail('A letter is too narrow for the specified groove. Increase the size or adjust the design.');
   let minX=Infinity,minY=Infinity,maxX=-Infinity,maxY=-Infinity;
   for(const p of face.flat()){minX=Math.min(minX,p.X);minY=Math.min(minY,p.Y);maxX=Math.max(maxX,p.X);maxY=Math.max(maxY,p.Y);}
   const finalWidth=(maxX-minX)/CLIP_SCALE, finalHeight=(maxY-minY)/CLIP_SCALE;
@@ -203,10 +204,10 @@ export function buildLetter3DManufacturing({lines,width_mm,settings,fonts,clippe
     if(!piece){piece={line:glyph.line,groove:[]};grouped.push(piece);}
     piece.groove.push(...glyph.paths);
   }
-  const pieces=grouped.map(piece=>({line:piece.line,groove:piece.groove,face:offset(clipper,piece.groove,faceOffset)}));
+  const pieces=grouped.map(piece=>({line:piece.line,groove:piece.groove,groove_center:offset(clipper,piece.groove,s.groove_width_mm/2),face:offset(clipper,piece.groove,faceOffset)}));
   if(Math.abs(pieces.reduce((sum,piece)=>sum+solidArea(clipper,piece.face),0)-solidArea(clipper,face))>.002)
     fail('The per-line face geometry cannot be represented consistently; please request shop review.');
   return {face:toContours(face,{x:minX,y:minY}),groove:toContours(groove,{x:minX,y:minY}),
-    pieces:pieces.map(piece=>({line:piece.line,face:toContours(piece.face,{x:minX,y:minY}),groove:toContours(piece.groove,{x:minX,y:minY})})),
+    pieces:pieces.map(piece=>({line:piece.line,face:toContours(piece.face,{x:minX,y:minY}),groove:toContours(piece.groove,{x:minX,y:minY}),groove_center:toContours(piece.groove_center,{x:minX,y:minY})})),
     bounds_mm:{width:finalWidth,height:finalHeight},settings:s,curve_tolerance_mm:TOLERANCE_MM};
 }

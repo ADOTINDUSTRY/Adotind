@@ -1,7 +1,7 @@
 import * as THREE from './quote-vendor/three-0.160.1.module.min.js';
 import {fontPathToShapes} from './letter3d-geometry.js';
-import {prepareLetter3DAcrylicLayers} from './letter3d-technical.js';
-import {prepareLetter3DSignLayers} from './letter3d-sign.js';
+import {prepareLetter3DAcrylicLayers} from './letter3d-technical.js?v=outside-groove-1';
+import {prepareLetter3DSignLayers} from './letter3d-sign.js?v=outside-groove-1';
 
 const FONT_URLS = Object.freeze({
   sans:'/public/assets/fonts/letter3d/AlegreyaSans-Regular.ttf',
@@ -163,7 +163,7 @@ export function buildLetter3DTechnicalModel(plan,rawLines,clipper,{lightsOn=true
       if(!lines[piece.line]) throw unavailable('design');
       const source=plan.pieces.find(p=>p.line===piece.line);
       if(!source) throw unavailable('design');
-      group.add(technicalPiece({...piece,groove:source.groove},lines[piece.line],layers,lightsOn));
+      group.add(technicalPiece({...piece,groove:source.groove_center},lines[piece.line],layers,lightsOn));
     }
     return group;
   } catch(error){disposeObject(group);throw error;}

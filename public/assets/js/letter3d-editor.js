@@ -155,8 +155,7 @@
     if (!settings || !settings.front || !settings.side || !settings.back) return;
     const display=(key,value)=>{const element=find('construction-'+key); if(element) element.textContent=value;};
     const front=settings.front, side=settings.side, back=settings.back;
-    const reference=front.overhang_reference==='outside' ? 'the outside of the aluminium' : front.overhang_reference==='centreline' ? 'the aluminium centreline' : 'an unset reference';
-    display('front', front.thickness_mm+' mm '+front.material+' face, '+front.offset_outside_mm+' mm overhang from '+reference+'.');
+    display('front', front.thickness_mm+' mm '+front.material+' face. The outside-cut groove leaves 0.8 mm at the acrylic edge.');
     display('side', side.thickness_mm+' mm '+side.material+' side, groove '+side.acrylic_groove_depth_mm+' mm deep, nominal bit '+(side.groove_width_mm ?? 'not set')+' mm.');
     display('back', back.thickness_mm+' mm '+back.material+' back.');
     display('film', settings.front_and_side_film+' for the front and sides.');
@@ -236,12 +235,10 @@
         height.value=String(Number(plan.bounds_mm.height.toFixed(3)));
         drawCutting(plan);
         if(cuttingDimensions) {
-          const centreOffset=settings.overhang_mm+(settings.overhang_reference==='outside'?settings.side_thickness_mm/2:0);
-          const reference=settings.overhang_reference==='outside'?'outside of the aluminium':'aluminium centreline';
-          cuttingDimensions.textContent='Finished face: '+plan.bounds_mm.width.toFixed(1)+' × '+plan.bounds_mm.height.toFixed(1)+' mm. Face overhang: '+settings.overhang_mm+' mm from the '+reference+'; groove centreline: '+Number(centreOffset.toFixed(3))+' mm from the face edge.';
+          cuttingDimensions.textContent='Finished face: '+plan.bounds_mm.width.toFixed(1)+' × '+plan.bounds_mm.height.toFixed(1)+' mm. Groove reference: 2 mm from acrylic edge; outside cut leaves 0.8 mm.';
         }
         cuttingStatus.textContent='Cutting contours ready for shop review.';
-        if(cuttingInstructions)cuttingInstructions.textContent='In Aspire: verify millimetres, set the groove '+settings.groove_depth_mm+' mm deep with the '+settings.groove_width_mm+' mm bit, and check mirroring for routing the back. Check each piece fits your machine.';
+        if(cuttingInstructions)cuttingInstructions.textContent='In Aspire: use a 1.2 mm bit at 1.2 mm depth. Cut toward the acrylic edge: outside outer references, inside opening references. Check every toolpath and mirroring for the back.';
         exportDxf.disabled=false;if(techViewButton)techViewButton.disabled=threeUnavailable || !threeRenderer || typeof threeRenderer.updateManufacturing!=='function';saveDesign();schedule3D();scheduleEstimate();
       } catch(error) {
         if(current!==manufacturingSequence)return;

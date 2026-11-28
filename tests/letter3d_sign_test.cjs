@@ -5,7 +5,7 @@ const assert=require('node:assert/strict'),C=require('../public/assets/js/neon-c
  const {prepareLetter3DSignLayers}=await import('../public/assets/js/letter3d-sign.js');
  const {buildLetter3DSignModel}=await import('../public/assets/js/letter3d-renderer.js');
  const box=(x,y,w,h)=>[{x,y},{x:x+w,y},{x:x+w,y:y+h},{x,y:y+h}];
- const plan={pieces:[{line:0,face:[box(0,0,102.6,52.6)],groove:[box(1.3,1.3,100,50)]}],face:[box(0,0,102.6,52.6)],groove:[box(1.3,1.3,100,50)],bounds_mm:{width:102.6,height:52.6},settings:{face_thickness_mm:3,side_thickness_mm:.6,groove_width_mm:1.2,groove_depth_mm:1.2}};
+ const plan={pieces:[{line:0,face:[box(0,0,102.6,52.6)],groove:[box(1.3,1.3,100,50)],groove_center:[box(1.3,1.3,100,50)]}],face:[box(0,0,102.6,52.6)],groove:[box(1.3,1.3,100,50)],bounds_mm:{width:102.6,height:52.6},settings:{face_thickness_mm:3,side_thickness_mm:.6,groove_width_mm:1.2,groove_depth_mm:1.2}};
  const options={totalDepthMm:60,backThicknessMm:10,backVisible:false,backboard:{shape:'rectangle',colour:'#ff0000',margin_mm:10}};
  const result=prepareLetter3DSignLayers(plan,C,options);
  const dims=contours=>{let points=contours.flat();return {minx:Math.min(...points.map(p=>p.x)),maxx:Math.max(...points.map(p=>p.x)),miny:Math.min(...points.map(p=>p.y)),maxy:Math.max(...points.map(p=>p.y))}};

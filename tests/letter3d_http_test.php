@@ -189,7 +189,7 @@ try {
     [$status,$response] = http3d_request($base . '/request', 'POST', $newRequest, $cookie);
     http3d_assert($status===200 && !empty($response['ok']), 'A design using the updated construction must submit.');
     $newSaved=json_decode((string)$db->query('SELECT payload FROM website_inbox ORDER BY id DESC LIMIT 1')->fetchColumn(),true,512,JSON_THROW_ON_ERROR);
-    http3d_assert(($newSaved['estimate']['construction']['version'] ?? null)===2 && ($newSaved['estimate']['construction']['front']['offset_outside_mm'] ?? null)==2 && str_contains($newSaved['fields']['project_description'] ?? '', '2 mm overhang'), 'Submitted inquiry must snapshot and display the changed ERP construction.');
+    http3d_assert(($newSaved['estimate']['construction']['version'] ?? null)===2 && ($newSaved['estimate']['construction']['front']['offset_outside_mm'] ?? null)==2 && str_contains($newSaved['fields']['project_description'] ?? '', 'stored ERP overhang 2 mm') && str_contains($newSaved['fields']['project_description'] ?? '', 'not used by the 0.8 mm edge groove method'), 'Submitted inquiry must distinguish the ERP setting from the groove method.');
     $full=$design;$full['construction_revision']=2;$full['letter_depth_mm']=60;
     $full['backboard']=['shape'=>'rectangle','colour'=>'clear','margin_mm'=>40];
     $full['lines']=[['text'=>'AB','font'=>'sans','colour'=>'#f3f3ed','side_colour'=>'#202328','front_finish'=>'gloss','side_finish'=>'matt','front_film_code'=>'501 EF','side_film_code'=>'502 EF','x'=>0,'y'=>0,'rotation'=>0]];

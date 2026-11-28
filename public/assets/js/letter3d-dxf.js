@@ -17,6 +17,7 @@ export function buildLetter3dDxf(geometry) {
   const depth=finite(config.groove_depth_mm,'groove depth',0.01,100);
   const faceThickness=finite(config.face_thickness_mm,'face thickness',0.1,100);
   if (width < side || depth >= faceThickness) throw new Error('The groove must fit the side and remain shallower than the acrylic face.');
+  if (Math.abs(width-1.2)>1e-7 || Math.abs(depth-1.2)>1e-7 || config.edge_remaining_mm!==0.8) throw new Error('This export requires the 1.2 mm outside-cut method and 0.8 mm edge.');
   const bounds=geometry.bounds_mm;
   if (!bounds || typeof bounds !== 'object') throw new Error('The drawing dimensions are missing.');
   const expectedWidth=finite(bounds.width,'drawing width',0.01,100000);
@@ -50,9 +51,9 @@ export function buildLetter3dDxf(geometry) {
   const number=value=>String(Number(value.toFixed(3)));
   const instructions=[
     'Vectors only: inspect all contours and verify the imported dimensions are in millimetres before machining.',
-    `In Aspire set the groove cutting depth to ${number(depth)} mm and confirm the tool and resulting slot width (${number(width)} mm). A DXF layer does not set depth or generate a toolpath.`,
+    `In Aspire use a ${number(width)} mm bit at ${number(depth)} mm depth, cutting from GROOVE_REFERENCE toward the face edge: outside external contours and inside openings. Verify each toolpath; the groove must leave 0.8 mm acrylic at every edge.`,
     'Confirm how the acrylic is turned over and mirror the back-face groove if your setup requires it.',
-    `Face overhang ${number(overhang)} mm is measured from the ${config.overhang_reference==='outside'?'outside of the aluminium':'groove centreline'}; aluminium thickness is ${number(side)} mm. Review fit before cutting.`,
+    'The reference is 2 mm from the face edge; it is not the cutter centreline. A DXF cannot set the cutting side, bit or depth. Check the toolpath and test the fit before cutting.',
   ];
   let handle=0x10;const nextHandle=()=> (handle++).toString(16).toUpperCase();
   const out=[];const pair=(code,value)=>{out.push(String(code),String(value));};
@@ -63,11 +64,11 @@ export function buildLetter3dDxf(geometry) {
   pair(0,'TABLE');pair(2,'LTYPE');pair(5,nextHandle());pair(100,'AcDbSymbolTable');pair(70,1);
   pair(0,'LTYPE');pair(5,nextHandle());pair(100,'AcDbSymbolTableRecord');pair(100,'AcDbLinetypeTableRecord');pair(2,'CONTINUOUS');pair(70,0);pair(3,'Solid line');pair(72,65);pair(73,0);pair(40,0);pair(0,'ENDTAB');
   pair(0,'TABLE');pair(2,'LAYER');pair(5,nextHandle());pair(100,'AcDbSymbolTable');pair(70,3);
-  for(const [layer,colour] of [['0',7],['FACE_CUT',3],['GROOVE_CENTRELINE',1]]) {
+  for(const [layer,colour] of [['0',7],['FACE_CUT',3],['GROOVE_REFERENCE',1]]) {
     pair(0,'LAYER');pair(5,nextHandle());pair(100,'AcDbSymbolTableRecord');pair(100,'AcDbLayerTableRecord');pair(2,layer);pair(70,0);pair(62,colour);pair(6,'CONTINUOUS');
   }
   pair(0,'ENDTAB');pair(0,'ENDSEC');pair(0,'SECTION');pair(2,'BLOCKS');pair(0,'ENDSEC');pair(0,'SECTION');pair(2,'ENTITIES');
-  for(const [layer,paths] of [['FACE_CUT',face],['GROOVE_CENTRELINE',groove]]) for(const contour of paths) {
+  for(const [layer,paths] of [['FACE_CUT',face],['GROOVE_REFERENCE',groove]]) for(const contour of paths) {
     pair(0,'LWPOLYLINE');pair(5,nextHandle());pair(100,'AcDbEntity');pair(8,layer);pair(100,'AcDbPolyline');pair(90,contour.length);pair(70,1);
     for(const {x,y} of contour){pair(10,number(x));pair(20,number(y));}
   }

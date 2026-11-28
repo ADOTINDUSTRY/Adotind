@@ -29,7 +29,7 @@ export function prepareLetter3DSignLayers(plan,C,{totalDepthMm,backThicknessMm,b
   if(backboard.shape==='rectangle'&&(!Number.isFinite(margin)||margin<0||margin>500))err('Invalid backboard margin.');
   const pieces=plan.pieces.map(piece=>{
     if(!piece||!Number.isInteger(piece.line)||piece.line<0||piece.line>7)err('Invalid line.');
-    const centre=paths(piece.groove);
+    const centre=paths(piece.groove_center);
     const wall=offset(C,centre,side/2,C.EndType.etClosedLine);
     const back=offset(C,centre,-side/2,C.EndType.etClosedPolygon);
     return {line:piece.line,wall:contours(wall),back:contours(back)};
