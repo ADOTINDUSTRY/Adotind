@@ -1,0 +1,425 @@
+{
+  "series": "Avery Dennison 500 Event Film",
+  "source": "https://graphics.averydennison.com/content/dam/averydennison/graphics/eu/en/product-overview/color-cards/500-event-film-series-colour-card.pdf",
+  "source_edition": "2025-05",
+  "note": "Digital colours are illustrative approximations, not manufacturer colour measurements. Check a physical sample and confirm local supply before production. Gloss/matt listed here reflects the source colour card, not stock or adhesive suitability.",
+  "colours": [
+    {
+      "code": "501 EF",
+      "name": "White",
+      "hex": "#f3f3ed",
+      "finishes": [
+        "gloss",
+        "matt"
+      ]
+    },
+    {
+      "code": "502 EF",
+      "name": "Black",
+      "hex": "#202328",
+      "finishes": [
+        "gloss",
+        "matt"
+      ]
+    },
+    {
+      "code": "503 EF",
+      "name": "Geranium Red",
+      "hex": "#bf2337",
+      "finishes": [
+        "gloss",
+        "matt"
+      ]
+    },
+    {
+      "code": "504 EF",
+      "name": "Primrose Yellow",
+      "hex": "#f2c914",
+      "finishes": [
+        "gloss",
+        "matt"
+      ]
+    },
+    {
+      "code": "505 EF",
+      "name": "Blue",
+      "hex": "#175aa2",
+      "finishes": [
+        "gloss",
+        "matt"
+      ]
+    },
+    {
+      "code": "506 EF",
+      "name": "Cactus Green",
+      "hex": "#00845a",
+      "finishes": [
+        "gloss",
+        "matt"
+      ]
+    },
+    {
+      "code": "507 EF",
+      "name": "Brown",
+      "hex": "#633a2c",
+      "finishes": [
+        "gloss",
+        "matt"
+      ]
+    },
+    {
+      "code": "508 EF",
+      "name": "Grey",
+      "hex": "#89949c",
+      "finishes": [
+        "gloss",
+        "matt"
+      ]
+    },
+    {
+      "code": "509 EF",
+      "name": "Orange",
+      "hex": "#ef7124",
+      "finishes": [
+        "gloss",
+        "matt"
+      ],
+      "finish_names": {
+        "matt": "Orange LF"
+      }
+    },
+    {
+      "code": "510 EF",
+      "name": "Bright Blue",
+      "hex": "#0097cf",
+      "finishes": [
+        "gloss",
+        "matt"
+      ]
+    },
+    {
+      "code": "511 EF",
+      "name": "Cherry Red",
+      "hex": "#d33a2c",
+      "finishes": [
+        "gloss"
+      ]
+    },
+    {
+      "code": "512 EF",
+      "name": "Dark Blue",
+      "hex": "#153768",
+      "finishes": [
+        "gloss",
+        "matt"
+      ]
+    },
+    {
+      "code": "513 EF",
+      "name": "Burgundy",
+      "hex": "#6c2738",
+      "finishes": [
+        "gloss",
+        "matt"
+      ],
+      "finish_names": {
+        "matt": "Burgundy Red"
+      }
+    },
+    {
+      "code": "514 EF",
+      "name": "Poppy Red",
+      "hex": "#e6452f",
+      "finishes": [
+        "gloss"
+      ]
+    },
+    {
+      "code": "515 EF",
+      "name": "Dark Red",
+      "hex": "#982b35",
+      "finishes": [
+        "gloss",
+        "matt"
+      ]
+    },
+    {
+      "code": "516 EF",
+      "name": "Light Orange",
+      "hex": "#f1a53e",
+      "finishes": [
+        "gloss",
+        "matt"
+      ]
+    },
+    {
+      "code": "517 EF",
+      "name": "Light Green",
+      "hex": "#6ab93d",
+      "finishes": [
+        "gloss",
+        "matt"
+      ]
+    },
+    {
+      "code": "518 EF",
+      "name": "Grass Green",
+      "hex": "#22964a",
+      "finishes": [
+        "gloss",
+        "matt"
+      ]
+    },
+    {
+      "code": "519 EF",
+      "name": "Red",
+      "hex": "#d92433",
+      "finishes": [
+        "gloss",
+        "matt"
+      ]
+    },
+    {
+      "code": "520 EF",
+      "name": "Ultramarine Blue",
+      "hex": "#243581",
+      "finishes": [
+        "gloss",
+        "matt"
+      ]
+    },
+    {
+      "code": "521 EF",
+      "name": "Intense Blue",
+      "hex": "#0b57ad",
+      "finishes": [
+        "gloss",
+        "matt"
+      ]
+    },
+    {
+      "code": "522 EF",
+      "name": "Violet",
+      "hex": "#683c8f",
+      "finishes": [
+        "gloss",
+        "matt"
+      ]
+    },
+    {
+      "code": "523 EF",
+      "name": "Medium Red",
+      "hex": "#c83036",
+      "finishes": [
+        "gloss",
+        "matt"
+      ]
+    },
+    {
+      "code": "524 EF",
+      "name": "Magenta",
+      "hex": "#c63c80",
+      "finishes": [
+        "gloss",
+        "matt"
+      ]
+    },
+    {
+      "code": "526 EF",
+      "name": "Stone Yellow",
+      "hex": "#d5ad35",
+      "finishes": [
+        "gloss",
+        "matt"
+      ]
+    },
+    {
+      "code": "527 EF",
+      "name": "Butter Yellow",
+      "hex": "#f3d43e",
+      "finishes": [
+        "gloss",
+        "matt"
+      ]
+    },
+    {
+      "code": "528 EF",
+      "name": "Vivid Blue",
+      "hex": "#2c70ce",
+      "finishes": [
+        "gloss",
+        "matt"
+      ]
+    },
+    {
+      "code": "529 EF",
+      "name": "Light Grey",
+      "hex": "#bdc6ca",
+      "finishes": [
+        "gloss",
+        "matt"
+      ]
+    },
+    {
+      "code": "530 EF",
+      "name": "Dark Grey",
+      "hex": "#52616a",
+      "finishes": [
+        "gloss",
+        "matt"
+      ]
+    },
+    {
+      "code": "531 EF",
+      "name": "Lime",
+      "hex": "#91d747",
+      "finishes": [
+        "gloss",
+        "matt"
+      ]
+    },
+    {
+      "code": "532 EF",
+      "name": "Kelly Green",
+      "hex": "#008a4b",
+      "finishes": [
+        "gloss",
+        "matt"
+      ]
+    },
+    {
+      "code": "533 EF",
+      "name": "Forest Green",
+      "hex": "#075b42",
+      "finishes": [
+        "gloss",
+        "matt"
+      ]
+    },
+    {
+      "code": "534 EF",
+      "name": "Turquoise",
+      "hex": "#11abb3",
+      "finishes": [
+        "gloss",
+        "matt"
+      ]
+    },
+    {
+      "code": "535 EF",
+      "name": "Teal",
+      "hex": "#087c83",
+      "finishes": [
+        "gloss",
+        "matt"
+      ]
+    },
+    {
+      "code": "536 EF",
+      "name": "Mint",
+      "hex": "#82cdbd",
+      "finishes": [
+        "gloss",
+        "matt"
+      ]
+    },
+    {
+      "code": "537 EF",
+      "name": "Light Blue",
+      "hex": "#86bfe3",
+      "finishes": [
+        "gloss",
+        "matt"
+      ]
+    },
+    {
+      "code": "538 EF",
+      "name": "Gentian Blue",
+      "hex": "#337bb0",
+      "finishes": [
+        "gloss",
+        "matt"
+      ]
+    },
+    {
+      "code": "539 EF",
+      "name": "Reflex Blue",
+      "hex": "#24387b",
+      "finishes": [
+        "gloss",
+        "matt"
+      ]
+    },
+    {
+      "code": "540 EF",
+      "name": "Cobalt Blue",
+      "hex": "#1d3765",
+      "finishes": [
+        "gloss",
+        "matt"
+      ]
+    },
+    {
+      "code": "541 EF",
+      "name": "Pink",
+      "hex": "#e68ab1",
+      "finishes": [
+        "gloss",
+        "matt"
+      ]
+    },
+    {
+      "code": "542 EF",
+      "name": "Ivory",
+      "hex": "#e9dfbd",
+      "finishes": [
+        "gloss",
+        "matt"
+      ]
+    },
+    {
+      "code": "543 EF",
+      "name": "Beige",
+      "hex": "#d3c0a3",
+      "finishes": [
+        "matt"
+      ]
+    },
+    {
+      "code": "544 EF",
+      "name": "Mist Grey",
+      "hex": "#e0e2df",
+      "finishes": [
+        "gloss",
+        "matt"
+      ]
+    },
+    {
+      "code": "545 EF",
+      "name": "Dove Grey",
+      "hex": "#929a9f",
+      "finishes": [
+        "gloss",
+        "matt"
+      ]
+    },
+    {
+      "code": "546 EF",
+      "name": "Silver",
+      "hex": "#aaadaf",
+      "finishes": [
+        "gloss",
+        "matt"
+      ]
+    },
+    {
+      "code": "547 EF",
+      "name": "Gold",
+      "hex": "#bea467",
+      "finishes": [
+        "gloss",
+        "matt"
+      ]
+    }
+  ]
+}

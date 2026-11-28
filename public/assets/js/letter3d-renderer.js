@@ -1,6 +1,7 @@
 import * as THREE from './quote-vendor/three-0.160.1.module.min.js';
 import {fontPathToShapes} from './letter3d-geometry.js';
 import {prepareLetter3DAcrylicLayers} from './letter3d-technical.js';
+import {prepareLetter3DSignLayers} from './letter3d-sign.js';
 
 const FONT_URLS = Object.freeze({
   sans:'/public/assets/fonts/letter3d/AlegreyaSans-Regular.ttf',
@@ -42,7 +43,7 @@ function disposeObject(object) {
   object.traverse(node=>{
     if (node.geometry) node.geometry.dispose();
     if (Array.isArray(node.material)) node.material.forEach(m=>m.dispose());
-    else if (node.material) node.material.dispose();
+    else if (node.material) { node.material.map?.dispose(); node.material.dispose(); }
   });
 }
 function validateLines(lines) {
@@ -100,7 +101,7 @@ function buildLine(font,line,index,lightsOn) {
       value==='gloss' ? {shininess:90,specular:0x555555} : {shininess:fallback,specular:0x111111};
     // Visual approximation only: colour, gloss and light output are confirmed
     // by the shop and do not assert that any particular film transmits light.
-    const front=new THREE.MeshPhongMaterial({color:line.colour,...finish(line.front_finish,28),emissive:line.colour,emissiveIntensity:lightsOn ? .9 : 0});
+    const front=new THREE.MeshPhongMaterial({color:line.colour,...finish(line.front_finish,28),emissive:line.colour,emissiveIntensity:lightsOn ? 1.25 : 0});
     const side=new THREE.MeshPhongMaterial({color:line.side_colour === null ? new THREE.Color(line.colour).multiplyScalar(.55) : new THREE.Color(line.side_colour),...finish(line.side_finish,22)});
     const back=new THREE.MeshPhongMaterial({color:0xeeeeee,shininess:8,specular:0x080808});
     group.add(new THREE.Mesh(geometry,[front,side,back]));
@@ -123,7 +124,7 @@ function technicalShapes(contours) {
   return shapes;
 }
 /** Acrylic is 3 mm (or the ERP value), with a real rear groove removed. */
-function technicalPiece(piece, line, settings, lightsOn) {
+function technicalPiece(piece, line, settings, lightsOn, showGrooveMarker=true) {
   const full=technicalShapes(piece.face), back=technicalShapes(piece.back);
   const thickness=settings.face_thickness_mm, depth=settings.groove_depth_mm;
   const upper=new THREE.ExtrudeGeometry(full,{depth:thickness-depth,bevelEnabled:false,steps:1});
@@ -139,7 +140,7 @@ function technicalPiece(piece, line, settings, lightsOn) {
   if(previous>=0)upper.addGroup(start,points.count-start,previous);
   const finish=(value,fallback)=>value==='matt'?{shininess:5,specular:0x080808}:
     value==='gloss'?{shininess:90,specular:0x555555}:{shininess:fallback,specular:0x111111};
-  const front=new THREE.MeshPhongMaterial({color:line.colour,...finish(line.front_finish,28),emissive:line.colour,emissiveIntensity:lightsOn?.9:0});
+  const front=new THREE.MeshPhongMaterial({color:line.colour,...finish(line.front_finish,28),emissive:line.colour,emissiveIntensity:lightsOn?1.25:0});
   const opal=new THREE.MeshPhongMaterial({color:0xeeeeee,shininess:8,specular:0x080808});
   // Neutral shading on the recessed floor makes the cut visible on the back.
   const floor=new THREE.MeshPhongMaterial({color:0xaab4bc,shininess:8,specular:0x080808});
@@ -147,7 +148,7 @@ function technicalPiece(piece, line, settings, lightsOn) {
   const lowerOpal=new THREE.MeshPhongMaterial({color:0xeeeeee,shininess:8,specular:0x080808});
   const group=new THREE.Group();group.add(new THREE.Mesh(upper,[front,opal,floor]));group.add(new THREE.Mesh(lower,lowerOpal));
   // Cyan is a technical centreline marker, not a physical face colour.
-  for(const contour of piece.groove || []){
+  for(const contour of (showGrooveMarker ? piece.groove || [] : [])){
     const geometry=new THREE.BufferGeometry().setFromPoints(contour.map(p=>new THREE.Vector3(p.x,p.y,depth-.005)));
     group.add(new THREE.LineLoop(geometry,new THREE.LineBasicMaterial({color:0x00b6ce})));
   }
@@ -168,6 +169,55 @@ export function buildLetter3DTechnicalModel(plan,rawLines,clipper,{lightsOn=true
   } catch(error){disposeObject(group);throw error;}
 }
 
+/** Soft, approximate face-only glow. It is not a measurement of film transmission. */
+function faceGlow(contours, colour, z) {
+  if (typeof document === 'undefined' || !Array.isArray(contours) || !contours.length) return null;
+  let left=Infinity,right=-Infinity,bottom=Infinity,top=-Infinity;
+  for(const contour of contours)for(const p of contour){left=Math.min(left,p.x);right=Math.max(right,p.x);bottom=Math.min(bottom,p.y);top=Math.max(top,p.y);}
+  const w=right-left,h=top-bottom;if (!(w>0&&h>0)) return null;
+  const scale=Math.min(768/w,384/h),pad=44;
+  const canvas=document.createElement('canvas');canvas.width=Math.max(2,Math.ceil(w*scale)+2*pad);canvas.height=Math.max(2,Math.ceil(h*scale)+2*pad);
+  const ctx=canvas.getContext('2d');if(!ctx)return null;
+  ctx.filter='blur(13px)';ctx.fillStyle=colour;ctx.globalAlpha=.8;ctx.beginPath();
+  for(const contour of contours){contour.forEach((p,i)=>{const x=pad+(p.x-left)*scale,y=pad+(top-p.y)*scale;if(i)ctx.lineTo(x,y);else ctx.moveTo(x,y)});ctx.closePath();}
+  ctx.fill('evenodd');
+  const texture=new THREE.CanvasTexture(canvas);texture.colorSpace=THREE.SRGBColorSpace;
+  const material=new THREE.MeshBasicMaterial({map:texture,transparent:true,opacity:.55,depthWrite:false,depthTest:true,side:THREE.DoubleSide});
+  const mesh=new THREE.Mesh(new THREE.PlaneGeometry(canvas.width/scale,canvas.height/scale),material);
+  mesh.position.set((left+right)/2,(bottom+top)/2,z);mesh.renderOrder=10;mesh.userData.letterGlow=true;return mesh;
+}
+
+/** Measured face and wall with a preview-only model of the PVC fitting. */
+export function buildLetter3DSignModel(plan,rawLines,clipper,{totalDepthMm,backThicknessMm,backVisible=true,backboard={shape:'none'},lightsOn=true}={}) {
+  const lines=validateLines(rawLines), acrylic=prepareLetter3DAcrylicLayers(plan,clipper);
+  const assembled=prepareLetter3DSignLayers(plan,clipper,{totalDepthMm,backThicknessMm,backboard});
+  const group=new THREE.Group();
+  try {
+    for (const piece of acrylic.pieces) {
+      const line=lines[piece.line], raw=plan.pieces.find(p=>p.line===piece.line), built=assembled.pieces.find(p=>p.line===piece.line);
+      if(!line||!raw||!built)throw unavailable('design');
+      group.add(technicalPiece({...piece,groove:raw.groove},line,acrylic,lightsOn,false));
+      const sideColour=line.side_colour===null?new THREE.Color(line.colour).multiplyScalar(.55):new THREE.Color(line.side_colour);
+      const sideMaterial=new THREE.MeshPhongMaterial({color:sideColour,shininess:line.side_finish==='gloss'?90:line.side_finish==='matt'?5:22});
+      const wall=new THREE.ExtrudeGeometry(technicalShapes(built.wall),{depth:acrylic.groove_depth_mm-assembled.rear_z_mm,bevelEnabled:false,steps:1});
+      wall.translate(0,0,assembled.rear_z_mm);group.add(new THREE.Mesh(wall,sideMaterial));
+      const backGeometry=new THREE.ExtrudeGeometry(technicalShapes(built.back),{depth:assembled.back_thickness_mm,bevelEnabled:false,steps:1});
+      backGeometry.translate(0,0,assembled.rear_z_mm);
+      const pvc=new THREE.Mesh(backGeometry,new THREE.MeshPhongMaterial({color:0xf3f3f0,shininess:8}));pvc.userData.letterBack=true;pvc.visible=!!backVisible;group.add(pvc);
+      const glow=faceGlow(raw.face,line.colour,acrylic.face_thickness_mm+.02);if(glow){glow.visible=!!lightsOn;group.add(glow);}
+    }
+    if(assembled.backboard.shape==='rectangle') {
+      const board=assembled.backboard,bounds=plan.bounds_mm;
+      if(!bounds || !Number.isFinite(bounds.width)||!Number.isFinite(bounds.height)||bounds.width<=0||bounds.height<=0)throw unavailable('geometry');
+      const clear=board.colour==='clear',colour=clear?0xcbd8e3:board.colour;
+      const material=new THREE.MeshPhongMaterial({color:colour,transparent:clear,opacity:clear?.28:1,shininess:50,depthWrite:!clear});
+      const mesh=new THREE.Mesh(new THREE.BoxGeometry(bounds.width+2*board.margin_mm,bounds.height+2*board.margin_mm,3),material);
+      mesh.position.set(bounds.width/2,bounds.height/2,assembled.rear_z_mm-1.5);mesh.userData.letterBackboard=true;group.add(mesh);
+    }
+    return group;
+  } catch(error) {disposeObject(group);throw error;}
+}
+
 /** Visual-only extrusion; dimensions and geometry require shop review. */
 export async function createLetter3DRenderer(container, {onUnavailable} = {}) {
   if (!container || typeof container.appendChild!=='function') throw unavailable('container');
@@ -177,7 +227,7 @@ export async function createLetter3DRenderer(container, {onUnavailable} = {}) {
   const canvas=webgl.domElement;
   canvas.setAttribute('aria-hidden','true'); canvas.style.width='100%'; canvas.style.height='100%';
   canvas.style.display='block'; canvas.style.pointerEvents='none';
-  let disposed=false, lost=false, generation=0, current=null, zoom=1, observer=null, lightsOn=true;
+  let disposed=false, lost=false, generation=0, current=null, zoom=1, observer=null, lightsOn=true, backVisible=true;
   // Camera-style preview orbit: drag deltas are CSS pixels. Angles are visual only.
   const initialPitch=.08, initialYaw=-.24, pitchLimit=80*Math.PI/180, radiansPerPixel=.008;
   let orbitPitch=initialPitch, orbitYaw=initialYaw;
@@ -232,6 +282,23 @@ export async function createLetter3DRenderer(container, {onUnavailable} = {}) {
         current=group;scene.add(group);reframe();return {rendered:true};
       } catch(error) {disposeObject(group);throw error;}
     },
+    /** Assembled 3D preview: face/wall dimensions share the DXF outline. */
+    async updateSign(plan,rawLines,clipper,options={}) {
+      if(disposed || lost) throw unavailable('webgl');
+      const mine=++generation;
+      if(typeof options.backVisible==='boolean') backVisible=options.backVisible;
+      const group=buildLetter3DSignModel(plan,rawLines,clipper,{...options,backVisible,lightsOn});
+      try {
+        group.rotation.set(orbitPitch,orbitYaw,0);
+        if(disposed || lost || mine!==generation){disposeObject(group);return {stale:true};}
+        if(current){scene.remove(current);disposeObject(current);}
+        current=group;scene.add(group);reframe();return {rendered:true,mode:'sign'};
+      }catch(error){disposeObject(group);throw error;}
+    },
+    setBackVisible(value) {
+      if(disposed || lost || typeof value!=='boolean')return;
+      backVisible=value;current?.traverse(node=>{if(node.userData?.letterBack)node.visible=value;});draw();
+    },
     /** Technical acrylic view: same canonical mm contours as the DXF. */
     async updateManufacturing(plan,rawLines,clipper) {
       if(disposed || lost) throw unavailable('webgl');
@@ -249,8 +316,9 @@ export async function createLetter3DRenderer(container, {onUnavailable} = {}) {
       if (disposed || lost || typeof value !== 'boolean') return;
       lightsOn=value;
       current?.traverse(node=>{
+        if(node.userData?.letterGlow) node.visible=lightsOn;
         if (node.isMesh && Array.isArray(node.material) && node.material[0]?.isMeshPhongMaterial) {
-          node.material[0].emissiveIntensity = lightsOn ? .9 : 0;
+          node.material[0].emissiveIntensity = lightsOn ? 1.25 : 0;
         }
       });
       draw();

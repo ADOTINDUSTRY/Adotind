@@ -1,0 +1,27 @@
+'use strict';
+const assert=require('node:assert/strict'),C=require('../public/assets/js/neon-clipper.js');
+(async()=>{
+ const THREE=await import('../public/assets/js/quote-vendor/three-0.160.1.module.min.js');
+ const {prepareLetter3DSignLayers}=await import('../public/assets/js/letter3d-sign.js');
+ const {buildLetter3DSignModel}=await import('../public/assets/js/letter3d-renderer.js');
+ const box=(x,y,w,h)=>[{x,y},{x:x+w,y},{x:x+w,y:y+h},{x,y:y+h}];
+ const plan={pieces:[{line:0,face:[box(0,0,102.6,52.6)],groove:[box(1.3,1.3,100,50)]}],face:[box(0,0,102.6,52.6)],groove:[box(1.3,1.3,100,50)],bounds_mm:{width:102.6,height:52.6},settings:{face_thickness_mm:3,side_thickness_mm:.6,groove_width_mm:1.2,groove_depth_mm:1.2}};
+ const options={totalDepthMm:60,backThicknessMm:10,backVisible:false,backboard:{shape:'rectangle',colour:'#ff0000',margin_mm:10}};
+ const result=prepareLetter3DSignLayers(plan,C,options);
+ const dims=contours=>{let points=contours.flat();return {minx:Math.min(...points.map(p=>p.x)),maxx:Math.max(...points.map(p=>p.x)),miny:Math.min(...points.map(p=>p.y)),maxy:Math.max(...points.map(p=>p.y))}};
+ const wall=dims(result.pieces[0].wall), back=dims(result.pieces[0].back);
+ assert.ok(Math.abs(wall.minx-1)<.002&&Math.abs(wall.maxx-101.6)<.002,'0.6mm wall centered 1.3mm inside edge leaves 1mm face overhang');
+ assert.ok(Math.abs(back.minx-1.6)<.002&&Math.abs(back.maxx-101)<.002,'Illustrative PVC sits within the aluminium wall');
+ assert.equal(result.rear_z_mm,-57);assert.equal(result.back_thickness_mm,10);assert.equal(result.total_depth_mm,60);
+ const line={text:'A',font:'sans',colour:'#ffffff',side_colour:'#000000',x:0,y:0,rotation:0};
+ const group=buildLetter3DSignModel(plan,[line],C,options);const meshes=[];group.traverse(n=>{if(n.isMesh)meshes.push(n)});
+ const pvc=meshes.find(n=>n.userData.letterBack),board=meshes.find(n=>n.userData.letterBackboard);
+ assert.ok(pvc&&!pvc.visible,'Back panel can be hidden independently');assert.ok(board&&board.visible,'Coloured sign backboard remains visible');
+ pvc.geometry.computeBoundingBox();const bb=pvc.geometry.boundingBox;assert.ok(Math.abs(bb.max.z-bb.min.z-10)<1e-5,'PVC preview thickness 10mm');assert.ok(Math.abs(bb.min.z+57)<1e-5,'Rear exterior matches 60mm total depth');
+ board.geometry.computeBoundingBox();assert.ok(Math.abs(board.geometry.boundingBox.max.x-board.geometry.boundingBox.min.x-122.6)<1e-4,'Board width uses margin');
+ const metal=meshes.find(n=>n.material?.color?.getHexString()==='000000' && !n.userData.letterBack);assert.ok(metal,'Side wall carries the selected colour');metal.geometry.computeBoundingBox();assert.ok(Math.abs(metal.geometry.boundingBox.max.z-1.2)<1e-5,'Aluminium enters acrylic groove 1.2mm');
+ for(const invalid of [0,29,59,101,NaN])assert.throws(()=>prepareLetter3DSignLayers(plan,C,{...options,totalDepthMm:invalid}),'unsupported depth rejected');
+ assert.throws(()=>prepareLetter3DSignLayers(plan,C,{...options,backThicknessMm:80}),'rear too thick rejected');
+ group.traverse(n=>{n.geometry?.dispose();if(Array.isArray(n.material))n.material.forEach(m=>m.dispose());else n.material?.dispose()});
+ console.log('Measured acrylic overhang, 0.6mm walls, depth options, removable PVC and backboard passed.');
+})().catch(e=>{console.error(e);process.exitCode=1});

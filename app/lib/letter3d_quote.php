@@ -88,6 +88,30 @@ function letter3d_handle_construction(array $siteConfig): never
     exit;
 }
 
+/** Catalogue-backed codes prevent an inquiry from pairing a blue film with a red preview. */
+function letter3d_film_catalog(): array
+{
+    static $catalog = null;
+    if ($catalog !== null) return $catalog;
+    $raw = @file_get_contents(__DIR__ . '/../data/avery500-colours.json');
+    if (!is_string($raw)) throw new RuntimeException('Film catalogue unavailable.');
+    $data = json_decode($raw, true, 32, JSON_THROW_ON_ERROR);
+    if (!is_array($data['colours'] ?? null)) throw new RuntimeException('Invalid film catalogue.');
+    $entries = [];
+    foreach ($data['colours'] as $entry) {
+        if (!is_array($entry) || !is_string($entry['code'] ?? null) || !preg_match('/\A[0-9]{3} EF\z/D', $entry['code'])
+            || !is_string($entry['name'] ?? null) || $entry['name'] === '' || mb_strlen($entry['name']) > 100
+            || !is_string($entry['hex'] ?? null) || !preg_match('/\A#[0-9a-fA-F]{6}\z/D', $entry['hex'])
+            || !is_array($entry['finishes'] ?? null) || !$entry['finishes'] || isset($entries[$entry['code']])) {
+            throw new RuntimeException('Invalid film catalogue entry.');
+        }
+        foreach ($entry['finishes'] as $finish) if (!in_array($finish, ['matt','gloss'], true)) throw new RuntimeException('Invalid film finish.');
+        $entries[$entry['code']] = $entry;
+    }
+    $catalog = $entries;
+    return $catalog;
+}
+
 /** @return array<string,mixed> */
 function letter3d_calculate(PDO $db, array $input, float $vatPercent): array
 {
@@ -137,6 +161,22 @@ function letter3d_calculate(PDO $db, array $input, float $vatPercent): array
             }
             if ($finish !== null) $finishes[$field] = $finish;
         }
+        $films = [];
+        foreach (['front', 'side'] as $face) {
+            $code = $rawLine[$face . '_film_code'] ?? null;
+            if ($code === null || $code === '') continue; // Legacy/free colour remains valid.
+            if (!is_string($code) || !preg_match('/\A[0-9]{3} EF\z/D', $code)) throw new DomainException('Choose a valid film colour.');
+            $catalog = letter3d_film_catalog();
+            $film = $catalog[$code] ?? null;
+            if (!$film) throw new DomainException('This film colour is unavailable; choose another.');
+            $faceColour = $face === 'front' ? strtolower($colour) : $sideColour;
+            if ($faceColour === null || $faceColour !== strtolower($film['hex'])) throw new DomainException('The film selection and preview colour do not match. Choose the colour again.');
+            $finish = $finishes[$face . '_finish'] ?? null;
+            if ($finish !== null && !in_array($finish, $film['finishes'], true)) throw new DomainException('This film colour is not listed in the selected finish.');
+            $films[$face . '_film_code'] = $code;
+            $films[$face . '_film_name'] = $finish !== null && is_string($film['finish_names'][$finish] ?? null)
+                ? $film['finish_names'][$finish] : $film['name'];
+        }
         $transforms = [];
         foreach (['x'=>200, 'y'=>200, 'rotation'=>180] as $key=>$limit) {
             $number = filter_var($rawLine[$key] ?? null, FILTER_VALIDATE_FLOAT);
@@ -147,7 +187,7 @@ function letter3d_calculate(PDO $db, array $input, float $vatPercent): array
         $count = is_string($compact) ? preg_match_all('/\X/u', $compact) : false;
         if ($count === false) throw new DomainException('The lettering could not be read.');
         $characters += $count;
-        $lines[] = ['text'=>$lineText, 'font'=>$font, 'colour'=>strtolower($colour), 'side_colour'=>$sideColour, 'x'=>$transforms['x'], 'y'=>$transforms['y'], 'rotation'=>$transforms['rotation']] + $finishes;
+        $lines[] = ['text'=>$lineText, 'font'=>$font, 'colour'=>strtolower($colour), 'side_colour'=>$sideColour, 'x'=>$transforms['x'], 'y'=>$transforms['y'], 'rotation'=>$transforms['rotation']] + $finishes + $films;
     }
     $text = implode("\n", array_column($lines, 'text'));
     if ($characters < 1 || $characters > (int)$product['max_characters']) throw new DomainException('The lettering is outside the allowed character count.');
@@ -160,6 +200,34 @@ function letter3d_calculate(PDO $db, array $input, float $vatPercent): array
         || $quantity === false || $quantity < 1 || $quantity > (int)$product['max_quantity']) {
         throw new DomainException('Check the sign dimensions and quantity for this option.');
     }
+    // These additional construction choices have no shop-configured prices yet.
+    // Keep them explicit in the design and flag the displayed base estimate for review.
+    $letterDepth = $input['letter_depth_mm'] ?? null;
+    if ($letterDepth === '') $letterDepth = null;
+    if ($letterDepth !== null) {
+        $letterDepth = filter_var($letterDepth, FILTER_VALIDATE_INT);
+        if ($letterDepth === false || !in_array($letterDepth, [30, 60, 100], true)) throw new DomainException('Choose an available letter depth.');
+    }
+    $backboard = $input['backboard'] ?? null;
+    if ($backboard !== null) {
+        if (!is_array($backboard) || !is_string($backboard['shape'] ?? null)
+            || !in_array($backboard['shape'], ['none', 'rectangle'], true)) throw new DomainException('Choose a valid backboard.');
+        if ($backboard['shape'] === 'none') {
+            $backboard = ['shape'=>'none'];
+        } else {
+            $boardColour = $backboard['colour'] ?? null;
+            $boardMargin = filter_var($backboard['margin_mm'] ?? null, FILTER_VALIDATE_FLOAT);
+            if (!is_string($boardColour) || ($boardColour !== 'clear' && !preg_match('/\A#[0-9a-fA-F]{6}\z/D', $boardColour))
+                || $boardMargin === false || !is_finite((float)$boardMargin) || $boardMargin < 0 || $boardMargin > 300
+                || (float)$width + 2 * $boardMargin > 10000 || (float)$height + 2 * $boardMargin > 10000) {
+                throw new DomainException('Check the backboard colour and margin.');
+            }
+            $backboard = ['shape'=>'rectangle','colour'=>strtolower($boardColour),'margin_mm'=>(float)$boardMargin];
+        }
+    }
+    $reviewReasons = [];
+    if ($letterDepth !== null) $reviewReasons[] = 'letter_depth';
+    if (($backboard['shape'] ?? null) === 'rectangle') $reviewReasons[] = 'backboard';
     $font = $lines[0]['font']; $colour = $lines[0]['colour'];
     foreach (['setup_eur','letter_eur','area_eur_m2','minimum_eur'] as $field) {
         if (!is_numeric($product[$field]) || !is_finite((float)$product[$field]) || (float)$product[$field] < 0 || (float)$product[$field] > 1000000) throw new DomainException('This option needs shop review before pricing.');
@@ -199,10 +267,14 @@ function letter3d_calculate(PDO $db, array $input, float $vatPercent): array
             'status'=>'shop standard; film and lighting compatibility subject to production review',
         ];
     }
+    if ($letterDepth !== null || $backboard !== null) $tokenData[] = ['letter_depth_mm'=>$letterDepth, 'backboard'=>$backboard];
     $quoteToken = hash('sha256', json_encode($tokenData, JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE | JSON_PRESERVE_ZERO_FRACTION));
     return ['product_id'=>(int)$product['id'], 'product_name'=>$product['name'], 'text'=>$text, 'width_mm'=>(float)$width,
         'height_mm'=>(float)$height, 'quantity'=>$quantity, 'colour'=>$colour, 'font'=>$font, 'font_name'=>$fonts[$font], 'lines'=>$lines, 'characters'=>$characters,
-        'construction'=>$construction, 'subtotal'=>$subtotal, 'vat_percent'=>$vatPercent, 'vat'=>$vat, 'total'=>round($subtotal+$vat, 2), 'quote_token'=>$quoteToken];
+        'construction'=>$construction, 'letter_depth_mm'=>$letterDepth, 'backboard'=>$backboard,
+        'pricing_review_required'=>(bool)$reviewReasons, 'pricing_review_reasons'=>$reviewReasons,
+        'pricing_note'=>$reviewReasons ? 'Base estimate; pricing for the selected ' . implode(' and ', array_map(static fn($reason) => $reason === 'letter_depth' ? 'letter depth' : 'backboard', $reviewReasons)) . ' requires shop confirmation.' : '',
+        'subtotal'=>$subtotal, 'vat_percent'=>$vatPercent, 'vat'=>$vat, 'total'=>round($subtotal+$vat, 2), 'quote_token'=>$quoteToken];
 }
 
 function letter3d_vat(array $settings): float
@@ -291,6 +363,8 @@ function letter3d_handle_request(array $siteConfig): never
                 $lineSummary[] = sprintf('Line %d: %s | style %s | front colour %s | side colour %s | position %s%%, %s%% | rotation %s° | front film finish %s | side film finish %s',
                     $index + 1, $line['text'], $line['font'], $line['colour'], $sideDescription, $line['x'], $line['y'], $line['rotation'],
                     $line['front_finish'] ?? 'not specified', $line['side_finish'] ?? 'not specified');
+                if (isset($line['front_film_code'])) $lineSummary[count($lineSummary)-1] .= ' | front film '.$line['front_film_code'].' '.$line['front_film_name'];
+                if (isset($line['side_film_code'])) $lineSummary[count($lineSummary)-1] .= ' | side film '.$line['side_film_code'].' '.$line['side_film_name'];
             }
             $summary = "Text: {$estimate['text']}\nOption: {$estimate['product_name']}\n" . implode("\n", $lineSummary)
                 . "\nSize: {$estimate['width_mm']} × {$estimate['height_mm']} mm\nQuantity: {$estimate['quantity']}"
@@ -300,6 +374,10 @@ function letter3d_handle_request(array $siteConfig): never
                     $estimate['construction']['side']['thickness_mm'], $estimate['construction']['side']['material'], $estimate['construction']['side']['acrylic_groove_depth_mm'],
                     $estimate['construction']['side']['groove_width_mm'] === null ? 'not specified' : (string)$estimate['construction']['side']['groove_width_mm'],
                     $estimate['construction']['back']['thickness_mm'], $estimate['construction']['back']['material'], $estimate['construction']['front_and_side_film'])
+                . ($estimate['letter_depth_mm'] === null ? '' : "\nSelected letter depth: {$estimate['letter_depth_mm']} mm (cost subject to review).")
+                . (($estimate['backboard']['shape'] ?? null) === 'rectangle'
+                    ? "\nBackboard: rectangular, {$estimate['backboard']['colour']}, margin {$estimate['backboard']['margin_mm']} mm (cost subject to review)."
+                    : (($estimate['backboard']['shape'] ?? null) === 'none' ? "\nBackboard: none." : ''))
                 . "\nPreliminary estimate including VAT: €" . number_format($estimate['total'], 2, '.', '');
             $entry = ['submitted_at'=>date('c'), 'fields'=>['customer_name'=>$name, 'email'=>$email, 'phone'=>$phone,
                 'service_required'=>'3D lettering', 'project_description'=>$summary,

@@ -190,6 +190,25 @@ try {
     http3d_assert($status===200 && !empty($response['ok']), 'A design using the updated construction must submit.');
     $newSaved=json_decode((string)$db->query('SELECT payload FROM website_inbox ORDER BY id DESC LIMIT 1')->fetchColumn(),true,512,JSON_THROW_ON_ERROR);
     http3d_assert(($newSaved['estimate']['construction']['version'] ?? null)===2 && ($newSaved['estimate']['construction']['front']['offset_outside_mm'] ?? null)==2 && str_contains($newSaved['fields']['project_description'] ?? '', '2 mm overhang'), 'Submitted inquiry must snapshot and display the changed ERP construction.');
+    $full=$design;$full['construction_revision']=2;$full['letter_depth_mm']=60;
+    $full['backboard']=['shape'=>'rectangle','colour'=>'clear','margin_mm'=>40];
+    $full['lines']=[['text'=>'AB','font'=>'sans','colour'=>'#f3f3ed','side_colour'=>'#202328','front_finish'=>'gloss','side_finish'=>'matt','front_film_code'=>'501 EF','side_film_code'=>'502 EF','x'=>0,'y'=>0,'rotation'=>0]];
+    [$status,$fullQuote] = http3d_request($base . '/estimate', 'POST', $full, $cookie);
+    http3d_assert($status===200 && !empty($fullQuote['estimate']['pricing_review_required']) && ($fullQuote['estimate']['letter_depth_mm'] ?? null)===60, 'Depth and backboard must be quoted with clear review status.');
+    $fullRequest=$full + ['request_key'=>$fullQuote['request_key'],'quote_token'=>$fullQuote['estimate']['quote_token'],'expected_cents'=>(int)round($fullQuote['estimate']['total']*100),'customer_name'=>'Fixture customer','email'=>'fixture@example.test','phone'=>'12345'];
+    $beforeCount=(int)$db->query('SELECT COUNT(*) FROM website_inbox')->fetchColumn();
+    $tamper=$fullRequest;$tamper['backboard']['margin_mm']=41;
+    [$status] = http3d_request($base . '/request', 'POST', $tamper, $cookie);
+    http3d_assert($status===409 && (int)$db->query('SELECT COUNT(*) FROM website_inbox')->fetchColumn()===$beforeCount, 'Changed board must require reconfirmation.');
+    $tamper=$fullRequest;$tamper['letter_depth_mm']=100;
+    [$status] = http3d_request($base . '/request', 'POST', $tamper, $cookie);
+    http3d_assert($status===409 && (int)$db->query('SELECT COUNT(*) FROM website_inbox')->fetchColumn()===$beforeCount, 'Changed depth must require reconfirmation.');
+    [$status,$response] = http3d_request($base . '/request', 'POST', $fullRequest, $cookie);
+    http3d_assert($status===200 && !empty($response['ok']), 'The confirmed configuration must submit.');
+    $savedFull=json_decode((string)$db->query('SELECT payload FROM website_inbox ORDER BY id DESC LIMIT 1')->fetchColumn(),true,512,JSON_THROW_ON_ERROR);
+    http3d_assert(($savedFull['estimate']['letter_depth_mm'] ?? null)===60 && ($savedFull['estimate']['backboard']['colour'] ?? '')==='clear' && ($savedFull['estimate']['lines'][0]['front_film_code'] ?? '')==='501 EF'
+        && ($savedFull['estimate']['lines'][0]['side_film_code'] ?? '')==='502 EF' && str_contains($savedFull['fields']['project_description'] ?? '', 'Selected letter depth: 60 mm')
+        && str_contains($savedFull['fields']['project_description'] ?? '', 'front film 501 EF White'), 'ERP inquiry must contain confirmed depth, board and film details.');
     echo "3D lettering isolated HTTP checks passed.\n";
 } finally {
     proc_terminate($process); proc_close($process);

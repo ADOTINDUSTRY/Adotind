@@ -11,7 +11,11 @@
   const viewport = preview.parentElement;
   const sceneButtons = root.querySelectorAll ? [...root.querySelectorAll('[data-letter-scene]')] : [];
   const zoomButtons = root.querySelectorAll ? [...root.querySelectorAll('[data-letter-zoom]')] : [];
-  const zoomOutput = find('zoom-level'), reset = find('reset'), lights = find('lights');
+  const zoomOutput = find('zoom-level'), reset = find('reset'), lights = find('lights'), back = find('back');
+  const depth=find('depth'), boardShape=find('board-shape'), boardColour=find('board-colour'), boardCustom=find('board-custom'), boardMargin=find('board-margin'), boardOptions=find('board-options'), boardCustomLabel=find('board-custom-label'), priceScope=find('price-scope');
+  const filmData=find('films'); let filmCatalog=[];
+  try { const parsed=JSON.parse(filmData?.textContent || 'null'); if(Array.isArray(parsed?.colours)) filmCatalog=parsed.colours; } catch (_) {}
+  const filmsByCode=new Map(filmCatalog.filter(item=>item && typeof item.code==='string' && /^#[0-9a-f]{6}$/i.test(item.hex||'') && Array.isArray(item.finishes)).map(item=>[item.code,item]));
   const threeContainer = find('three'), renderStatus = find('render-status');
   const cuttingSvg=find('cutting-svg'), cuttingStatus=find('cutting-status'), cuttingDimensions=find('cutting-dimensions');
   const cuttingInstructions=find('cutting-instructions'), exportDxf=find('export-dxf'), techViewButton=find('tech-view'), constructionData=find('construction');
@@ -25,9 +29,10 @@
   // The legacy fields remain as a compatibility mirror for older saved drafts.
   const lineSets = root.querySelectorAll ? [...root.querySelectorAll('[data-letter-line]')] : [];
   const requiredLineFields = ['text','font','colour','side_colour','x','y','rotation'];
-  const lineFields = [...requiredLineFields, 'front_finish', 'side_finish'];
+  const lineFields = [...requiredLineFields, 'front_finish', 'side_finish', 'front_film_code', 'side_film_code'];
+  const lineHook = key => ({front_film_code:'front-film',side_film_code:'side-film'})[key] || key.replace(/_/g, '-');
   const lineControls = lineSets.map((fieldset, index) => ({fieldset, index,
-    inputs:Object.fromEntries(lineFields.map(key => [key, fieldset.querySelector(`[data-letter-line-${key.replace(/_/g, '-')}]`)])),
+    inputs:Object.fromEntries(lineFields.map(key => [key, fieldset.querySelector(`[data-letter-line-${lineHook(key)}]`)])),
     sliders:Object.fromEntries(['x','y','rotation'].map(key => [key, fieldset.querySelector(`[data-letter-line-slider="${key}"]`)])),
     remove:fieldset.querySelector('[data-letter-remove-line]'),
     sideAutoButton:fieldset.querySelector('[data-letter-line-side-auto]'), sideAuto:true
@@ -37,9 +42,11 @@
   let lineCount = 1;
   const fields = {product, text, font, colour, width, height, quantity};
   const defaults = Object.fromEntries(Object.entries(fields).map(([key, element]) => [key, element.value]));
+  const optionFields=Object.fromEntries(Object.entries({depth,boardShape,boardColour,boardCustom,boardMargin}).filter(([,element])=>!!element));
+  const optionDefaults=Object.fromEntries(Object.entries(optionFields).map(([key,element])=>[key,element.value]));
   const storageKey = 'adotind.letter3d.design.v1';
   let timer = 0, generation = 0, estimate = null, sending = false, requestKey = '';
-  let scene = 'studio', zoom = 1, lightsOn = true;
+  let scene = 'studio', zoom = 1, lightsOn = true, backVisible = true, cuttingStarted = false;
   const clamp = (value, min, max) => Number.isFinite(Number(value)) ? Math.max(min, Math.min(max, Number(value))) : 0;
   // Three.js shades in linear light. Convert back to sRGB for the native color
   // input so the automatic swatch matches the existing visual appearance.
@@ -54,9 +61,28 @@
     };
     return '#' + shade(face.slice(1,3)) + shade(face.slice(3,5)) + shade(face.slice(5,7));
   }
+  function readBackboard() {
+    if (!boardShape || boardShape.value === 'none') return {shape:'none'};
+    if (boardShape.value !== 'rectangle' || !boardColour || !boardMargin) return null;
+    const chosen=boardColour.value==='custom' ? boardCustom?.value : boardColour.value;
+    const margin=boardMargin.value.trim()==='' ? NaN : Number(boardMargin.value);
+    if (!(chosen==='clear' || /^#[0-9a-f]{6}$/i.test(chosen||'')) || !Number.isFinite(margin) || margin<0 || margin>300) return null;
+    return {shape:'rectangle',colour:chosen.toLowerCase(),margin_mm:margin};
+  }
+  function syncBoardControls() {
+    if(boardOptions) boardOptions.hidden=!boardShape || boardShape.value!=='rectangle';
+    if(boardCustomLabel) boardCustomLabel.hidden=!boardColour || boardColour.value!=='custom';
+  }
+  function syncFilmFinish(line,side) {
+    const code=line.inputs[side+'_film_code']?.value || '', selector=line.inputs[side+'_finish'];
+    const film=filmsByCode.get(code);
+    if(!selector) return;
+    if(selector.options) for(const option of selector.options) if(option.value) option.disabled=!!film && !film.finishes.includes(option.value);
+    if(film && selector.value && !film.finishes.includes(selector.value)) selector.value='';
+  }
   function setLine(index, data) {
     const control = lineControls[index]; if (!control) return;
-    const values = {text:'', font:'sans', colour:'#e6e9ed', side_colour:null, front_finish:'', side_finish:'', x:0, y:0, rotation:0, ...data};
+    const values = {text:'', font:'sans', colour:'#e6e9ed', side_colour:null, front_finish:'', side_finish:'', front_film_code:'', side_film_code:'', x:0, y:0, rotation:0, ...data};
     values.text = String(values.text).replace(/[\r\n]/g, '').slice(0,200);
     if (!['sans','serif','script'].includes(values.font)) values.font = 'sans';
     if (!/^#[0-9a-f]{6}$/i.test(values.colour)) values.colour = '#e6e9ed';
@@ -64,15 +90,19 @@
     values.side_colour = control.sideAuto ? automaticSideColour(values.colour) : values.side_colour;
     values.x=clamp(values.x,-200,200); values.y=clamp(values.y,-200,200); values.rotation=clamp(values.rotation,-180,180);
     for (const key of ['front_finish','side_finish']) if (!['matt','gloss'].includes(values[key])) values[key] = '';
+    for (const side of ['front','side']) { const code=side+'_film_code', colourKey=side==='front'?'colour':'side_colour'; const film=filmsByCode.get(values[code]); if(!film || film.hex.toLowerCase() !== String(values[colourKey]).toLowerCase()) values[code]=''; }
     for (const key of lineFields) if (control.inputs[key]) control.inputs[key].value = String(values[key]);
     for (const key of ['x','y','rotation']) if (control.sliders[key]) control.sliders[key].value=String(values[key]);
+    syncFilmFinish(control,'front');syncFilmFinish(control,'side');
   }
   function readLines() {
     if (!hasLines) return null;
     return lineControls.slice(0,lineCount).map(({inputs,sideAuto}) => ({text:inputs.text.value, font:inputs.font.value, colour:inputs.colour.value, side_colour:sideAuto ? null : inputs.side_colour.value,
       x:clamp(inputs.x.value,-200,200), y:clamp(inputs.y.value,-200,200), rotation:clamp(inputs.rotation.value,-180,180),
       ...(inputs.front_finish ? {front_finish:inputs.front_finish.value || null} : {}),
-      ...(inputs.side_finish ? {side_finish:inputs.side_finish.value || null} : {})}));
+      ...(inputs.side_finish ? {side_finish:inputs.side_finish.value || null} : {}),
+      ...(inputs.front_film_code ? {front_film_code:inputs.front_film_code.value || null} : {}),
+      ...(inputs.side_film_code ? {side_film_code:inputs.side_film_code.value || null} : {})}));
   }
   function syncLines() {
     if (!hasLines) return;
@@ -92,7 +122,7 @@
   function saveDesign() {
     try {
       if (typeof sessionStorage !== 'undefined') sessionStorage.setItem(storageKey, JSON.stringify({
-        version:1, fields:Object.fromEntries(Object.entries(fields).map(([key, element]) => [key, element.value])), lines:hasLines ? readLines() : undefined, scene, zoom, lightsOn
+        version:1, fields:Object.fromEntries(Object.entries(fields).map(([key, element]) => [key, element.value])), lines:hasLines ? readLines() : undefined, options:Object.fromEntries(Object.entries(optionFields).map(([key,element])=>[key,element.value])), scene, zoom, lightsOn, backVisible
       }));
     } catch (_) { /* The designer still works when storage is unavailable. */ }
   }
@@ -107,6 +137,8 @@
       if (hasLines && Array.isArray(stored.lines) && stored.lines.length > 0 && stored.lines.length <= lineControls.length) {
         lineCount=stored.lines.length; stored.lines.forEach((line,index)=>setLine(index, line && typeof line==='object' ? line : {})); syncLines();
       } else fromLegacy();
+      if(stored.options && typeof stored.options==='object') for(const [key,element] of Object.entries(optionFields)) if(typeof stored.options[key]==='string' && stored.options[key].length<=100) element.value=stored.options[key];
+      if(typeof stored.backVisible==='boolean') backVisible=stored.backVisible;
       if (['studio','brick','concrete'].includes(stored.scene)) scene = stored.scene;
       if (typeof stored.lightsOn === 'boolean') lightsOn = stored.lightsOn;
       if (typeof stored.zoom === 'number' && Number.isFinite(stored.zoom)) zoom = Math.max(.5, Math.min(3, stored.zoom));
@@ -116,6 +148,8 @@
   const payload = () => ({csrf:root.dataset.csrf, product_id:product.value, text:text.value, font:font.value,
     colour:colour.value, width_mm:width.value, height_mm:height.value, quantity:quantity.value,
     ...(construction && Number.isInteger(construction.version) ? {construction_revision:construction.version} : {}),
+    ...(depth ? {letter_depth_mm:Number(depth.value)} : {}),
+    ...(boardShape ? {backboard:readBackboard() || {shape:'rectangle',colour:boardColour?.value,margin_mm:null}} : {}),
     ...(hasLines ? {lines:readLines()} : {})});
   function displayConstruction(settings) {
     if (!settings || !settings.front || !settings.side || !settings.back) return;
@@ -172,7 +206,7 @@
     manufacturing=null; cuttingBase=null; ++manufacturingSequence;clearTimeout(manufacturingTimer);
     if(exportDxf)exportDxf.disabled=true;
     if(techViewButton) { techViewButton.disabled=true;techViewButton.setAttribute('aria-pressed','false');techViewButton.textContent='Inspect grooved acrylic in 3D'; }
-    technicalView=false;if(lights)lights.disabled=false;
+    technicalView=false;if(lights)lights.disabled=false;if(back)back.disabled=true;
     if(cuttingSvg)cuttingSvg.setAttribute('hidden','');
     if(cuttingDimensions)cuttingDimensions.textContent='';
     if(cuttingInstructions)cuttingInstructions.textContent='';
@@ -181,6 +215,7 @@
   }
   function scheduleCutting() {
     if(!cuttingEnabled) return;
+    cuttingStarted=true;
     invalidateCutting('Preparing cutting preview…');
     const current=manufacturingSequence;
     if(!width.value || !text.value.trim()) { cuttingStatus.textContent='Enter a finished width and lettering to prepare the cutting preview.'; return; }
@@ -207,7 +242,7 @@
         }
         cuttingStatus.textContent='Cutting contours ready for shop review.';
         if(cuttingInstructions)cuttingInstructions.textContent='In Aspire: verify millimetres, set the groove '+settings.groove_depth_mm+' mm deep with the '+settings.groove_width_mm+' mm bit, and check mirroring for routing the back. Check each piece fits your machine.';
-        exportDxf.disabled=false;if(techViewButton)techViewButton.disabled=threeUnavailable || !threeRenderer || typeof threeRenderer.updateManufacturing!=='function';saveDesign();scheduleEstimate();
+        exportDxf.disabled=false;if(techViewButton)techViewButton.disabled=threeUnavailable || !threeRenderer || typeof threeRenderer.updateManufacturing!=='function';saveDesign();schedule3D();scheduleEstimate();
       } catch(error) {
         if(current!==manufacturingSequence)return;
         invalidateCutting(error?.message || 'Could not prepare the cutting preview.');
@@ -243,6 +278,7 @@
         techViewButton.setAttribute('aria-pressed',String(technicalView));
         techViewButton.textContent=technicalView?'Return to sign preview':'Inspect grooved acrylic in 3D';
         if(lights)lights.disabled=technicalView;
+        if(back)back.disabled=technicalView;
         schedule3D();
         if(technicalView) stage.scrollIntoView?.({behavior:'smooth',block:'center'});
       } finally {if(manufacturing===selected)techViewButton.disabled=false;}
@@ -309,10 +345,14 @@
         if (current !== threeGeneration) return;
         threeRenderer = renderer;
         renderer.resize(); renderer.setZoom(zoom); renderer.setLights?.(lightsOn);
-        const result = technicalView && manufacturing ? await renderer.updateManufacturing(manufacturing.plan,readLines(),manufacturing.clipper) : await renderer.update(readLines());
+        const selected=manufacturing;
+        const board=readBackboard();
+        const assembled=!!(selected && board && depth && construction?.back && typeof renderer.updateSign==='function');
+        const result = technicalView && selected ? await renderer.updateManufacturing(selected.plan,readLines(),selected.clipper) : assembled ? await renderer.updateSign(selected.plan,readLines(),selected.clipper,{totalDepthMm:Number(depth.value),backThicknessMm:construction.back.thickness_mm,backVisible,backboard:board}) : await renderer.update(readLines());
         if (current !== threeGeneration || (result && result.stale)) return;
         if (viewport.dataset) viewport.dataset.render = 'three';
-        if (renderStatus) renderStatus.textContent = technicalView ? 'Acrylic inspection: drag to see rear groove' : 'Illustrative 3D preview';
+        if(back)back.disabled=technicalView || !assembled;
+        if (renderStatus) renderStatus.textContent = technicalView ? 'Acrylic inspection: drag to see rear groove' : assembled ? '3D construction preview · drag to rotate' : 'Basic preview; adjust the design to see construction details';
         if (techViewButton && manufacturing) techViewButton.disabled = typeof renderer.updateManufacturing !== 'function';
       } catch (_) {
         if (current !== threeGeneration) return;
@@ -368,17 +408,20 @@
     }
     requestAnimationFrame(paintScale);
     schedule3D();
+    if(cuttingEnabled && !root.hidden && !cuttingStarted && width.value && text.value.trim()) scheduleCutting();
     const selected = product.selectedOptions[0];
     limits.textContent = product.value && selected ? `Allowed size: ${selected.dataset.minWidth}–${selected.dataset.maxWidth} mm wide × ${selected.dataset.minHeight}–${selected.dataset.maxHeight} mm high. Up to ${selected.dataset.maxChars} characters and ${selected.dataset.maxQuantity} signs.` : '';
   }
   function changed() {
     generation++; clearTimeout(timer); estimate = null; requestKey = '';
     send.disabled = true; price.textContent = 'Enter an option and size'; tax.textContent = ''; status.textContent = '';
+    if(priceScope)priceScope.textContent='';
     paint(); saveDesign();
     if (cuttingEnabled) { scheduleCutting(); return; }
     scheduleEstimate();
   }
   function scheduleEstimate() {
+    if(boardShape && !readBackboard()) {price.textContent='Check the backboard settings';send.disabled=true;return;}
     if (!product.value || !text.value.trim() || !width.value || !height.value || !quantity.value) return;
     const current = generation;
     timer = setTimeout(async () => {
@@ -392,6 +435,7 @@
         requestKey = data.request_key;
         price.textContent = `€${Number(estimate.total).toFixed(2)}`;
         tax.textContent = `Includes ${estimate.vat_percent}% VAT. Subject to artwork and shop review.`;
+        if(priceScope)priceScope.textContent = estimate.pricing_review_required ? estimate.pricing_note : '';
         send.disabled = sending;
       } catch (error) {
         if (current !== generation) return;
@@ -403,6 +447,8 @@
   lights?.addEventListener('change', () => {
     lightsOn = !!lights.checked; paintScene(); threeRenderer?.setLights?.(lightsOn); paint(); saveDesign();
   });
+  back?.addEventListener('change',()=>{backVisible=!!back.checked;threeRenderer?.setBackVisible?.(backVisible);saveDesign();});
+  Object.values(optionFields).forEach(el=>el.addEventListener('input',()=>{syncBoardControls();changed();}));
   for (const button of sceneButtons) button.addEventListener('click', () => {
     if (!['studio','brick','concrete'].includes(button.dataset.letterScene)) return;
     scene = button.dataset.letterScene; paintScene(); saveDesign();
@@ -469,14 +515,23 @@
   reset?.addEventListener('click', () => {
     if (sending) return;
     for (const [key, element] of Object.entries(fields)) element.value = defaults[key];
+    for (const [key, element] of Object.entries(optionFields)) element.value=optionDefaults[key];
+    backVisible=true;if(back)back.checked=true;syncBoardControls();
     fromLegacy(); scene = 'studio'; zoom = 1; threeRenderer?.resetOrbit?.(); lightsOn = true; threeRenderer?.setLights?.(lightsOn); paintScene(); changed();
   });
   Object.values(fields).forEach(el => el.addEventListener('input', changed));
   if (hasLines) {
     lineControls.forEach((line,index) => {
       for (const key of lineFields) line.inputs[key]?.addEventListener('input', () => {
-        if (key==='side_colour') line.sideAuto=false;
+        if(key==='front_film_code' || key==='side_film_code') {
+          const side=key==='front_film_code'?'front':'side', film=filmsByCode.get(line.inputs[key].value);
+          if(film) {line.inputs[side==='front'?'colour':'side_colour'].value=film.hex;if(side==='side')line.sideAuto=false;}
+          syncFilmFinish(line,side);
+        }
+        if(key==='colour' && line.inputs.front_film_code) {line.inputs.front_film_code.value='';syncFilmFinish(line,'front');}
+        if (key==='side_colour') {line.sideAuto=false;if(line.inputs.side_film_code)line.inputs.side_film_code.value='';syncFilmFinish(line,'side');}
         if (key==='colour' && line.sideAuto) line.inputs.side_colour.value=automaticSideColour(line.inputs.colour.value);
+        if(key==='front_film_code' && line.sideAuto)line.inputs.side_colour.value=automaticSideColour(line.inputs.colour.value);
         if (['x','y','rotation'].includes(key)) {
           const max=key==='rotation'?180:200, raw=line.inputs[key].value, value=clamp(raw,-max,max);
           // Keep a typed out-of-range value in sync with the actual preview and quote.
@@ -495,6 +550,7 @@
       line.sideAutoButton?.addEventListener('click', () => {
         if (sending) return;
         line.sideAuto=true; line.inputs.side_colour.value=automaticSideColour(line.inputs.colour.value);
+        if(line.inputs.side_film_code)line.inputs.side_film_code.value='';syncFilmFinish(line,'side');
         syncLines(); changed();
       });
       line.remove?.addEventListener('click', () => {
@@ -505,7 +561,7 @@
     });
     addLine?.addEventListener('click', () => {
       if (sending || lineCount>=lineControls.length) return;
-      const last=readLines()[lineCount-1]; setLine(lineCount,{font:last.font,colour:last.colour,side_colour:last.side_colour,front_finish:last.front_finish,side_finish:last.side_finish}); lineCount++;
+      const last=readLines()[lineCount-1]; setLine(lineCount,{font:last.font,colour:last.colour,side_colour:last.side_colour,front_finish:last.front_finish,side_finish:last.side_finish,front_film_code:last.front_film_code,side_film_code:last.side_film_code}); lineCount++;
       syncLines(); changed(); lineControls[lineCount-1].inputs.text.focus?.();
     });
   }
@@ -517,7 +573,7 @@
       status.textContent = 'Enter your name, a valid email and phone number.'; return;
     }
     const current = generation;
-    const controls = [product,text,font,colour,width,height,quantity,name,email,phone,...(hasLines ? lineControls.flatMap(line=>[...Object.values(line.inputs), ...Object.values(line.sliders), line.remove, line.sideAutoButton]).filter(Boolean) : []),...(addLine?[addLine]:[])];
+    const controls = [product,text,font,colour,width,height,quantity,name,email,phone,...Object.values(optionFields),...(hasLines ? lineControls.flatMap(line=>[...Object.values(line.inputs), ...Object.values(line.sliders), line.remove, line.sideAutoButton]).filter(Boolean) : []),...(addLine?[addLine]:[])];
     sending = true; send.disabled = true; controls.forEach(el => { el.disabled = true; }); status.textContent = 'Sending…';
     try {
       const body = {...payload(), customer_name:name.value, email:email.value, phone:phone.value,
@@ -531,6 +587,7 @@
       if (response.status === 409 && data.estimate) {
         estimate = data.estimate; price.textContent = `€${Number(estimate.total).toFixed(2)}`;
         tax.textContent = `Includes ${estimate.vat_percent}% VAT. Subject to artwork and shop review.`;
+        if(priceScope)priceScope.textContent=estimate.pricing_review_required ? estimate.pricing_note : '';
         status.textContent = data.error; return;
       }
       if (!response.ok || !data.ok) throw new Error(data.error || 'Could not send your request.');
@@ -540,6 +597,7 @@
   });
   const restored = restoreDesign();
   if (!restored) fromLegacy();
+  syncBoardControls();if(back)back.checked=backVisible;
   paintScene();
   if (restored) changed(); else paint();
 })();

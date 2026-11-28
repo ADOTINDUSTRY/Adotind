@@ -74,6 +74,28 @@ $bad=$modern; $bad['lines']=['not-a-list'=>$modern['lines'][0]]; rejects3d(fn()=
 $bad=$modern; $bad['lines'][0]['text']=' '; $bad['lines'][1]['text']=''; rejects3d(fn()=>letter3d_calculate($db,$bad,19), 'Whitespace-only design must fail.');
 $graphemes=$modern; $graphemes['lines'][0]['text']='A'; $graphemes['lines'][1]['text']="\u{0301}";
 check3d(letter3d_calculate($db,$graphemes,19)['characters']===2, 'Graphemes on separate lines must not merge.');
+// Explicit film codes, depth and backboard are part of the confirmed design,
+// and carry an honest warning because no pricing rules exist for those options.
+$options=$modern;$options['letter_depth_mm']=60;
+$options['backboard']=['shape'=>'rectangle','colour'=>'#1122AA','margin_mm'=>40];
+$options['lines'][0]['colour']='#f3f3ed';$options['lines'][0]['front_film_code']='501 EF';$options['lines'][0]['front_finish']='gloss';
+$options['lines'][0]['side_colour']='#202328';$options['lines'][0]['side_film_code']='502 EF';$options['lines'][0]['side_finish']='matt';
+$withOptions=letter3d_calculate($db,$options,19);
+check3d($withOptions['letter_depth_mm']===60 && $withOptions['backboard']['shape']==='rectangle' && $withOptions['backboard']['colour']==='#1122aa' && $withOptions['backboard']['margin_mm']===40.0, 'Depth and backboard choices must be normalized and returned.');
+check3d($withOptions['pricing_review_required'] && $withOptions['pricing_review_reasons']===['letter_depth','backboard'] && str_contains($withOptions['pricing_note'],'Base estimate'), 'Unpriced depth and backboard must require review.');
+check3d(($withOptions['lines'][0]['front_film_code'] ?? '')==='501 EF' && ($withOptions['lines'][0]['front_film_name'] ?? '')==='White' && ($withOptions['lines'][0]['side_film_code'] ?? '')==='502 EF' && ($withOptions['lines'][0]['side_film_name'] ?? '')==='Black', 'Validated Avery codes and names must survive.');
+$noBoard=$options;$noBoard['letter_depth_mm']=null;$noBoard['backboard']=['shape'=>'none'];
+check3d(!letter3d_calculate($db,$noBoard,19)['pricing_review_required'], 'A disabled backboard with no selected depth adds no new pricing warning.');
+$changed=$options;$changed['letter_depth_mm']=100;check3d(letter3d_calculate($db,$changed,19)['quote_token']!==$withOptions['quote_token'], 'Changed depth must invalidate confirmation.');
+$changed=$options;$changed['backboard']['margin_mm']=41;check3d(letter3d_calculate($db,$changed,19)['quote_token']!==$withOptions['quote_token'], 'Changed backboard must invalidate confirmation.');
+foreach([15,0,101,'60.5','NaN'] as $invalid){$bad=$options;$bad['letter_depth_mm']=$invalid;rejects3d(fn()=>letter3d_calculate($db,$bad,19),'Invalid depth must fail.');}
+foreach([-1,301,'NaN'] as $invalid){$bad=$options;$bad['backboard']['margin_mm']=$invalid;rejects3d(fn()=>letter3d_calculate($db,$bad,19),'Invalid backboard margin must fail.');}
+$bad=$options;$bad['backboard']['shape']='guess';rejects3d(fn()=>letter3d_calculate($db,$bad,19),'Unsupported backboard shape must fail.');
+$bad=$options;$bad['backboard']['colour']='red';rejects3d(fn()=>letter3d_calculate($db,$bad,19),'Invalid backboard colour must fail.');
+$bad=$options;$bad['lines'][0]['front_film_code']='999 EF';rejects3d(fn()=>letter3d_calculate($db,$bad,19),'Unknown film code must fail.');
+$bad=$options;$bad['lines'][0]['colour']='#000000';rejects3d(fn()=>letter3d_calculate($db,$bad,19),'Film and preview colour mismatch must fail.');
+$bad=$options;$bad['lines'][0]['front_film_code']='514 EF';$bad['lines'][0]['colour']='#e6452f';$bad['lines'][0]['front_finish']='matt';rejects3d(fn()=>letter3d_calculate($db,$bad,19),'Unavailable film finish must fail.');
+$bad=$options;$bad['lines'][0]['side_colour']=null;rejects3d(fn()=>letter3d_calculate($db,$bad,19),'Selected side film requires matching explicit side colour.');
 $withVersion=$modern; $withVersion['construction_revision']=1;
 $beforeConstruction=letter3d_calculate($db,$withVersion,19);
 check3d($beforeConstruction['construction']['front']['overhang_reference']==='outside' && $beforeConstruction['construction']['side']['groove_width_mm']===1.2, 'Confirmed outside reference and 1.2 mm cutter must be used by default.');
