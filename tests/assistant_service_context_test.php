@@ -11,9 +11,13 @@ context_expect(quote_assistant_service_name('home', array_key_first($landings)) 
 context_expect(quote_assistant_service_name('service-landing', ['foo']) === '', 'Non-string service must be ignored.');
 $services = require __DIR__ . '/../app/data/services.php';
 context_expect(quote_assistant_service_name('service-detail', $services[0]['slug']) === $services[0]['name'], 'Existing service detail remains supported.');
-$allowed = ['fiber'=>['name'=>'Untrusted label','workflow'=>'inquiry'], 'neon'=>['name'=>'Neon','workflow'=>'neon']];
-context_expect(quote_assistant_inquiry_name('fiber', $allowed) === 'Fiber laser cutting', 'Inquiry context must use the built-in category label, not supplied text.');
+$allowed = ['fabrication'=>['name'=>'Untrusted label','workflow'=>'inquiry'], 'fiber'=>['name'=>'Untrusted label','workflow'=>'drawing'], 'neon'=>['name'=>'Neon','workflow'=>'neon']];
+context_expect(quote_assistant_inquiry_name('fabrication', $allowed) === 'Metal fabrication', 'Inquiry context must use the built-in category label, not supplied text.');
 context_expect(quote_assistant_inquiry_name('metal', $allowed) === '', 'A disabled or unavailable category must not become context.');
 context_expect(quote_assistant_inquiry_name('neon', $allowed) === '', 'A non-inquiry workflow must not be accepted as inquiry context.');
 context_expect(quote_assistant_inquiry_name(['fiber'], $allowed) === '', 'A non-string inquiry ID must be ignored.');
+context_expect(quote_assistant_cutting_name('fiber', $allowed) === 'Fiber laser cutting', 'Cutting context uses the server-owned name.');
+context_expect(quote_assistant_cutting_name('metal', $allowed) === '', 'Disabled cutting options cannot become context.');
+context_expect(quote_assistant_cutting_name('letters3d', $allowed) === '', 'Inquiry paths cannot be treated as cutting.');
+context_expect(quote_assistant_cutting_name(['fiber'], $allowed) === '', 'Non-string values are ignored.');
 echo "Assistant service context checks passed.\n";

@@ -52,7 +52,7 @@ return [
         'question' => 'Can I preview my text?', 'answer' => 'Our neon designer is currently in private testing. If you do not have access, contact us and we can discuss your design.',
     ],
     '3d-channel-letters' => [
-        'name' => 'Custom 3D Sign Letters', 'parent' => 'sign-manufacturing', 'workflow' => null,
+        'name' => 'Custom 3D Sign Letters', 'parent' => 'sign-manufacturing', 'workflow' => 'letters3d',
         'summary' => 'Dimensional sign letters for shopfronts and interior branding, with illuminated or non-illuminated options.',
         'intro' => 'Three-dimensional letters can be made to suit a brand and installation location. Face, return, lighting and mounting choices affect appearance, production and maintenance.',
         'uses' => ['Shopfront and reception signs', 'Front-lit channel lettering', 'Non-illuminated dimensional logos'],
@@ -60,7 +60,7 @@ return [
         'question' => 'Can you help choose the lighting?', 'answer' => 'Yes. Tell us the appearance and installation location you have in mind and we can discuss suitable lighting and materials.',
     ],
     'custom-print-graphics' => [
-        'name' => 'Large Format Printing and Graphics', 'parent' => 'large-format-printing', 'workflow' => null,
+        'name' => 'Large Format Printing and Graphics', 'parent' => 'large-format-printing', 'workflow' => 'printing',
         'summary' => 'Custom printed graphics for signs, panels and promotional applications.',
         'intro' => 'Large-format eco-solvent printing can produce graphics for suitable vinyl and other printable media. The right media and finishing depend on how and where the graphics will be used.',
         'uses' => ['Self-adhesive vinyl graphics', 'Sign and panel graphics', 'Promotional graphics and wallpaper applications'],

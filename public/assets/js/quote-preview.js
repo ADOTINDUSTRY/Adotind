@@ -22,9 +22,51 @@
   const drawingContents = document.querySelector('.quote-drawing-contents');
   const partsHelp = document.querySelector('.quote-parts-help');
   const form = input.closest('form');
+  const widthInput = form.elements.part_width_mm;
+  const heightInput = form.elements.part_height_mm;
+  const measureStatus = document.querySelector('[data-cutting-measure-status]');
   const vendorUrl = new URL('quote-vendor/preview.js?v=3', document.currentScript.src).href;
   let dispose = null;
   let selection = 0;
+  let measureAbort = null;
+  const edits = new Map([[widthInput, 0], [heightInput, 0]]);
+  // Remember whether a value came from the last automatic measurement. Never
+  // overwrite an entry that the customer has typed, including while waiting.
+  for (const field of [widthInput, heightInput]) field.addEventListener('input', () => { delete field.dataset.autoMeasured; edits.set(field, edits.get(field) + 1); });
+
+  async function measureDrawing(file, current) {
+    const controller = new AbortController();
+    measureAbort = controller;
+    const fields = [widthInput, heightInput];
+    const before = fields.map(field => ({value:field.value, edits:edits.get(field)}));
+    const body = new FormData();
+    body.append('csrf_token', form.elements.csrf_token.value);
+    body.append('vector_file', file);
+    measureStatus.textContent = 'Checking the drawing dimensions…';
+    try {
+      const response = await fetch('/online-quote/measure', {method:'POST', credentials:'same-origin', body, signal:controller.signal});
+      const data = await response.json();
+      if (current !== selection) return;
+      const values = [Number(data.width_mm), Number(data.height_mm)];
+      if (!response.ok || !values.every(value => Number.isFinite(value) && value > 0)) throw new Error('Not measured');
+      let filled = false;
+      fields.forEach((field, index) => {
+        if (window.QuoteCuttingOptions?.canAutofill(before[index], {edits:edits.get(field), value:field.value, autoMeasured:field.dataset.autoMeasured})) {
+          field.value = values[index].toFixed(1);
+          field.dataset.autoMeasured = '1';
+          filled = true;
+        }
+      });
+      measureStatus.textContent = filled
+        ? 'Drawing size measured and added to your part details. Please check it before requesting a price.'
+        : 'Drawing size measured. Your manually entered dimensions were kept; please check they match.';
+    } catch (error) {
+      if (error.name === 'AbortError' || current !== selection) return;
+      measureStatus.textContent = 'We could not measure this drawing automatically. Check the DXF units and geometry or contact us for review.';
+    } finally {
+      if (measureAbort === controller) measureAbort = null;
+    }
+  }
   function report(type, reason = '') {
     document.dispatchEvent(new CustomEvent('site-tracking:quote-preview', {detail:{type,reason}}));
   }
@@ -64,6 +106,11 @@
 
   input.addEventListener('change', async () => {
     const current = ++selection;
+    if (measureAbort) measureAbort.abort();
+    for (const field of [widthInput, heightInput]) {
+      if (field.dataset.autoMeasured === '1') { field.value = ''; delete field.dataset.autoMeasured; }
+    }
+    measureStatus.textContent = '';
     if (dialog.open) dialog.close();
     if (dispose) dispose();
     dispose = null;
@@ -91,6 +138,7 @@
       message.textContent = 'Please choose a DXF file. Contact us if you need help preparing your drawing.';
       return;
     }
+    measureDrawing(file, current);
     message.textContent = 'Preparing your preview…';
     try {
       const box = document.createElement('div');

@@ -24,13 +24,15 @@ $save->execute([json_encode([
 $items = quote_project_catalog($db);
 picker_expect(array_key_first($items) === 'drawing' && $items['drawing']['name'] === 'My CNC', 'Saved order and labels must be preserved.');
 picker_expect(!isset($items['neon']), 'Disabled projects must not reappear from defaults.');
-picker_expect(isset($items['fiber']) && $items['fiber']['workflow'] === 'inquiry', 'Legacy catalogs must gain new inquiry categories.');
+picker_expect(isset($items['fiber']) && $items['fiber']['workflow'] === 'drawing', 'Legacy catalogs must gain the cutting configurator.');
 picker_expect($items['drawing']['workflow'] === 'drawing' && $items['picture']['workflow'] === 'picture', 'Existing projects must keep their current engines.');
 $disabled = [];
 foreach ($defaults as $id => $item) $disabled[] = ['id'=>$id,'name'=>$item['name'],'description'=>$item['description'],'enabled'=>false];
 $save->execute([json_encode($disabled)]);
 picker_expect(quote_project_catalog($db) === [], 'All projects can be disabled without being restored.');
-$save->execute([json_encode([['id'=>'fiber','name'=>'Steel','description'=>'Review','workflow'=>'drawing']])]);
+$save->execute([json_encode([['id'=>'fiber','name'=>'Steel','description'=>'Review','workflow'=>'inquiry']])]);
 $items = quote_project_catalog($db);
-picker_expect($items['fiber']['workflow'] === 'inquiry', 'Saved content must not change the trusted workflow.');
+picker_expect($items['fiber']['workflow'] === 'drawing', 'Saved content must not change the trusted workflow.');
+$save->execute(['{invalid-json']);
+picker_expect(quote_project_catalog($db) === [], 'An unreadable saved catalog must not re-enable disabled projects.');
 echo "Project picker checks passed.\n";

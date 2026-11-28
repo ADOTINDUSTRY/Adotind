@@ -95,6 +95,7 @@ $knownProjects = require __DIR__ . '/../../data/quote-projects.php';
           foreach ($projectCatalog as $id => $project): ?>
           <button type="button" data-quote-path="<?= e($id) ?>" data-quote-workflow="<?= e($project['workflow']) ?>" data-keywords="<?= e($project['keywords']) ?>">
             <strong><?= e($project['name']) ?></strong><span><?= e($project['description']) ?></span>
+            <?php if ($project['workflow'] === 'drawing'): ?><small>DXF cutting configurator</small><?php endif; ?>
             <?php if ($project['workflow'] === 'inquiry'): ?><small>Request a quote from our team</small><?php endif; ?>
           </button>
           <?php endforeach; ?>
@@ -148,6 +149,10 @@ $knownProjects = require __DIR__ . '/../../data/quote-projects.php';
       </form>
     </section>
     <?php require __DIR__ . '/../components/neon-editor.php'; ?>
+    <?php require __DIR__ . '/../components/print-editor.php'; ?>
+    <?php require __DIR__ . '/../components/frame-editor.php'; ?>
+    <?php require __DIR__ . '/../components/letter3d-editor.php'; ?>
+    <script type="application/json" id="cutting-project-pairs"><?= json_encode((object)($quoteData['project_pairs'] ?? []), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_THROW_ON_ERROR) ?></script>
     <details class="quote-card quote-artwork" data-tracking-section="artwork-preview">
       <summary>Starting with a photo or logo?</summary>
       <div class="quote-form">
@@ -168,10 +173,11 @@ $knownProjects = require __DIR__ . '/../../data/quote-projects.php';
     </details>
     <form class="quote-form quote-prototype" method="post" action="/online-quote/calculate" enctype="multipart/form-data" novalidate>
       <input type="hidden" name="csrf_token" value="<?= e(csrf_token()) ?>" />
+      <input type="hidden" name="cutting_project" value="drawing" />
       <div class="quote-stage" data-stage="drawing">
         <div class="quote-step-heading" data-tracking-section="drawing-upload">
           <span aria-hidden="true">01</span>
-          <div><h3>Upload your design</h3><p>Choose your DXF drawing to see a preview and measurements.</p></div>
+          <div><h3>Upload your design</h3><p data-cutting-project-name></p><p>Choose your DXF drawing to see a preview and measurements.</p></div>
         </div>
         <div class="quote-upload" data-tracking-section="drawing-upload">
           <details class="quote-file-guide">
@@ -192,6 +198,7 @@ $knownProjects = require __DIR__ . '/../../data/quote-projects.php';
             <input type="file" name="vector_file" accept=".dxf" aria-describedby="quote-file-help" required data-tracking-control="dxf-upload" />
           </label>
           <p id="quote-file-help">Upload one part as a DXF, up to 50 MB. Export it with explicit drawing units, preferably millimetres. For text, blocks or splines, export the cutting outlines or <a href="/contact">ask us to review the drawing</a>.</p>
+          <p data-cutting-measure-status role="status" aria-live="polite"></p>
           <div class="quote-file-preview" hidden aria-live="polite" data-tracking-section="drawing-preview">
             <div class="quote-preview-image" hidden>
               <div class="quote-preview-render" hidden aria-label="Drawing preview"></div>
@@ -243,7 +250,7 @@ $knownProjects = require __DIR__ . '/../../data/quote-projects.php';
               <?php endforeach; ?>
             </select>
           </label>
-          <label>Machine (testing only)
+          <label data-cutting-machine-label>Cutting process
             <select name="machine_id" required data-tracking-control="quote-machine">
               <option value="">Choose a machine</option>
               <?php foreach ($machines as $m): ?>
@@ -252,7 +259,8 @@ $knownProjects = require __DIR__ . '/../../data/quote-projects.php';
             </select>
           </label>
         </div>
-        <p data-tracking-section="material-and-machine">Automatic machine selection is not ready yet. Please <a href="/contact">ask us</a> if you are unsure; we will check the material, drawing and machine capacity.</p>
+        <p data-cutting-options-status role="status" aria-live="polite"></p>
+        <p data-tracking-section="material-and-machine">Only machine and material combinations reviewed by our shop appear here. Need help or another material? <a href="/contact">Contact us</a>.</p>
         <button type="button" class="btn quote-next" data-next="parts" hidden>Continue to size and quantity</button>
       </div>
       <div class="quote-stage" data-stage="parts">

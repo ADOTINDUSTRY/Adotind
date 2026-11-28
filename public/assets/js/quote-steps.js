@@ -10,6 +10,14 @@
   const projects = [...start.querySelectorAll('[data-keywords]')];
   const panels = [...workspace.querySelectorAll('[data-project-panel]')];
   const inquiryQuestions = JSON.parse(workspace.querySelector('#project-inquiry-questions').textContent);
+  const cuttingPairs = JSON.parse(workspace.querySelector('#cutting-project-pairs').textContent);
+  const cuttingOptions = window.QuoteCuttingOptions;
+  const cuttingProject = form.elements.cutting_project;
+  const cuttingMaterial = form.elements.material_id;
+  const cuttingMachine = form.elements.machine_id;
+  const cuttingMachineLabel = form.querySelector('[data-cutting-machine-label]');
+  const cuttingStatus = form.querySelector('[data-cutting-options-status]');
+  const cuttingName = form.querySelector('[data-cutting-project-name]');
   const trail = [];
   const neon = panels.find(panel => panel.dataset.projectPanel === 'neon');
   const loaded = new Map();
@@ -99,10 +107,50 @@
     trail.push(active);
     show(name);
   }
+
+  // The server decides which combinations are shop-reviewed and suitable for
+  // each project. The browser only filters that list; it never grants approval.
+  function showAllowedOptions(select, allowed) {
+    [...select.options].forEach(option => {
+      if (!option.value) return;
+      const enabled = allowed.includes(option.value);
+      option.hidden = !enabled;
+      option.disabled = !enabled;
+    });
+    if (select.value && !allowed.includes(select.value)) select.value = '';
+  }
+  function updateCuttingChoices() {
+    const project = cuttingProject.value;
+    const available = cuttingOptions ? cuttingOptions.choices(cuttingPairs, project, cuttingMaterial.value) : {materials:[], machines:[]};
+    showAllowedOptions(cuttingMaterial, available.materials);
+    if (!cuttingMaterial.value && available.materials.length === 1) cuttingMaterial.value = available.materials[0];
+    const matches = cuttingOptions ? cuttingOptions.choices(cuttingPairs, project, cuttingMaterial.value) : {machines:[]};
+    showAllowedOptions(cuttingMachine, matches.machines);
+    if (!cuttingMachine.value && matches.machines.length === 1) cuttingMachine.value = matches.machines[0];
+    cuttingMachineLabel.hidden = matches.machines.length <= 1;
+    if (!available.materials.length) {
+      cuttingStatus.textContent = 'No reviewed cutting options are available for this project yet. Please contact us for a quote.';
+    } else if (!cuttingMaterial.value) {
+      cuttingStatus.textContent = 'Choose your material to see the available cutting process.';
+    } else if (matches.machines.length === 1) {
+      cuttingStatus.textContent = 'We will use ' + cuttingMachine.selectedOptions[0].textContent + ' for this material.';
+    } else {
+      cuttingStatus.textContent = 'More than one reviewed process is available. Please choose one.';
+    }
+  }
+  cuttingMaterial.addEventListener('change', updateCuttingChoices);
+  function selectCuttingProject(button) {
+    const id = button.dataset.quotePath;
+    if (cuttingProject.value !== id) { cuttingMaterial.value = ''; cuttingMachine.value = ''; }
+    cuttingProject.value = id;
+    cuttingName.textContent = button.querySelector('strong').textContent.trim();
+    updateCuttingChoices();
+  }
   function selectProject(button, navigate = true) {
     if (!button) return;
     const workflow = button.dataset.quoteWorkflow;
-    if (!['neon', 'drawing', 'picture', 'inquiry'].includes(workflow)) return;
+    if (!['neon', 'drawing', 'picture', 'printing', 'letters3d', 'frames', 'inquiry'].includes(workflow)) return;
+    if (workflow === 'drawing') selectCuttingProject(button);
     if (workflow === 'inquiry') {
       const inquiry = panels.find(panel => panel.dataset.projectPanel === 'inquiry');
       const name = button.querySelector('strong').textContent.trim();
@@ -220,5 +268,9 @@
     const url = new URL(location.href);
     url.searchParams.delete('project');
     window.history.replaceState(window.history.state, '', url);
+  }
+  if (!initialProject && !neonUrl() && active === 'drawing') {
+    const defaultDrawing = projects.find(button => button.dataset.quotePath === 'drawing');
+    if (defaultDrawing) selectCuttingProject(defaultDrawing);
   }
 })();

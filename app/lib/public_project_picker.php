@@ -34,6 +34,8 @@ function quote_project_catalog(?PDO $db = null): array
         return $projects;
     } catch (Throwable $e) {
         error_log('Quote project settings could not be loaded: ' . get_class($e));
-        return $defaults;
+        // A failed read must not accidentally re-enable a project deliberately
+        // disabled by the shop. The missing-file initial setup is handled above.
+        return [];
     }
 }

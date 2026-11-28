@@ -44,6 +44,23 @@ if (starts_with($earlyPath, '/media/')) {
 }
 
 session_start();
+if ($earlyPath === '/online-quote/measure') {
+    require_once __DIR__ . '/app/lib/quote_measure_endpoint.php';
+    quote_measure_upload();
+}
+if ($earlyPath === '/online-quote/letters3d/estimate' || $earlyPath === '/online-quote/letters3d/request') {
+    require_once __DIR__ . '/app/lib/letter3d_quote.php';
+    if ($earlyPath === '/online-quote/letters3d/estimate') letter3d_handle_estimate($siteConfig);
+    letter3d_handle_request($siteConfig);
+}
+if ($earlyPath === '/online-quote/frame') {
+    require_once __DIR__ . '/app/lib/frame_configurator.php';
+    frame_quote_handle($siteConfig);
+}
+if ($earlyPath === '/online-quote/print') {
+    require_once __DIR__ . '/app/lib/print_configurator.php';
+    print_quote_handle($siteConfig);
+}
 if ($earlyPath === '/online-quote/assistant') {
     require_once __DIR__ . '/app/lib/quote_assistant.php';
     quote_assistant_handle();

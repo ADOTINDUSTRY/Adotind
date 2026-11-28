@@ -1,6 +1,7 @@
 <?php
 declare(strict_types=1);
 require_once __DIR__ . '/quote_dxf_bounds.php';
+require_once __DIR__ . '/public_project_picker.php';
 
 function quote_db_path(array $siteConfig): string
 {
@@ -253,7 +254,56 @@ function quote_active_options(array $siteConfig): array
     $machines = $db->query('SELECT * FROM quote_machines WHERE active = 1 ORDER BY sort_order, id')->fetchAll();
     $materials = $db->query('SELECT * FROM quote_materials WHERE active = 1 ORDER BY sort_order, id')->fetchAll();
     $rates = $db->query('SELECT * FROM quote_machine_materials WHERE active = 1')->fetchAll();
-    return ['machines' => $machines, 'materials' => $materials, 'rates' => $rates, 'settings' => quote_settings($siteConfig)];
+    $projectPairs = quote_cutting_project_pairs($machines, $materials, $rates);
+    return ['machines' => $machines, 'materials' => $materials, 'rates' => $rates,
+        'eligible_pairs' => $projectPairs['drawing'], 'project_pairs' => $projectPairs,
+        'settings' => quote_settings($siteConfig)];
+}
+
+/** Only the site-owned IDs below can select a cutting process or material family. */
+function quote_cutting_projects(): array
+{
+    return ['drawing', 'fiber', 'co2', 'acrylic', 'metal', 'wood'];
+}
+
+/** Classify conservatively: an unrecognized label is never assumed to match. */
+function quote_cutting_project_matches(string $project, array $machine, array $material): bool
+{
+    if (!in_array($project, quote_cutting_projects(), true)) return false;
+    $code = strtolower(trim((string)($machine['code'] ?? '')));
+    $name = strtolower((string)($material['name'] ?? ''));
+    return match ($project) {
+        // The customer-facing "Custom CNC Cutting" option must not silently
+        // select a laser. Use explicitly named CNC/router codes only.
+        'drawing' => (bool)preg_match('/\Acnc(?:[-_](?:router(?:[-_]?[0-9]+)?|[0-9]+))?\z/D', $code),
+        'fiber' => $code === 'fiber',
+        'co2' => $code === 'co2',
+        'acrylic' => (bool)preg_match('/\b(?:acrylic|plexiglass|perspex|pmma)\b/i', $name),
+        'metal' => (bool)preg_match('/\b(?:steel|stainless|aluminium|aluminum|metal|iron|copper|brass)\b/i', $name),
+        'wood' => (bool)preg_match('/\b(?:wood|wooden|plywood|mdf|timber|birch|oak)\b/i', $name),
+        default => false,
+    };
+}
+
+/** Expose IDs only, after applying the same shop-review and capacity checks as pricing. */
+function quote_cutting_project_pairs(array $machines, array $materials, array $rates): array
+{
+    $pairs = array_fill_keys(quote_cutting_projects(), []);
+    $machineMap = []; $materialMap = [];
+    foreach ($machines as $machine) if ((int)($machine['active'] ?? 0) === 1) $machineMap[(int)$machine['id']] = $machine;
+    foreach ($materials as $material) if ((int)($material['active'] ?? 0) === 1) $materialMap[(int)$material['id']] = $material;
+    foreach ($rates as $rate) {
+        $machineId = (int)($rate['machine_id'] ?? 0); $materialId = (int)($rate['material_id'] ?? 0);
+        if ((int)($rate['active'] ?? 0) !== 1 || !isset($machineMap[$machineId], $materialMap[$materialId])) continue;
+        $machine = $machineMap[$machineId]; $material = $materialMap[$materialId];
+        try { quote_require_reviewed_capacity($machine, $material, $rate, ['part_width_mm'=>1.0, 'part_height_mm'=>1.0]); }
+        catch (DomainException $e) { continue; }
+        foreach ($pairs as $project => &$items) {
+            if (quote_cutting_project_matches($project, $machine, $material)) $items[] = ['machine_id'=>$machineId, 'material_id'=>$materialId];
+        }
+        unset($items);
+    }
+    return $pairs;
 }
 
 function quote_dashboard_data(array $siteConfig): array
@@ -921,6 +971,10 @@ function quote_verified_dxf_size(array $bounds, float $width, float $height): ar
 function quote_current_pricing(array $siteConfig, array $input): array
 {
     if (($input['ext'] ?? '') !== 'dxf' || !is_array($input['verified_dxf_bounds'] ?? null)) throw new DomainException('Please upload the DXF drawing again so its dimensions can be checked.');
+    $project = $input['cutting_project'] ?? 'drawing';
+    if (!is_string($project) || !in_array($project, quote_cutting_projects(), true) || !isset(quote_project_catalog()[$project])) {
+        throw new DomainException('This project option is unavailable. Please choose another project.');
+    }
     [$input['part_width_mm'], $input['part_height_mm']] = quote_verified_dxf_size($input['verified_dxf_bounds'], (float)($input['part_width_mm'] ?? 0), (float)($input['part_height_mm'] ?? 0));
     $db = quote_db($siteConfig);
     $machine = $db->prepare('SELECT * FROM quote_machines WHERE id=? AND active=1');
@@ -933,6 +987,9 @@ function quote_current_pricing(array $siteConfig, array $input): array
     $material = $material->fetch();
     $rate = $rate->fetch();
     if (!$machine || !$material || !$rate) throw new DomainException('This machine and material combination is no longer available. Please choose again.');
+    if (!quote_cutting_project_matches($project, $machine, $material)) {
+        throw new DomainException('That machine or material is not available for this project. Please choose an available option.');
+    }
     quote_require_reviewed_capacity($machine, $material, $rate, $input);
     $settings = quote_settings($siteConfig);
     return [
@@ -1003,6 +1060,10 @@ function handle_online_quote_calculate(array $siteConfig): never
         online_quote_fail('For multiple parts or if you are unsure, please contact us so we can review your drawing and sheet requirements.', 'manual_quote_required');
     }
 
+    $project = $_POST['cutting_project'] ?? 'drawing';
+    if (!is_string($project) || !in_array($project, quote_cutting_projects(), true) || !isset(quote_project_catalog()[$project])) {
+        online_quote_fail('This project option is unavailable. Please choose another project.', 'invalid_options');
+    }
     $machineId = (int)($_POST['machine_id'] ?? 0);
     $materialId = (int)($_POST['material_id'] ?? 0);
     $partW = filter_var($_POST['part_width_mm'] ?? null, FILTER_VALIDATE_FLOAT);
@@ -1053,7 +1114,7 @@ function handle_online_quote_calculate(array $siteConfig): never
     } catch (DomainException $e) {
         online_quote_fail($e->getMessage(), 'invalid_dimensions');
     }
-    $input = ['machine_id'=>$machineId, 'material_id'=>$materialId, 'part_width_mm'=>$partW, 'part_height_mm'=>$partH,
+    $input = ['machine_id'=>$machineId, 'material_id'=>$materialId, 'cutting_project'=>$project, 'part_width_mm'=>$partW, 'part_height_mm'=>$partH,
         'verified_dxf_bounds'=>$verifiedBounds,
         'vector_length_mm'=>$vectorLength, 'quantity'=>$qty, 'note'=>$note, 'ext'=>$ext];
     try {

@@ -24,7 +24,7 @@ $path = tempnam(sys_get_temp_dir(), 'quote-safety');
 $config = ['quote_db_file'=>$path];
 $db = quote_db($config);
 checkQuoteSafety((int)$db->query('PRAGMA user_version')->fetchColumn() === 4, 'New databases must have the safety schema.');
-$input = ['machine_id'=>1,'material_id'=>1,'part_width_mm'=>500,'part_height_mm'=>250,'vector_length_mm'=>1200,'quantity'=>1,'ext'=>'dxf', 'verified_dxf_bounds'=>['width_mm'=>500,'height_mm'=>250]];
+$input = ['machine_id'=>1,'material_id'=>1,'cutting_project'=>'co2','part_width_mm'=>500,'part_height_mm'=>250,'vector_length_mm'=>1200,'quantity'=>1,'ext'=>'dxf', 'verified_dxf_bounds'=>['width_mm'=>500,'height_mm'=>250]];
 $unverified = $input; unset($unverified['verified_dxf_bounds']);
 expectQuoteReview(fn()=>quote_current_pricing($config,$unverified), 'upload the DXF');
 $notDxf = $input; $notDxf['ext'] = 'svg';

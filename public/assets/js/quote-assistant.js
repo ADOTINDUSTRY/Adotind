@@ -169,10 +169,16 @@
     addMessage(message, 'user');
     input.value = '';
     try {
+      const currentStage = stage();
+      const project = currentStage === 'inquiry'
+        ? workspace?.querySelector('[data-project-panel="inquiry"]:not([hidden])')?.dataset.inquiryProject
+        : ['drawing','material','parts'].includes(currentStage)
+          ? workspace?.querySelector('.quote-prototype input[name="cutting_project"]')?.value
+          : '';
       const response = await fetch('/online-quote/assistant', {
         method:'POST', credentials:'same-origin', headers:{'Content-Type':'application/json'},
-        body:JSON.stringify({csrf:assistant.dataset.csrf, message, stage:stage(), service:assistant.dataset.service,
-          project:workspace?.querySelector('[data-project-panel="inquiry"]:not([hidden])')?.dataset.inquiryProject || '', history:history.slice(-8)})
+        body:JSON.stringify({csrf:assistant.dataset.csrf, message, stage:currentStage, service:assistant.dataset.service,
+          project:project || '', history:history.slice(-8)})
       });
       const data = await response.json();
       if (!response.ok || typeof data.answer !== 'string') throw new Error(typeof data.error === 'string' ? data.error : 'Unable to get a response.');
