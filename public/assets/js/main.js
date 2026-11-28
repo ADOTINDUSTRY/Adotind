@@ -134,6 +134,26 @@
 })();
 
 (() => {
+  const frame = document.querySelector('.home-manufacturing-concept');
+  if (!frame || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  let ticking = false;
+  const update = () => {
+    ticking = false;
+    const rect = frame.getBoundingClientRect();
+    const viewport = window.innerHeight;
+    if (rect.bottom < 0 || rect.top > viewport) return;
+    const progress = Math.max(0, Math.min(1, (viewport - rect.top) / (viewport + rect.height)));
+    frame.style.setProperty('--manufacturing-image-shift', `${(-progress * 100 / 3).toFixed(2)}%`);
+  };
+  const schedule = () => {
+    if (!ticking) { ticking = true; window.requestAnimationFrame(update); }
+  };
+  window.addEventListener('scroll', schedule, { passive: true });
+  window.addEventListener('resize', schedule, { passive: true });
+  update();
+})();
+
+(() => {
   const targets = document.querySelectorAll(
     '.section .container > :not([data-neon-editor]), .page-hero .container > *, .cap-grid article, .service-card, .gallery-item, .tags span'
   );

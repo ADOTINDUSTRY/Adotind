@@ -39,7 +39,6 @@ $featuredMedia = $page['featured_media'] ?? [];
     </p>
     <figure class="home-manufacturing-concept">
       <img src="/public/assets/images/home-manufacturing-concept.webp" alt="Illustration of precision-cut acrylic and metal components" width="1672" height="941" loading="lazy" />
-      <figcaption>Illustrative concept</figcaption>
     </figure>
     <div class="cap-grid">
       <article data-tracking-section="sign-manufacturing">

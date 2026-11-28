@@ -508,18 +508,28 @@ img {
 }
 
 .home-concept { margin: 0; }
-.home-manufacturing-concept figcaption {
-  margin-top: .5rem;
-  font-size: .75rem;
-  opacity: .75;
+.home-manufacturing-concept {
+  position: relative;
+  margin: 1.5rem 0;
+  height: clamp(220px, 32vw, 380px);
+  overflow: hidden;
+  border: 1px solid rgba(11, 18, 38, .1);
 }
-.home-manufacturing-concept { margin: 1.5rem 0; }
 .home-manufacturing-concept img {
+  position: absolute;
+  inset: 0;
   display: block;
   width: 100%;
-  max-height: 280px;
+  height: 150%;
   object-fit: cover;
-  border: 1px solid rgba(11, 18, 38, .1);
+  transform: translate3d(0, var(--manufacturing-image-shift, 0%), 0);
+  will-change: transform;
+}
+@media (max-width: 600px) {
+  .home-manufacturing-concept { height: clamp(160px, 48vw, 220px); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .home-manufacturing-concept img { height: 100%; transform: none; will-change: auto; }
 }
 
 .eyebrow {
