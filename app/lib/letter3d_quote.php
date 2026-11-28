@@ -34,15 +34,43 @@ function letter3d_calculate(PDO $db, array $input, float $vatPercent): array
     $product = $query->fetch(PDO::FETCH_ASSOC);
     if (!$product) throw new DomainException('This lettering option is not available for an estimate yet.');
 
-    // Preserve intentional line breaks in the design while normalising browser
-    // newline formats for consistent price tokens and stored requests.
-    $text = trim(str_replace(["\r\n", "\r"], "\n", is_string($input['text'] ?? null) ? $input['text'] : ''));
-    if ($text === '' || strlen($text) > 1000 || substr_count($text, "\n") >= 8 || !preg_match('/\A[\p{L}\p{N}\p{M}\p{P}\p{Zs}\n]+\z/uD', $text)) {
-        throw new DomainException('Enter up to eight lines using letters, numbers or punctuation.');
+    $fonts = ['sans'=>'Sans serif', 'serif'=>'Serif', 'script'=>'Script'];
+    // New workspaces send individual line styles and transforms. Older tabs
+    // continue to send plain newline-delimited text with one font and colour.
+    if (array_key_exists('lines', $input)) {
+        $rawLines = $input['lines'];
+        if (!is_array($rawLines) || !array_is_list($rawLines) || count($rawLines) < 1 || count($rawLines) > 8) {
+            throw new DomainException('Enter between one and eight lines.');
+        }
+    } else {
+        $legacyText = trim(str_replace(["\r\n", "\r"], "\n", is_string($input['text'] ?? null) ? $input['text'] : ''));
+        $rawLines = array_map(static fn($line) => ['text'=>$line, 'font'=>$input['font'] ?? null, 'colour'=>$input['colour'] ?? null,
+            'x'=>0, 'y'=>0, 'rotation'=>0], explode("\n", $legacyText));
+        if (count($rawLines) > 8) throw new DomainException('Enter between one and eight lines.');
     }
-    $compactText = preg_replace('/\s+/u', '', $text);
-    $characters = is_string($compactText) ? preg_match_all('/\X/u', $compactText) : false;
-    if ($characters === false) throw new DomainException('The lettering could not be read.');
+    $lines = []; $characters = 0; $bytes = 0;
+    foreach ($rawLines as $rawLine) {
+        if (!is_array($rawLine) || !is_string($rawLine['text'] ?? null)) throw new DomainException('Enter valid lettering for each line.');
+        $lineText = $rawLine['text']; $bytes += strlen($lineText);
+        if ($bytes > 1000 || !preg_match('/\A[\p{L}\p{N}\p{M}\p{P}\p{Zs}]*\z/uD', $lineText)) {
+            throw new DomainException('Use letters, numbers or punctuation in each line.');
+        }
+        $font = $rawLine['font'] ?? null; $colour = $rawLine['colour'] ?? null;
+        if (!is_string($font) || !isset($fonts[$font])) throw new DomainException('Choose a lettering style for each line.');
+        if (!is_string($colour) || !preg_match('/\A#[0-9a-fA-F]{6}\z/D', $colour)) throw new DomainException('Choose a valid colour for each line.');
+        $transforms = [];
+        foreach (['x'=>200, 'y'=>200, 'rotation'=>180] as $key=>$limit) {
+            $number = filter_var($rawLine[$key] ?? null, FILTER_VALIDATE_FLOAT);
+            if ($number === false || !is_finite((float)$number) || abs((float)$number) > $limit) throw new DomainException('Check the position and rotation of each line.');
+            $transforms[$key] = (float)$number === 0.0 ? 0.0 : (float)$number;
+        }
+        $compact = preg_replace('/\s+/u', '', $lineText);
+        $count = is_string($compact) ? preg_match_all('/\X/u', $compact) : false;
+        if ($count === false) throw new DomainException('The lettering could not be read.');
+        $characters += $count;
+        $lines[] = ['text'=>$lineText, 'font'=>$font, 'colour'=>strtolower($colour), 'x'=>$transforms['x'], 'y'=>$transforms['y'], 'rotation'=>$transforms['rotation']];
+    }
+    $text = implode("\n", array_column($lines, 'text'));
     if ($characters < 1 || $characters > (int)$product['max_characters']) throw new DomainException('The lettering is outside the allowed character count.');
     $width = filter_var($input['width_mm'] ?? null, FILTER_VALIDATE_FLOAT);
     $height = filter_var($input['height_mm'] ?? null, FILTER_VALIDATE_FLOAT);
@@ -53,11 +81,7 @@ function letter3d_calculate(PDO $db, array $input, float $vatPercent): array
         || $quantity === false || $quantity < 1 || $quantity > (int)$product['max_quantity']) {
         throw new DomainException('Check the sign dimensions and quantity for this option.');
     }
-    $colour = is_string($input['colour'] ?? null) ? $input['colour'] : '';
-    if (!preg_match('/\A#[0-9a-fA-F]{6}\z/D', $colour)) throw new DomainException('Choose a valid lettering colour.');
-    $fonts = ['sans'=>'Sans serif', 'serif'=>'Serif', 'script'=>'Script'];
-    $font = is_string($input['font'] ?? null) ? $input['font'] : '';
-    if (!isset($fonts[$font])) throw new DomainException('Choose a lettering style.');
+    $font = $lines[0]['font']; $colour = $lines[0]['colour'];
     foreach (['setup_eur','letter_eur','area_eur_m2','minimum_eur'] as $field) {
         if (!is_numeric($product[$field]) || !is_finite((float)$product[$field]) || (float)$product[$field] < 0 || (float)$product[$field] > 1000000) throw new DomainException('This option needs shop review before pricing.');
     }
@@ -70,9 +94,9 @@ function letter3d_calculate(PDO $db, array $input, float $vatPercent): array
     $vat = round($subtotal * $vatPercent / 100, 2);
     // Bind a submitted request to both the design and the reviewed terms, even
     // when a settings change happens to produce the same total.
-    $quoteToken = hash('sha256', json_encode([$product, $text, $font, strtolower($colour), (float)$width, (float)$height, $quantity, $vatPercent], JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE | JSON_PRESERVE_ZERO_FRACTION));
+    $quoteToken = hash('sha256', json_encode([$product, $lines, (float)$width, (float)$height, $quantity, $vatPercent], JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE | JSON_PRESERVE_ZERO_FRACTION));
     return ['product_id'=>(int)$product['id'], 'product_name'=>$product['name'], 'text'=>$text, 'width_mm'=>(float)$width,
-        'height_mm'=>(float)$height, 'quantity'=>$quantity, 'colour'=>strtolower($colour), 'font'=>$font, 'font_name'=>$fonts[$font], 'characters'=>$characters,
+        'height_mm'=>(float)$height, 'quantity'=>$quantity, 'colour'=>$colour, 'font'=>$font, 'font_name'=>$fonts[$font], 'lines'=>$lines, 'characters'=>$characters,
         'subtotal'=>$subtotal, 'vat_percent'=>$vatPercent, 'vat'=>$vat, 'total'=>round($subtotal+$vat, 2), 'quote_token'=>$quoteToken];
 }
 
@@ -156,7 +180,13 @@ function letter3d_handle_request(array $siteConfig): never
                 $db->exec('ROLLBACK');
                 $respond(409, ['error'=>'The price has changed. Please review the updated estimate before sending.', 'estimate'=>$estimate]);
             }
-            $summary = "Text: {$estimate['text']}\nOption: {$estimate['product_name']}\nStyle: {$estimate['font_name']} (preview only)\nSize: {$estimate['width_mm']} × {$estimate['height_mm']} mm\nQuantity: {$estimate['quantity']}\nColour: {$estimate['colour']}\nPreliminary estimate including VAT: €" . number_format($estimate['total'], 2, '.', '');
+            $lineSummary = [];
+            foreach ($estimate['lines'] as $index => $line) {
+                $lineSummary[] = sprintf('Line %d: %s | style %s | colour %s | position %s%%, %s%% | rotation %s°',
+                    $index + 1, $line['text'], $line['font'], $line['colour'], $line['x'], $line['y'], $line['rotation']);
+            }
+            $summary = "Text: {$estimate['text']}\nOption: {$estimate['product_name']}\n" . implode("\n", $lineSummary)
+                . "\nSize: {$estimate['width_mm']} × {$estimate['height_mm']} mm\nQuantity: {$estimate['quantity']}\nPreliminary estimate including VAT: €" . number_format($estimate['total'], 2, '.', '');
             $entry = ['submitted_at'=>date('c'), 'fields'=>['customer_name'=>$name, 'email'=>$email, 'phone'=>$phone,
                 'service_required'=>'3D lettering', 'project_description'=>$summary,
                 'dimensions'=>$estimate['width_mm'].' × '.$estimate['height_mm'].' mm', 'quantity'=>(string)$estimate['quantity']], 'uploaded_file'=>null, 'estimate'=>$estimate];

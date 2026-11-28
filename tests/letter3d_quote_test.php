@@ -27,6 +27,29 @@ $bad=$input; $bad['text']=implode("\n",array_fill(0,9,'A')); rejects3d(fn()=>let
 $bad=$input; $bad['text']="A\tB"; rejects3d(fn()=>letter3d_calculate($db,$bad,19), 'Control characters must be rejected.');
 $bad=$input; $bad['colour']='red" onload="x'; rejects3d(fn()=>letter3d_calculate($db,$bad,19), 'Invalid colour must be rejected.');
 $bad=$input; $bad['font']='other'; rejects3d(fn()=>letter3d_calculate($db,$bad,19), 'Unknown style must be rejected.');
+$modern=$input; $modern['lines']=[
+    ['text'=>'A','font'=>'sans','colour'=>'#ff00AA','x'=>0,'y'=>0,'rotation'=>0],
+    ['text'=>'B','font'=>'serif','colour'=>'#123456','x'=>25,'y'=>-20,'rotation'=>45],
+];
+$modern['text']='IGNORED'; $modern['font']='invalid'; $modern['colour']='invalid';
+$priced=letter3d_calculate($db,$modern,19);
+check3d($priced['text']==="A\nB" && $priced['characters']===2 && $priced['total']===59.5 && $priced['lines'][1]['font']==='serif'
+    && $priced['lines'][1]['rotation']===45.0 && $priced['lines'][0]['colour']==='#ff00aa', 'The validated lines must drive pricing and saved design, not legacy globals.');
+foreach (['text'=>'C','font'=>'script','colour'=>'#ffffff','x'=>26,'y'=>-19,'rotation'=>46] as $key=>$value) {
+    $changed=$modern; $changed['lines'][1][$key]=$value;
+    check3d(letter3d_calculate($db,$changed,19)['quote_token']!==$priced['quote_token'], "Changes to $key must invalidate the confirmation token.");
+}
+$bad=$modern; $bad['lines'][0]['x']=201; rejects3d(fn()=>letter3d_calculate($db,$bad,19), 'Out-of-range position must fail.');
+$bad=$modern; $bad['lines'][0]['y']=-201; rejects3d(fn()=>letter3d_calculate($db,$bad,19), 'Out-of-range position must fail.');
+$bad=$modern; $bad['lines'][0]['rotation']=181; rejects3d(fn()=>letter3d_calculate($db,$bad,19), 'Out-of-range rotation must fail.');
+$bad=$modern; $bad['lines'][0]['rotation']='NaN'; rejects3d(fn()=>letter3d_calculate($db,$bad,19), 'Non-finite rotation must fail.');
+$bad=$modern; $bad['lines'][0]['text']="A\nB"; rejects3d(fn()=>letter3d_calculate($db,$bad,19), 'A line must not contain a newline.');
+$bad=$modern; $bad['lines'][0]['colour']='#000'; rejects3d(fn()=>letter3d_calculate($db,$bad,19), 'Invalid per-line colour must fail.');
+$bad=$modern; $bad['lines']=array_fill(0,9,$modern['lines'][0]); rejects3d(fn()=>letter3d_calculate($db,$bad,19), 'Excess lines must fail.');
+$bad=$modern; $bad['lines']=['not-a-list'=>$modern['lines'][0]]; rejects3d(fn()=>letter3d_calculate($db,$bad,19), 'Object-shaped line collection must fail.');
+$bad=$modern; $bad['lines'][0]['text']=' '; $bad['lines'][1]['text']=''; rejects3d(fn()=>letter3d_calculate($db,$bad,19), 'Whitespace-only design must fail.');
+$graphemes=$modern; $graphemes['lines'][0]['text']='A'; $graphemes['lines'][1]['text']="\u{0301}";
+check3d(letter3d_calculate($db,$graphemes,19)['characters']===2, 'Graphemes on separate lines must not merge.');
 $db->exec('UPDATE quote_letter3d_products SET reviewed=0');
 rejects3d(fn()=>letter3d_calculate($db,$input,19), 'Unreviewed rates must not get a price.');
 echo "3D lettering pricing checks passed.\n";

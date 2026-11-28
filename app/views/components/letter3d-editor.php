@@ -35,9 +35,27 @@ try {
       <details class="letter3d-group" open><summary>Your lettering</summary><div class="letter3d-group-body">
         <label>Lettering option <select data-letter-product required><option value="">Choose an option</option><?php foreach ($letterProducts as $p): ?><option value="<?= (int)$p['id'] ?>" data-min-width="<?= e((string)$p['min_width_mm']) ?>" data-max-width="<?= e((string)$p['max_width_mm']) ?>" data-min-height="<?= e((string)$p['min_height_mm']) ?>" data-max-height="<?= e((string)$p['max_height_mm']) ?>" data-max-chars="<?= (int)$p['max_characters'] ?>" data-max-quantity="<?= (int)$p['max_quantity'] ?>"><?= e($p['name']) ?><?= $p['description'] !== '' ? ' — ' . e($p['description']) : '' ?></option><?php endforeach ?></select></label>
         <?php if (!$letterProducts): ?><p class="letter3d-note">No lettering options have been configured for pricing yet. You can still contact the team to discuss your project.</p><?php endif ?>
-        <label>Your text <textarea data-letter-text maxlength="200" rows="3" data-private>Your sign</textarea></label>
-        <label>Letter style <select data-letter-font><option value="sans">Sans serif</option><option value="serif">Serif</option><option value="script">Script</option></select></label>
-        <label class="letter3d-colour">Face colour <input type="color" data-letter-colour value="#e6e9ed"></label>
+        <div hidden aria-hidden="true"><textarea data-letter-text maxlength="200" data-private>Your sign</textarea><select data-letter-font><option value="sans">Sans serif</option><option value="serif">Serif</option><option value="script">Script</option></select><input type="color" data-letter-colour value="#e6e9ed"></div>
+        <p class="letter3d-line-help">Create up to eight lines. Set the style, colour and position of each line.</p>
+        <div class="letter3d-lines" data-letter-lines>
+        <?php for ($line = 0; $line < 8; $line++): ?>
+          <fieldset class="letter3d-line" data-letter-line="<?= $line ?>"<?= $line > 0 ? ' hidden' : '' ?>>
+            <legend>Line <?= $line + 1 ?></legend>
+            <label>Text<input type="text" data-letter-line-text="<?= $line ?>" value="<?= $line === 0 ? 'Your sign' : '' ?>" maxlength="200" autocomplete="off" data-private></label>
+            <div class="letter3d-line-style">
+              <label>Letter style<select data-letter-line-font="<?= $line ?>"><option value="sans">Sans serif</option><option value="serif">Serif</option><option value="script">Script</option></select></label>
+              <label>Face colour<input type="color" data-letter-line-colour="<?= $line ?>" value="#e6e9ed"></label>
+            </div>
+            <details class="letter3d-line-position"><summary>Position and rotation</summary>
+              <?php foreach (['x' => ['Horizontal offset (% of line width)', -200, 200, ''], 'y' => ['Vertical offset (% of line height)', -200, 200, ''], 'rotation' => ['Rotation', -180, 180, '°']] as $axis => [$title, $min, $max, $unit]): ?>
+              <label class="letter3d-position-label"><?= e($title) ?> <span><?= e($unit) ?></span><input type="number" data-letter-line-<?= e($axis) ?>="<?= $line ?>" min="<?= $min ?>" max="<?= $max ?>" step="0.1" value="0" inputmode="decimal"><input type="range" data-letter-line-slider="<?= e($axis) ?>" data-line="<?= $line ?>" min="<?= $min ?>" max="<?= $max ?>" step="0.1" value="0" aria-label="<?= e($title) ?> for line <?= $line + 1 ?>"></label>
+              <?php endforeach ?>
+            </details>
+            <button type="button" class="letter3d-remove-line" data-letter-remove-line="<?= $line ?>">Remove line</button>
+          </fieldset>
+        <?php endfor ?>
+        </div>
+        <button type="button" class="letter3d-add-line" data-letter-add-line>+ Add another line</button>
       </div></details>
       <details class="letter3d-group" open><summary>Size &amp; quantity</summary><div class="letter3d-group-body">
         <div class="letter3d-size-grid"><label>Overall width (mm) <input type="number" data-letter-width min="1" step="0.1" placeholder="e.g. 1000"></label><label>Overall height (mm) <input type="number" data-letter-height min="1" step="0.1" placeholder="e.g. 300"></label></div>
@@ -67,8 +85,9 @@ body:has(.letter3d-editor:not([hidden])) .quote-hero{display:none}
 .letter3d-preview{display:flex;align-items:center;justify-content:center;min-height:clamp(280px,42vw,520px);padding:25px;overflow:hidden;background:linear-gradient(150deg,#303846,#101622)}
 .letter3d-view[data-scene="brick"] .letter3d-preview{background-color:#514944;background-image:linear-gradient(0deg,transparent 95%,#292421 96%),linear-gradient(90deg,transparent 96%,#292421 97%);background-size:100% 54px,110px 54px}
 .letter3d-view[data-scene="concrete"] .letter3d-preview{background-color:#747775;background-image:radial-gradient(#ffffff18 .8px,transparent 1px),radial-gradient(#00000020 .8px,transparent 1px);background-size:9px 9px,13px 13px;background-position:0 0,4px 3px}
-.letter3d-preview span{display:inline-block;flex-shrink:0;white-space:pre;text-align:center;font-size:clamp(32px,6vw,80px);line-height:1.2;text-shadow:1px 1px #8b9099,2px 2px #6a7079,3px 3px #484e57,4px 4px 7px #0009;transform-origin:center}
+.letter3d-preview > [data-letter-preview]{display:inline-block;flex-shrink:0;white-space:pre;text-align:center;font-size:clamp(32px,6vw,80px);line-height:1.2;text-shadow:1px 1px #8b9099,2px 2px #6a7079,3px 3px #484e57,4px 4px 7px #0009;transform-origin:center}
 .letter3d-disclaimer,.letter3d-limits,.letter3d-note{font-size:.82rem;color:var(--l3-muted)}.letter3d-disclaimer{margin:.65rem .2rem}.letter3d-controls{display:grid;gap:.7rem}.letter3d-group{border:1px solid var(--l3-line);background:#fff;border-radius:12px;overflow:hidden}.letter3d-group summary{cursor:pointer;font-weight:750;padding:.8rem 1rem;background:#f7f9fc}.letter3d-group-body{padding:1rem}.letter3d-controls label{display:grid;gap:.3rem;font-weight:650;margin:0 0 .8rem}.letter3d-controls :is(input:not([type="color"]),select,textarea){width:100%;min-width:0;padding:.6rem .65rem;border:1px solid #bcc8d8;border-radius:7px;background:#fff;color:#182236}.letter3d-controls input[type="color"]{width:3rem;height:2.5rem;padding:.15rem;border:1px solid #bcc8d8;border-radius:7px;background:#fff}.letter3d-size-grid{display:grid;grid-template-columns:1fr 1fr;gap:.7rem}.letter3d-request p{font-size:.84rem}.letter3d-request [data-letter-status]{min-height:1.5em}.letter3d-send{width:100%}
+.letter3d-line-help{color:var(--l3-muted);font-size:.84rem;margin:.4rem 0 .7rem}.letter3d-lines{display:grid;gap:.75rem}.letter3d-line{border:1px solid #d5dce6;border-radius:9px;padding:.65rem .75rem .75rem;min-width:0;margin:0;background:#f9fbfe}.letter3d-line[hidden]{display:none}.letter3d-line legend{font-weight:750;padding:0 .35rem;color:var(--l3-ink)}.letter3d-line-style{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:.75rem;align-items:start}.letter3d-line-position{border-top:1px solid #dce3ed;margin:.1rem 0 .7rem;padding-top:.35rem}.letter3d-line-position summary{padding:.3rem 0;background:transparent;font-size:.85rem;color:#31486b}.letter3d-position-label{display:grid!important;grid-template-columns:1fr auto 5rem;align-items:center;gap:.35rem!important;font-size:.83rem;margin:.6rem 0!important}.letter3d-position-label input[type=number]{grid-column:3;padding:.3rem .45rem}.letter3d-position-label input[type=range]{grid-column:1/-1;padding:0;accent-color:#1c58b8}.letter3d-add-line,.letter3d-remove-line{border:1px solid #bfcde2;background:#fff;color:#16468a;border-radius:7px;padding:.45rem .7rem;font-weight:700}.letter3d-add-line{margin-top:.75rem;width:100%}.letter3d-remove-line{font-size:.8rem}.letter3d-add-line:disabled{opacity:.5}
 @media(max-width:800px){.letter3d-layout{grid-template-columns:1fr}.letter3d-preview{min-height:260px}.letter3d-price{margin-left:auto}.letter3d-heading h2{font-size:2rem}}
 @media(max-width:420px){.letter3d-stage-bar{align-items:start}.letter3d-scenes button{padding:.35rem .5rem}.letter3d-price{margin-left:0}.letter3d-size-grid{grid-template-columns:1fr}}
 </style>
