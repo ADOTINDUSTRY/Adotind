@@ -87,7 +87,8 @@ $featuredMedia = $page['featured_media'] ?? [];
 
 <section class="section" data-tracking-section="featured-projects">
   <div class="container">
-    <h2>Featured Projects</h2>
+    <h2><?= $featuredMedia !== [] ? 'Featured Projects' : 'Explore What We Can Make' ?></h2>
+    <?php if ($featuredMedia === []): ?><p class="lead">Concept examples for signage, CNC cutting and fabrication.</p><?php endif; ?>
     <div class="gallery-grid">
     <?php if ($featuredMedia !== []): ?>
       <?php foreach (array_slice($featuredMedia, 0, 3) as $item): ?>
@@ -98,16 +99,16 @@ $featuredMedia = $page['featured_media'] ?? [];
         <?php endforeach; ?>
       <?php else: ?>
         <figure class="gallery-item">
-          <?= placeholder_html('sign', 'Signage Project') ?>
-          <figcaption>Signage Project</figcaption>
+          <img class="gallery-photo" src="/public/assets/images/home-example-signage.webp" alt="Concept for an illuminated sign with dimensional letters" width="1536" height="1024" loading="lazy" />
+          <figcaption>Illuminated Signage</figcaption>
         </figure>
         <figure class="gallery-item">
-          <?= placeholder_html('cnc', 'CNC Project') ?>
-          <figcaption>CNC Project</figcaption>
+          <img class="gallery-photo" src="/public/assets/images/home-example-cnc.webp" alt="Concept of a CNC router cutting a patterned panel" width="1672" height="941" loading="lazy" />
+          <figcaption>CNC Cutting</figcaption>
         </figure>
         <figure class="gallery-item">
-          <?= placeholder_html('fab', 'Fabrication Project') ?>
-          <figcaption>Fabrication Project</figcaption>
+          <img class="gallery-photo" src="/public/assets/images/home-example-fabrication.webp" alt="Concept of welded metal fabrication on a workbench" width="1536" height="1024" loading="lazy" />
+          <figcaption>Metal Fabrication</figcaption>
         </figure>
       <?php endif; ?>
     </div>
