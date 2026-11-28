@@ -509,7 +509,28 @@ img {
 
 .home-concept { margin: 0; }
 .quote-assistant { position:fixed; right:20px; bottom:20px; z-index:1040; color:#18233a; font-size:14px; }
-.quote-assistant-toggle { float:right; display:flex; flex-direction:column; align-items:center; border:0; padding:0; background:transparent; color:#121a2c; cursor:pointer; }
+.quote-assistant-controls { position:relative; display:flex; align-items:flex-end; justify-content:flex-end; pointer-events:none; }
+.quote-assistant-controls button { pointer-events:auto; }
+.quote-assistant-toggle { display:flex; flex-direction:column; align-items:center; border:0; padding:0; background:transparent; color:#121a2c; cursor:pointer; transform-origin:center bottom; }
+.quote-assistant-bye { position:absolute; z-index:2; top:2px; left:65px; border:1px solid #dae3f1; border-radius:999px; padding:3px 8px; background:#fff; color:#223657; font-family:inherit; font-size:11px; font-weight:700; line-height:1.2; cursor:pointer; box-shadow:0 3px 10px #0002; }
+.quote-assistant-bye:focus-visible,.quote-assistant-chair:focus-visible { outline:3px solid #fde613; outline-offset:2px; }
+.quote-assistant-chair { position:relative; display:block; width:48px; height:60px; flex:none; border:0; padding:0; background:transparent; cursor:pointer; }
+.assistant-empty-chair { position:absolute; left:11px; bottom:12px; width:27px; height:8px; border-radius:3px; background:#f3c92e; box-shadow:0 2px 4px #0004; }
+.assistant-empty-chair::before { content:""; position:absolute; left:2px; bottom:5px; width:23px; height:20px; border:3px solid #e1b824; border-radius:5px 5px 2px 2px; background:#fff0a1; }
+.assistant-empty-chair::after { content:""; position:absolute; top:6px; left:3px; width:3px; height:12px; background:#5c6270; box-shadow:18px 0 #5c6270; }
+.assistant-seated { display:none; position:absolute; right:0; bottom:0; width:48px; height:auto; filter:drop-shadow(0 3px 4px #0005); }
+.quote-assistant[data-mascot-state="leaving"] .quote-assistant-bye,.quote-assistant[data-mascot-state="sitting"] .quote-assistant-bye { display:none; }
+.quote-assistant[data-mascot-state="leaving"] .quote-assistant-toggle { animation:mascot-walk-to-chair 2.3s ease-in-out forwards; pointer-events:none; }
+.quote-assistant[data-mascot-state="sitting"] .quote-assistant-toggle,.quote-assistant[data-mascot-state="sitting"] .assistant-empty-chair { display:none; }
+.quote-assistant[data-mascot-state="sitting"] .assistant-seated { display:block; }
+@keyframes mascot-walk-to-chair {
+  0% { transform:translate(0,0) scale(1) rotate(0); }
+  20% { transform:translate(15px,-5px) scale(.9) rotate(4deg); }
+  40% { transform:translate(30px,0) scale(.8) rotate(-4deg); }
+  60% { transform:translate(45px,-4px) scale(.7) rotate(4deg); }
+  80% { transform:translate(60px,0) scale(.6) rotate(-3deg); }
+  100% { transform:translate(72px,0) scale(.48) rotate(0); }
+}
 .quote-assistant-toggle:focus-visible { outline:3px solid #fde613; outline-offset:4px; border-radius:12px; }
 .quote-assistant-mascot { display:block; position:relative; width:100px; aspect-ratio:450/550; filter:drop-shadow(0 5px 5px #0006); transform-origin:center bottom; animation:mascot-sway 5s ease-in-out infinite; }
 .quote-assistant-mascot img { display:block; position:absolute; inset:0; width:100%; height:100%; }
@@ -518,7 +539,7 @@ img {
 .quote-assistant-toggle[aria-expanded="true"] .quote-assistant-mascot { width:68px; }
 @keyframes mascot-wave { 0%,52%,100% { transform:rotate(0deg); } 58%,70%,82% { transform:rotate(-8deg); } 64%,76%,88% { transform:rotate(7deg); } }
 @keyframes mascot-sway { 0%,100% { transform:translateY(0); } 50% { transform:translateY(-3px); } }
-@media (prefers-reduced-motion:reduce) { .quote-assistant-mascot,.mascot-wave { animation:none; } }
+@media (prefers-reduced-motion:reduce) { .quote-assistant-mascot,.mascot-wave,.quote-assistant[data-mascot-state="leaving"] .quote-assistant-toggle { animation:none; } }
 .quote-assistant-panel { clear:both; width:min(390px,calc(100vw - 32px)); max-height:min(540px,calc(100dvh - 145px)); margin-bottom:12px; background:#f7f9fd; border:1px solid #d8e1f0; border-radius:20px; box-shadow:0 18px 50px #0005; overflow:hidden; display:flex; flex-direction:column; }
 .quote-assistant-panel[hidden],.quote-assistant-prompt[hidden] { display:none; }
 .quote-assistant-header { display:flex; align-items:center; gap:12px; padding:15px 16px; color:#fff; background:linear-gradient(125deg,#101c3f,#1c376d); }
@@ -543,11 +564,13 @@ img {
 .quote-assistant-send:disabled { opacity:.55; cursor:wait; }
 .quote-assistant-send:focus-visible { outline:2px solid #3465c0; outline-offset:2px; }
 .quote-assistant-error { color:#9b1c1c; margin:0; padding:0 14px 14px; }
-.quote-assistant-prompt { position:absolute; right:91px; bottom:64px; width:min(240px,calc(100vw - 140px)); padding:13px 28px 13px 14px; border:1px solid #e0e7f0; border-radius:16px; background:#fff; box-shadow:0 8px 25px #0003; color:#18233a; line-height:1.4; }
+.quote-assistant-prompt { position:absolute; right:135px; bottom:64px; width:min(240px,calc(100vw - 180px)); padding:13px 28px 13px 14px; border:1px solid #e0e7f0; border-radius:16px; background:#fff; box-shadow:0 8px 25px #0003; color:#18233a; line-height:1.4; }
+.quote-assistant-prompt[data-mode="farewell"] { right:48px; bottom:64px; }
+.quote-assistant-prompt [hidden] { display:none !important; }
 .quote-assistant-prompt::after { content:""; position:absolute; right:-10px; bottom:15px; width:18px; height:18px; background:#fff; border-right:1px solid #e0e7f0; border-top:1px solid #e0e7f0; transform:rotate(45deg); }
 .quote-assistant-prompt [data-assistant-prompt-open] { display:block; border:0; background:none; color:#214997; font-weight:700; padding:6px 0 0; cursor:pointer; }
 .quote-assistant-prompt [data-assistant-dismiss] { position:absolute; right:8px; top:6px; color:#54637a; }
-@media(max-width:600px) { .quote-assistant { right:12px; bottom:12px; } .quote-assistant-mascot { width:78px; } .quote-assistant-prompt { right:70px; bottom:48px; width:min(220px,calc(100vw - 110px)); } }
+@media(max-width:600px) { .quote-assistant { right:12px; bottom:12px; } .quote-assistant-mascot { width:78px; } .quote-assistant-bye { left:48px; } .quote-assistant-prompt { right:111px; bottom:48px; width:min(220px,calc(100vw - 145px)); } .quote-assistant-prompt[data-mode="farewell"] { right:48px; } }
 .home-manufacturing-concept {
   position: relative;
   margin: 1.5rem 0;

@@ -12,14 +12,24 @@
   const form = assistant.querySelector('[data-assistant-form]');
   const send = assistant.querySelector('[data-assistant-send]');
   const error = assistant.querySelector('[data-assistant-error]');
+  const bye = assistant.querySelector('[data-assistant-bye]');
+  const chair = assistant.querySelector('[data-assistant-chair]');
+  const dismiss = assistant.querySelector('[data-assistant-dismiss]');
   const history = [];
-  let suggested = false, timer, welcomeTimer, pending = false;
+  let suggested = false, timer, welcomeTimer, farewellTimer, sitTimer, pending = false;
+  try { if (sessionStorage.getItem('adot_assistant_sitting') === '1') assistant.dataset.mascotState = 'sitting'; } catch (_) {}
   const labels = workspace
     ? {neon:'Open neon designer',drawing:'Open CNC cutting',picture:'Open picture preview'}
     : {neon:'Go to neon designer',drawing:'Go to cutting quote',picture:'Go to picture preview'};
 
   function open() {
+    clearTimeout(sitTimer);
+    clearTimeout(farewellTimer);
+    assistant.dataset.mascotState = 'active';
+    try { sessionStorage.removeItem('adot_assistant_sitting'); } catch (_) {}
     prompt.hidden = true;
+    promptOpen.hidden = false;
+    dismiss.hidden = false;
     clearTimeout(welcomeTimer);
     welcomeTimer = null;
     suggested = true;
@@ -35,9 +45,33 @@
     toggle.focus();
   }
   toggle.addEventListener('click', () => panel.hidden ? open() : close());
+  chair.addEventListener('click', open);
+  bye.addEventListener('click', () => {
+    clearTimeout(timer);
+    clearTimeout(welcomeTimer);
+    clearTimeout(sitTimer);
+    clearTimeout(farewellTimer);
+    suggested = true;
+    panel.hidden = true;
+    toggle.setAttribute('aria-expanded', 'false');
+    toggle.setAttribute('aria-label', 'Open project assistant');
+    prompt.dataset.mode = 'farewell';
+    promptText.textContent = 'OK, when you need help, call me!';
+    promptOpen.hidden = true;
+    dismiss.hidden = true;
+    prompt.hidden = false;
+    assistant.dataset.mascotState = 'leaving';
+    chair.focus({preventScroll:true});
+    try { sessionStorage.setItem('adot_assistant_sitting', '1'); } catch (_) {}
+    const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    sitTimer = setTimeout(() => {
+      assistant.dataset.mascotState = 'sitting';
+    }, reduced ? 0 : 2300);
+    farewellTimer = setTimeout(() => { if (prompt.dataset.mode === 'farewell') prompt.hidden = true; }, reduced ? 2500 : 4000);
+  });
   assistant.querySelector('[data-assistant-close]').addEventListener('click', close);
   promptOpen.addEventListener('click', open);
-  assistant.querySelector('[data-assistant-dismiss]').addEventListener('click', () => {
+  dismiss.addEventListener('click', () => {
     if (prompt.dataset.mode === 'help') suggested = true;
     prompt.hidden = true;
     clearTimeout(welcomeTimer);
@@ -47,7 +81,7 @@
 
   function welcome() {
     welcomeTimer = null;
-    if (suggested || !panel.hidden || document.hidden) return;
+    if (assistant.dataset.mascotState === 'sitting' || assistant.dataset.mascotState === 'leaving' || suggested || !panel.hidden || document.hidden) return;
     try { if (sessionStorage.getItem('adot_assistant_welcomed') === '1') return; } catch (_) {}
     if (document.querySelector('dialog[open]')) { welcomeTimer = setTimeout(welcome, 1500); return; }
     prompt.dataset.mode = 'welcome';
@@ -61,7 +95,7 @@
     }, 7000);
   }
   function maybeSuggest() {
-    if (suggested || !panel.hidden || document.hidden) return;
+    if (assistant.dataset.mascotState === 'sitting' || assistant.dataset.mascotState === 'leaving' || suggested || !panel.hidden || document.hidden) return;
     if (document.querySelector('dialog[open]')) { timer = setTimeout(maybeSuggest, 15000); return; }
     clearTimeout(welcomeTimer);
     welcomeTimer = null;
@@ -81,7 +115,7 @@
     suggested = true;
   }
   function schedule() {
-    if (suggested) return;
+    if (assistant.dataset.mascotState === 'sitting' || assistant.dataset.mascotState === 'leaving' || suggested) return;
     clearTimeout(timer);
     timer = setTimeout(maybeSuggest, 30000);
   }

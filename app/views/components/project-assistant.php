@@ -14,10 +14,17 @@
     </form>
     <p class="quote-assistant-error" data-assistant-error role="status" hidden></p>
   </div>
-  <button class="quote-assistant-toggle" type="button" data-assistant-toggle aria-expanded="false" aria-controls="quote-assistant-panel" aria-label="Open project assistant">
-    <span class="quote-assistant-mascot" aria-hidden="true">
-      <img class="mascot-body" src="/public/assets/images/quote-assistant-mascot.webp" alt="" width="450" height="550" />
-      <img class="mascot-wave" src="/public/assets/images/quote-assistant-mascot.webp" alt="" width="450" height="550" />
-    </span>
-  </button>
+  <div class="quote-assistant-controls">
+    <button class="quote-assistant-toggle" type="button" data-assistant-toggle aria-expanded="false" aria-controls="quote-assistant-panel" aria-label="Open project assistant">
+      <span class="quote-assistant-mascot" aria-hidden="true">
+        <img class="mascot-body" src="/public/assets/images/quote-assistant-mascot.webp" alt="" width="450" height="550" />
+        <img class="mascot-wave" src="/public/assets/images/quote-assistant-mascot.webp" alt="" width="450" height="550" />
+      </span>
+    </button>
+    <button class="quote-assistant-bye" type="button" data-assistant-bye aria-label="Ask the assistant to sit down">Bye</button>
+    <button class="quote-assistant-chair" type="button" data-assistant-chair aria-label="Call the project assistant">
+      <span class="assistant-empty-chair" aria-hidden="true"></span>
+      <img class="assistant-seated" src="/public/assets/images/quote-assistant-seated.webp" alt="" width="360" height="440" />
+    </button>
+  </div>
 </aside>
