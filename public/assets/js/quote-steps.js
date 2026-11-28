@@ -106,6 +106,7 @@
     if (workflow === 'inquiry') {
       const inquiry = panels.find(panel => panel.dataset.projectPanel === 'inquiry');
       const name = button.querySelector('strong').textContent.trim();
+      inquiry.dataset.inquiryProject = button.dataset.quotePath;
       inquiry.querySelector('[data-project-inquiry-name]').textContent = name;
       inquiry.querySelector('[data-project-inquiry-service]').value = name;
       const questions = inquiryQuestions[button.dataset.quotePath] || {};

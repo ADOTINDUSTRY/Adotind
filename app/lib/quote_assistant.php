@@ -39,6 +39,14 @@ function quote_assistant_service_name(string $stage, mixed $slug): string
     return '';
 }
 
+/** Never trust client-provided labels or include form fields in AI context. */
+function quote_assistant_inquiry_name(mixed $id, array $catalog): string
+{
+    if (!is_string($id) || !isset($catalog[$id]) || ($catalog[$id]['workflow'] ?? '') !== 'inquiry') return '';
+    $defaults = require __DIR__ . '/../data/quote-projects.php';
+    return isset($defaults[$id]) && ($defaults[$id]['workflow'] ?? '') === 'inquiry' ? (string)$defaults[$id]['name'] : '';
+}
+
 function quote_assistant_handle(): never
 {
     if (($_SERVER['REQUEST_METHOD'] ?? '') !== 'POST') quote_assistant_reply(405, ['error'=>'Please send a message from the quote page.']);
@@ -50,9 +58,12 @@ function quote_assistant_handle(): never
     if ($message === '' || strlen($message) > 2000) quote_assistant_reply(400, ['error'=>'Please enter a message of up to 2,000 bytes.']);
     $key = getenv('GEMINI_API_KEY');
     if (!is_string($key) || trim($key) === '') quote_assistant_reply(503, ['error'=>'The assistant is not connected yet. Please contact us for help.']);
-    $allowedStages = ['website', 'home', 'about', 'services', 'service-detail', 'service-landing', 'portfolio', 'project-detail', 'machinery', 'materials', 'industries', 'contact', 'quote_locked', 'start', 'guide', 'neon', 'picture', 'drawing', 'material', 'parts', 'result'];
+    $allowedStages = ['website', 'home', 'about', 'services', 'service-detail', 'service-landing', 'portfolio', 'project-detail', 'machinery', 'materials', 'industries', 'contact', 'quote_locked', 'start', 'guide', 'inquiry', 'neon', 'picture', 'drawing', 'material', 'parts', 'result'];
     $stage = is_string($request['stage'] ?? null) && in_array($request['stage'], $allowedStages, true) ? $request['stage'] : 'website';
-    $serviceName = quote_assistant_service_name($stage, $request['service'] ?? null);
+    $catalog = quote_project_catalog();
+    $serviceName = $stage === 'inquiry'
+        ? quote_assistant_inquiry_name($request['project'] ?? null, $catalog)
+        : quote_assistant_service_name($stage, $request['service'] ?? null);
     $history = [];
     foreach (array_slice(is_array($request['history'] ?? null) ? $request['history'] : [], -8) as $turn) {
         if (!is_array($turn) || !in_array($turn['role'] ?? '', ['user','model'], true) || !is_string($turn['text'] ?? null)) continue;
@@ -106,7 +117,6 @@ function quote_assistant_handle(): never
     }
     session_write_close();
 
-    $catalog = quote_project_catalog();
     $defaults = require __DIR__ . '/../data/quote-projects.php';
     $projectOptions = [];
     foreach ($catalog as $id => $_item) {
