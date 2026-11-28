@@ -431,7 +431,8 @@
         item.textContent=line.text || '\u00a0'; item.style.display='block'; item.style.whiteSpace='pre';
         item.style.width='max-content'; item.style.marginInline='auto';
         item.style.color=line.colour; item.style.fontFamily=fontFamily(line.font);
-        const side=line.side_colour || automaticSideColour(line.colour);
+        const sideColour=line.side_colour || automaticSideColour(line.colour);
+        const side=sideColour.toLowerCase()==='#ffffff' ? '#e6e6e6' : sideColour;
         item.style.textShadow=`1px 1px ${side},2px 2px ${side},3px 3px ${side},4px 4px 7px #0009` + (lightsOn ? `,0 0 8px ${line.colour},0 0 18px ${line.colour}` : '');
         item.style.transform=`translate(${line.x}%, ${line.y}%) rotate(${line.rotation}deg)`;
         preview.appendChild(item);

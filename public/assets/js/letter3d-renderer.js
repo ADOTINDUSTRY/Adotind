@@ -85,9 +85,10 @@ function litSurface(properties,emission,intensity,lightsOn) {
 }
 
 function sidePigment(line) {
+  // White aluminium has a softer base colour than the white opal face.
+  if ((line.side_colour ?? line.colour)==='#ffffff') return new THREE.Color(0xe6e6e6);
   if (line.side_colour) return new THREE.Color(line.side_colour);
-  const colour=new THREE.Color(line.colour);
-  return line.colour==='#ffffff' ? colour : colour.multiplyScalar(.55);
+  return new THREE.Color(line.colour).multiplyScalar(.55);
 }
 
 function buildLine(font,line,index,lightsOn) {

@@ -24,6 +24,12 @@ const assert=require('node:assert/strict'),C=require('../public/assets/js/neon-c
  const lit=[];sized.traverse(n=>{if(n.isMesh)for(const m of [].concat(n.material)){if(m.emissiveIntensity>0&&m.userData.letterEmission!==undefined)lit.push(m.emissive.getHexString())}});
  assert.ok(lit.includes('ff0000') && lit.filter(c=>c==='ffffff').length>=2,'Coloured face, upper white edge and lower exposed acrylic emit light');
  const metal=meshes.find(n=>n.material?.color?.getHexString()==='000000' && !n.userData.letterBack);assert.ok(metal,'Side wall carries the selected colour');metal.geometry.computeBoundingBox();assert.ok(Math.abs(metal.geometry.boundingBox.max.z-1.2)<1e-5,'Aluminium enters acrylic groove 1.2mm');
+ for (const side_colour of [null,'#ffffff']) {
+   const sign=buildLetter3DSignModel(plan,[{...line,side_colour}],C,options);
+   const wall=sign.children.find(n=>n.isMesh && !n.userData.letterBack && !n.userData.letterBackboard);
+   assert.equal(wall.material.color.getHexString(),'e6e6e6','Explicit and automatic white aluminium have RGB 230 base colour');
+   assert.equal(sign.children[0].children[0].material[0].color.getHexString(),'ffffff','White opal face keeps its own pigment');
+ }
  for(const invalid of [0,29,59,101,NaN])assert.throws(()=>prepareLetter3DSignLayers(plan,C,{...options,totalDepthMm:invalid}),'unsupported depth rejected');
  assert.throws(()=>prepareLetter3DSignLayers(plan,C,{...options,backThicknessMm:80}),'rear too thick rejected');
  group.traverse(n=>{n.geometry?.dispose();if(Array.isArray(n.material))n.material.forEach(m=>m.dispose());else n.material?.dispose()});
