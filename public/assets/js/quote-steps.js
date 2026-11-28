@@ -256,8 +256,8 @@
   const contents = form.elements.drawing_contents;
   function validateDrawing() {
     const file = drawing.files[0];
-    drawing.setCustomValidity(file && (!/\.dxf$/i.test(file.name) || file.size > 50 * 1024 * 1024)
-      ? 'Choose a DXF drawing up to 50 MB.' : '');
+    drawing.setCustomValidity(drawing.dataset.importError || (file && (!/\.(dxf|pdf)$/i.test(file.name) || file.size > 50 * 1024 * 1024)
+      ? 'Choose a DXF or vector PDF up to 50 MB.' : ''));
     contents.setCustomValidity(contents.value && contents.value !== 'single'
       ? 'Please use the contact link for a drawing review.' : '');
   }

@@ -26,6 +26,12 @@
   const heightInput = form.elements.part_height_mm;
   const measureStatus = document.querySelector('[data-cutting-measure-status]');
   const vendorUrl = new URL('quote-vendor/preview.js?v=3', document.currentScript.src).href;
+  const importUrl = new URL('cutting-import.js', document.currentScript.src).href;
+  const pdfUrl = new URL('cutting-pdf.js', document.currentScript.src).href;
+  const unitLabel=form.querySelector('[data-dxf-unit-label]');
+  const units=form.querySelector('[data-dxf-unit]');
+  let original=null;
+  function importStatus(reason) { input.dataset.importError=reason; input.setCustomValidity(reason); }
   let dispose = null;
   let selection = 0;
   let measureAbort = null;
@@ -104,7 +110,14 @@
     if (!imageBox.hidden) expand.focus();
   });
 
-  input.addEventListener('change', async () => {
+  input.addEventListener('change', () => {
+    original=input.files[0];
+    units.value='';
+    unitLabel.hidden=true;
+    prepare();
+  });
+  units.addEventListener('change', prepare);
+  async function prepare() {
     const current = ++selection;
     if (measureAbort) measureAbort.abort();
     for (const field of [widthInput, heightInput]) {
@@ -123,7 +136,8 @@
     previewLength.textContent = '';
     dimensions.textContent = '';
     message.textContent = '';
-    const file = input.files[0];
+    let file = original;
+    importStatus('');
     preview.hidden = !file;
     if (!file) return;
 
@@ -131,12 +145,37 @@
     size.textContent = `File size: ${(file.size / (1024 * 1024)).toFixed(2)} MB`;
     if (file.size > 50 * 1024 * 1024) {
       message.textContent = 'This file exceeds the 50 MB upload limit. Please choose a smaller file.';
+      importStatus(message.textContent);
       report('quote_preview_error', 'file_too_large');
       return;
     }
-    if (file.name.split('.').pop().toLowerCase() !== 'dxf') {
-      message.textContent = 'Please choose a DXF file. Contact us if you need help preparing your drawing.';
-      return;
+    importStatus('Please wait while we prepare your drawing.');
+    try {
+      let dxf;
+      if (/\.pdf$/i.test(file.name)) {
+        message.textContent='Reading the cutting paths from your PDF…';
+        const {pdfCuttingDxf}=await import(pdfUrl);
+        dxf=await pdfCuttingDxf(new Uint8Array(await file.arrayBuffer()));
+      } else if (/\.dxf$/i.test(file.name)) {
+        const {normalizeDxf}=await import(importUrl);
+        const result=normalizeDxf(await file.text(),units.value);
+        if(current!==selection)return;
+        if(result.needsUnits){
+          unitLabel.hidden=false;
+          message.textContent='This DXF has no drawing units. Choose the units you used in Aspire or CAD.';
+          importStatus(message.textContent);return;
+        }
+        dxf=result.dxf;
+      } else throw new Error('Choose a DXF drawing or a single-page vector PDF.');
+      if(current!==selection)return;
+      file=new File([dxf],file.name.replace(/\.(pdf|dxf)$/i,'.dxf'),{type:'application/dxf'});
+      if(file.size>50*1024*1024) throw new Error('The extracted cutting paths exceed 50 MB. Simplify the drawing and try again.');
+      const transfer=new DataTransfer();transfer.items.add(file);input.files=transfer.files;
+      importStatus('');
+    } catch(error){
+      if(current!==selection)return;
+      message.textContent=error.message || 'The drawing could not be read.';
+      importStatus(message.textContent);report('quote_preview_error','drawing_unreadable');return;
     }
     measureDrawing(file, current);
     message.textContent = 'Preparing your preview…';
@@ -169,5 +208,5 @@
       if (dialog.open) dialog.close();
       message.textContent = 'We could not open this drawing for preview. Please contact us and share the DXF file so we can help.';
     }
-  });
+  }
 })();

@@ -194,7 +194,7 @@ $knownProjects = require __DIR__ . '/../../data/quote-projects.php';
       <div class="quote-stage" data-stage="drawing">
         <div class="quote-step-heading" data-tracking-section="drawing-upload">
           <span aria-hidden="true">01</span>
-          <div><h3>Upload your design</h3><p data-cutting-project-name></p><p>Choose your DXF drawing to see a preview and measurements.</p></div>
+          <div><h3>Upload your design</h3><p data-cutting-project-name></p><p>Choose a DXF or vector PDF to preview and measure your cutting paths.</p></div>
         </div>
         <div class="quote-upload" data-tracking-section="drawing-upload">
           <details class="quote-file-guide">
@@ -211,10 +211,11 @@ $knownProjects = require __DIR__ . '/../../data/quote-projects.php';
             <p class="quote-software-help" aria-live="polite">Choose an option for a starting point, or contact us and we will help.</p>
             <p>Draw at the intended size, use millimetres, and remove unwanted or duplicate lines. Close outlines where appropriate. Ask us to check your file if you are unsure.</p>
           </details>
-          <label>DXF drawing
-            <input type="file" name="vector_file" accept=".dxf" aria-describedby="quote-file-help" required data-tracking-control="dxf-upload" />
+          <label>DXF or vector PDF drawing
+            <input type="file" name="vector_file" accept=".dxf,.pdf,application/pdf" aria-describedby="quote-file-help" required data-tracking-control="dxf-upload" />
           </label>
-          <p id="quote-file-help">Upload one part as a DXF, up to 50 MB. Export it with explicit drawing units, preferably millimetres. For text, blocks or splines, export the cutting outlines or <a href="/contact">ask us to review the drawing</a>.</p>
+          <p id="quote-file-help">Upload one part, up to 50 MB. For Aspire, export a 2D DXF or a single-page vector PDF at actual size. Convert text to curves before exporting.</p>
+          <label data-dxf-unit-label hidden>Units used in your DXF <select data-dxf-unit><option value="">Choose drawing units</option><option value="4">Millimetres</option><option value="1">Inches</option><option value="5">Centimetres</option><option value="6">Metres</option></select></label>
           <p data-cutting-measure-status role="status" aria-live="polite"></p>
           <div class="quote-file-preview" hidden aria-live="polite" data-tracking-section="drawing-preview">
             <div class="quote-preview-image" hidden>

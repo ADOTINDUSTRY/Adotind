@@ -3,7 +3,7 @@
  * A DXF contains geometry, not safe machine instructions: the groove depth,
  * tool diameter, stock setup and back-face orientation must be set in CAM.
  */
-export function buildLetter3dDxf(geometry) {
+export function buildLetter3dDxf(geometry, format = 'dxf') {
   if (!geometry || typeof geometry !== 'object') throw new Error('Generate valid lettering geometry before exporting.');
   const config=geometry.settings;
   if (!config || !['outside','centreline'].includes(config.overhang_reference)) throw new Error('Set the overhang reference in the ERP before exporting.');
@@ -55,23 +55,50 @@ export function buildLetter3dDxf(geometry) {
     'Confirm how the acrylic is turned over and mirror the back-face groove if your setup requires it.',
     'The reference is 2 mm from the face edge; it is not the cutter centreline. A DXF cannot set the cutting side, bit or depth. Check the toolpath and test the fit before cutting.',
   ];
-  let handle=0x10;const nextHandle=()=> (handle++).toString(16).toUpperCase();
-  const out=[];const pair=(code,value)=>{out.push(String(code),String(value));};
-  pair(999,'VECTORS FOR CAM REVIEW ONLY - CHECK UNITS, TOOL, DEPTH AND BACK-FACE MIRROR');
-  for (const instruction of instructions) pair(999, instruction);
-  pair(0,'SECTION');pair(2,'HEADER');pair(9,'$ACADVER');pair(1,'AC1015');pair(9,'$INSUNITS');pair(70,4);pair(9,'$MEASUREMENT');pair(70,1);pair(9,'$LUNITS');pair(70,2);pair(0,'ENDSEC');
-  pair(0,'SECTION');pair(2,'TABLES');
-  pair(0,'TABLE');pair(2,'LTYPE');pair(5,nextHandle());pair(100,'AcDbSymbolTable');pair(70,1);
-  pair(0,'LTYPE');pair(5,nextHandle());pair(100,'AcDbSymbolTableRecord');pair(100,'AcDbLinetypeTableRecord');pair(2,'CONTINUOUS');pair(70,0);pair(3,'Solid line');pair(72,65);pair(73,0);pair(40,0);pair(0,'ENDTAB');
-  pair(0,'TABLE');pair(2,'LAYER');pair(5,nextHandle());pair(100,'AcDbSymbolTable');pair(70,3);
-  for(const [layer,colour] of [['0',7],['FACE_CUT',3],['GROOVE_REFERENCE',1]]) {
-    pair(0,'LAYER');pair(5,nextHandle());pair(100,'AcDbSymbolTableRecord');pair(100,'AcDbLayerTableRecord');pair(2,layer);pair(70,0);pair(62,colour);pair(6,'CONTINUOUS');
+  const layers = [['FACE_CUT',face],['GROOVE_REFERENCE',groove]];
+  if (format === 'pdf') return {pdf: vectorPdf(layers, expectedWidth, expectedHeight), instructions};
+  if (format !== 'dxf') throw new Error('Unknown cutting file format.');
+  const groups = [0,'SECTION',2,'HEADER',9,'$ACADVER',1,'AC1009',9,'$LUNITS',70,2,
+    9,'$EXTMIN',10,0,20,0,30,0,9,'$EXTMAX',10,number(maxX),20,number(maxY),30,0,0,'ENDSEC',
+    0,'SECTION',2,'TABLES',0,'TABLE',2,'LTYPE',70,1,0,'LTYPE',2,'CONTINUOUS',70,0,
+    3,'Solid line',72,65,73,0,40,0,0,'ENDTAB',0,'TABLE',2,'LAYER',70,3];
+  for (const [layer,color] of [['0',7],['FACE_CUT',3],['GROOVE_REFERENCE',1]]) {
+    groups.push(0,'LAYER',2,layer,70,0,62,color,6,'CONTINUOUS');
   }
-  pair(0,'ENDTAB');pair(0,'ENDSEC');pair(0,'SECTION');pair(2,'BLOCKS');pair(0,'ENDSEC');pair(0,'SECTION');pair(2,'ENTITIES');
-  for(const [layer,paths] of [['FACE_CUT',face],['GROOVE_REFERENCE',groove]]) for(const contour of paths) {
-    pair(0,'LWPOLYLINE');pair(5,nextHandle());pair(100,'AcDbEntity');pair(8,layer);pair(100,'AcDbPolyline');pair(90,contour.length);pair(70,1);
-    for(const {x,y} of contour){pair(10,number(x));pair(20,number(y));}
+  groups.push(0,'ENDTAB',0,'ENDSEC',0,'SECTION',2,'BLOCKS',0,'ENDSEC',0,'SECTION',2,'ENTITIES');
+  for (const [layer,paths] of layers) for (const path of paths) {
+    groups.push(0,'POLYLINE',8,layer,66,1,10,0,20,0,30,0,70,1);
+    for (const {x,y} of path) groups.push(0,'VERTEX',8,layer,10,number(x),20,number(y),30,0,70,0);
+    groups.push(0,'SEQEND',8,layer);
   }
-  pair(0,'ENDSEC');pair(0,'EOF');
-  return {dxf:out.join('\r\n')+'\r\n',instructions};
+  groups.push(0,'ENDSEC',0,'EOF');
+  return {dxf:groups.join('\r\n')+'\r\n',instructions};
+}
+
+// ASCII content keeps stream lengths and cross-reference offsets byte exact.
+function vectorPdf(layers, width, height) {
+  const pt = mm => Number((mm * 72 / 25.4).toFixed(6));
+  if (Math.max(pt(width),pt(height)) > 14400) throw new Error('This drawing exceeds the full-size PDF page limit. Choose DXF.');
+  const commands = ['0 w','1 j'];
+  for (const [index,[,paths]] of layers.entries()) {
+    commands.push(index === 0 ? '0 0.28 0.7 RG' : '0.78 0.19 0 RG');
+    for (const path of paths) {
+      for (const [i,{x,y}] of path.entries()) commands.push(pt(x)+' '+pt(y)+(i ? ' l' : ' m'));
+      commands.push('h S');
+    }
+  }
+  const stream = commands.join('\n')+'\n';
+  const objects = ['<< /Type /Catalog /Pages 2 0 R >>',
+    '<< /Type /Pages /Count 1 /Kids [3 0 R] >>',
+    '<< /Type /Page /Parent 2 0 R /MediaBox [0 0 '+pt(width)+' '+pt(height)+'] /Resources << >> /Contents 4 0 R >>',
+    '<< /Length '+stream.length+' >>\nstream\n'+stream+'endstream'];
+  let pdf = '%PDF-1.4\n';
+  const offsets = [0];
+  for (const [i,obj] of objects.entries()) {
+    offsets.push(pdf.length);
+    pdf += (i+1)+' 0 obj\n'+obj+'\nendobj\n';
+  }
+  const xref = pdf.length;
+  pdf += 'xref\n0 5\n0000000000 65535 f \n'+offsets.slice(1).map(n=>String(n).padStart(10,'0')+' 00000 n \n').join('');
+  return pdf+'trailer\n<< /Size 5 /Root 1 0 R >>\nstartxref\n'+xref+'\n%%EOF\n';
 }

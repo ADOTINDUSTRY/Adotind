@@ -24,3 +24,4 @@ for (const [pkg, license] of [
   await copyFile(resolve(root, `node_modules/${pkg}/${license}`), resolve(out, `${pkg}.LICENSE.txt`));
 }
 await copyFile(resolve(root, 'saxes.LICENSE.txt'), resolve(out, 'saxes.LICENSE.txt'));
+await copyFile(resolve(root, 'node_modules/pdfjs-dist/build/pdf.min.mjs'), resolve(out, 'pdf.min.js'));
