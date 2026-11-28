@@ -3,6 +3,7 @@ import {fontPathToShapes} from './letter3d-geometry.js';
 import {prepareLetter3DAcrylicLayers} from './letter3d-technical.js?v=outside-groove-1';
 import {prepareLetter3DSignLayers} from './letter3d-sign.js?v=outside-groove-1';
 
+const FACE_LIGHT_INTENSITY = 2.1;
 const FONT_URLS = Object.freeze({
   sans:'/public/assets/fonts/letter3d/AlegreyaSans-Regular.ttf',
   serif:'/public/assets/fonts/letter3d/LibertinusSerif-Regular.ttf',
@@ -101,7 +102,7 @@ function buildLine(font,line,index,lightsOn) {
       value==='gloss' ? {shininess:90,specular:0x555555} : {shininess:fallback,specular:0x111111};
     // Visual approximation only: colour, gloss and light output are confirmed
     // by the shop and do not assert that any particular film transmits light.
-    const front=new THREE.MeshPhongMaterial({color:line.colour,...finish(line.front_finish,28),emissive:line.colour,emissiveIntensity:lightsOn ? 1.25 : 0});
+    const front=new THREE.MeshPhongMaterial({color:line.colour,...finish(line.front_finish,28),emissive:line.colour,emissiveIntensity:lightsOn ? FACE_LIGHT_INTENSITY : 0});
     const side=new THREE.MeshPhongMaterial({color:line.side_colour === null ? new THREE.Color(line.colour).multiplyScalar(.55) : new THREE.Color(line.side_colour),...finish(line.side_finish,22)});
     const back=new THREE.MeshPhongMaterial({color:0xeeeeee,shininess:8,specular:0x080808});
     group.add(new THREE.Mesh(geometry,[front,side,back]));
@@ -140,7 +141,7 @@ function technicalPiece(piece, line, settings, lightsOn, showGrooveMarker=true) 
   if(previous>=0)upper.addGroup(start,points.count-start,previous);
   const finish=(value,fallback)=>value==='matt'?{shininess:5,specular:0x080808}:
     value==='gloss'?{shininess:90,specular:0x555555}:{shininess:fallback,specular:0x111111};
-  const front=new THREE.MeshPhongMaterial({color:line.colour,...finish(line.front_finish,28),emissive:line.colour,emissiveIntensity:lightsOn?1.25:0});
+  const front=new THREE.MeshPhongMaterial({color:line.colour,...finish(line.front_finish,28),emissive:line.colour,emissiveIntensity:lightsOn?FACE_LIGHT_INTENSITY:0});
   const opal=new THREE.MeshPhongMaterial({color:0xeeeeee,shininess:8,specular:0x080808});
   // Neutral shading on the recessed floor makes the cut visible on the back.
   const floor=new THREE.MeshPhongMaterial({color:0xaab4bc,shininess:8,specular:0x080808});
@@ -182,7 +183,7 @@ function faceGlow(contours, colour, z) {
   for(const contour of contours){contour.forEach((p,i)=>{const x=pad+(p.x-left)*scale,y=pad+(top-p.y)*scale;if(i)ctx.lineTo(x,y);else ctx.moveTo(x,y)});ctx.closePath();}
   ctx.fill('evenodd');
   const texture=new THREE.CanvasTexture(canvas);texture.colorSpace=THREE.SRGBColorSpace;
-  const material=new THREE.MeshBasicMaterial({map:texture,transparent:true,opacity:.55,depthWrite:false,depthTest:true,side:THREE.DoubleSide});
+  const material=new THREE.MeshBasicMaterial({map:texture,transparent:true,opacity:.80,depthWrite:false,depthTest:true,side:THREE.DoubleSide});
   const mesh=new THREE.Mesh(new THREE.PlaneGeometry(canvas.width/scale,canvas.height/scale),material);
   mesh.position.set((left+right)/2,(bottom+top)/2,z);mesh.renderOrder=10;mesh.userData.letterGlow=true;return mesh;
 }
@@ -266,7 +267,7 @@ export async function createLetter3DRenderer(container, {onUnavailable} = {}) {
   }
   if (typeof ResizeObserver!=='undefined') { observer=new ResizeObserver(reframe);observer.observe(container); }
   return {
-    async update(rawLines) {
+    async update(rawLines, keepView = false) {
       if (disposed || lost) throw unavailable('webgl');
       const mine=++generation, lines=validateLines(rawLines);
       let loaded;
@@ -279,7 +280,9 @@ export async function createLetter3DRenderer(container, {onUnavailable} = {}) {
         group.rotation.set(orbitPitch,orbitYaw,0);
         if (disposed || lost || mine!==generation) {disposeObject(group);return {stale:true};}
         if (current) {scene.remove(current);disposeObject(current);}
-        current=group;scene.add(group);reframe();return {rendered:true};
+        current=group;scene.add(group);
+        if (keepView) draw(); else reframe();
+        return {rendered:true};
       } catch(error) {disposeObject(group);throw error;}
     },
     /** Assembled 3D preview: face/wall dimensions share the DXF outline. */
@@ -320,7 +323,7 @@ export async function createLetter3DRenderer(container, {onUnavailable} = {}) {
       current?.traverse(node=>{
         if(node.userData?.letterGlow) node.visible=lightsOn;
         if (node.isMesh && Array.isArray(node.material) && node.material[0]?.isMeshPhongMaterial) {
-          node.material[0].emissiveIntensity = lightsOn ? 1.25 : 0;
+          node.material[0].emissiveIntensity = lightsOn ? FACE_LIGHT_INTENSITY : 0;
         }
       });
       draw();

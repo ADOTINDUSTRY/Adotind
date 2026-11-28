@@ -346,7 +346,7 @@
         const selected=manufacturing;
         const board=readBackboard();
         const assembled=!!(selected && board && depth && construction?.back && typeof renderer.updateSign==='function');
-        const result = technicalView && selected ? await renderer.updateManufacturing(selected.plan,readLines(),selected.clipper) : assembled ? await renderer.updateSign(selected.plan,readLines(),selected.clipper,{totalDepthMm:Number(depth.value),backThicknessMm:construction.back.thickness_mm,backVisible,backboard:board,keepView}) : await renderer.update(readLines());
+        const result = technicalView && selected ? await renderer.updateManufacturing(selected.plan,readLines(),selected.clipper) : assembled ? await renderer.updateSign(selected.plan,readLines(),selected.clipper,{totalDepthMm:Number(depth.value),backThicknessMm:construction.back.thickness_mm,backVisible,backboard:board,keepView}) : await renderer.update(readLines(),keepView);
         if (current !== threeGeneration || (result && result.stale)) return;
         if (viewport.dataset) viewport.dataset.render = 'three';
         if(back)back.disabled=technicalView || !assembled;
@@ -414,10 +414,10 @@
     generation++; clearTimeout(timer); estimate = null; requestKey = '';
     send.disabled = true; price.textContent = 'Enter an option and size'; tax.textContent = ''; status.textContent = '';
     if(priceScope)priceScope.textContent='';
-    if (appearanceOnly === true && manufacturing && viewport.dataset?.render === 'three' && !technicalView) {
+    if (appearanceOnly === true && viewport.dataset?.render === 'three' && !technicalView) {
       schedule3D(true);
       saveDesign();
-      scheduleEstimate();
+      if (manufacturing || !cuttingEnabled) scheduleEstimate();
       return;
     }
     paint(); saveDesign();
@@ -576,7 +576,11 @@
       syncLines(); changed(); lineControls[lineCount-1].inputs.text.focus?.();
     });
   }
-  if (typeof ResizeObserver !== 'undefined') new ResizeObserver(paint).observe(viewport);
+  if (typeof ResizeObserver !== 'undefined') new ResizeObserver(() => {
+    if (root.hidden) return;
+    if (!threeRenderer && !threeUnavailable) paint();
+    else paintScale();
+  }).observe(viewport);
   send.addEventListener('click', async () => {
     if (!estimate || sending) return;
     const name = find('name'), email = find('email'), phone = find('phone');
