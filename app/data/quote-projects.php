@@ -9,7 +9,7 @@ return [
         'keywords' => 'indoor LED neon light glow silicone name lettering wall sign',
     ],
     'drawing' => [
-        'name' => 'Custom cut parts',
+        'name' => 'Custom CNC Cutting',
         'description' => 'Upload a DXF drawing for a cutting estimate.',
         'keywords' => 'laser sheet CNC router acrylic metal wood cutting DXF CAD fabrication',
     ],
