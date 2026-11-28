@@ -27,7 +27,7 @@
   const measureStatus = document.querySelector('[data-cutting-measure-status]');
   const vendorUrl = new URL('quote-vendor/preview.js?v=3', document.currentScript.src).href;
   const importUrl = new URL('cutting-import.js', document.currentScript.src).href;
-  const pdfUrl = new URL('cutting-pdf.js', document.currentScript.src).href;
+  const pdfUrl = new URL('cutting-pdf.js?v=2', document.currentScript.src).href;
   const unitLabel=form.querySelector('[data-dxf-unit-label]');
   const units=form.querySelector('[data-dxf-unit]');
   let original=null;

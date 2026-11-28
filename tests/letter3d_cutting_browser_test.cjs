@@ -22,7 +22,7 @@ const server=http.createServer((req,res)=>{
  if(pathname==='/__change' && req.method==='POST'){revision=2;offset=2;res.writeHead(200).end('ok');return}
  if(pathname==='/online-quote/letters3d/construction'){fetchCount++;res.writeHead(200,{'Content-Type':'application/json','Cache-Control':'no-store'});res.end(JSON.stringify({construction:{...standard,version:revision,front:{...standard.front,offset_outside_mm:offset}}}));return}
  if(pathname==='/online-quote/letters3d/estimate'&&req.method==='POST'){let data='';req.on('data',s=>data+=s);req.on('end',()=>{try{estimatePayloads.push(JSON.parse(data))}catch(_){}res.writeHead(200,{'Content-Type':'application/json'});res.end(JSON.stringify({estimate:{total:100,vat_percent:19,quote_token:'fixture'},request_key:'fixture'}))});return}
- if(!pathname.startsWith('/public/')){res.writeHead(404).end();return}
+ if(!pathname.startsWith('/public/') && pathname!=='/tests/fixtures/aspire10-letter-a.pdf'){res.writeHead(404).end();return}
  const f=path.resolve(root,'.'+pathname);if(!f.startsWith(root+path.sep)){res.writeHead(403).end();return}
  try{const body=fs.readFileSync(f);res.writeHead(200,{'Content-Type':f.endsWith('.js')?'text/javascript':f.endsWith('.ttf')?'font/ttf':'application/octet-stream'});res.end(body)}catch(_){res.writeHead(404).end()}
 });
@@ -46,6 +46,8 @@ server.listen(0,'127.0.0.1',async()=>{try{
  assert.match(roundtrip,/FACE_CUT/);assert.match(roundtrip,/GROOVE_REFERENCE/);
  const coords=(d,code)=>{const rows=d.trimEnd().split(/\r?\n/),v=[];let entity='';for(let i=0;i<rows.length;i+=2){if(rows[i]==='0')entity=rows[i+1];if(rows[i]===code && ['VERTEX','LWPOLYLINE'].includes(entity))v.push(Number(rows[i+1]));}return v};
  for(const code of ['10','20']){const source=coords(first.text,code),pdf=coords(roundtrip,code);assert.equal(pdf.length,source.length);assert.ok(source.every((v,i)=>Math.abs(pdf[i]-v)<.002),'PDF import reproduces each vertex in millimetres');}
+ const aspireDxf=await evalJs(`(async()=>{const r=await fetch('/tests/fixtures/aspire10-letter-a.pdf');const {pdfCuttingDxf}=await import('/public/assets/js/cutting-pdf.js');return pdfCuttingDxf(new Uint8Array(await r.arrayBuffer()));})()`);
+ for(const [code,expected] of [['10',151.657],['20',178.633]]){const vertices=coords(aspireDxf,code);assert.ok(Math.abs(Math.max(...vertices)-Math.min(...vertices)-expected)<.01,'Aspire PDF preserves the authored size');}
  await evalJs(`document.querySelector('[data-letter-export-format]').value='dxf'`);
  await evalJs(`(async()=>{window.exported=null;await fetch('/__change',{method:'POST'});document.querySelector('[data-letter-export-dxf]').click()})()`);await waitFor(`document.querySelector('[data-letter-cutting-dimensions]').textContent.includes('Groove reference: 2 mm') && !document.querySelector('[data-letter-export-dxf]').disabled`,'recomputed revised construction');assert.equal(await evalJs('window.exported'),null,'Changed settings must not export the stale DXF');
  view=await evalJs(`(()=>{let p=document.querySelector('[data-letter-cutting-svg]').querySelectorAll('path');return {face:p[0].getBBox().x,groove:p[1].getBBox().x,hidden:document.querySelector('[data-letter-cutting-svg]').hasAttribute('hidden')}})()`);assert.equal(view.hidden,false);assert.ok(Math.abs((view.groove-view.face)-2)<.03,'The 2 mm reference offset must remain fixed for this method');
