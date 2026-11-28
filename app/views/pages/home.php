@@ -23,8 +23,8 @@ $featuredMedia = $page['featured_media'] ?? [];
       </div>
     <?php else: ?>
       <figure class="hero-media-card home-concept">
-        <img src="/public/assets/images/home-illuminated-sign-concept.webp" alt="Illustration of illuminated three-dimensional letters on a café storefront" width="1672" height="941" fetchpriority="high" />
-        <figcaption>Illustrative concept</figcaption>
+        <img src="/public/assets/images/home-illuminated-sign-concept.webp" alt="Illustration of front-lit 3D letters on a café storefront" width="1672" height="941" fetchpriority="high" />
+        <figcaption>Front-lit 3D letters · illustrative concept</figcaption>
       </figure>
     <?php endif; ?>
   </div>
