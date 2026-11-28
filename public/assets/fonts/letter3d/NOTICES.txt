@@ -24,3 +24,9 @@ c0f9c7ca85e18075a8819e5fe2dee6e1d535f9a2269f5314f36cce94a183adba.
 
 Check each font for every requested glyph; font coverage varies by language.
 Great Vibes does not cover most modern Greek characters.
+
+Additional sans-serif families listed in catalog.json are locally hosted regular TTF
+files distributed by Google Fonts via fonts.gstatic.com. Each file retains the
+family's embedded names. The corresponding <family-id>-OFL.txt is from
+https://github.com/google/fonts/tree/main/ofl and accompanies that font.
+The font picker, dimensional preview and cutting geometry share these files.

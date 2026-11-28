@@ -84,6 +84,17 @@ $withOptions=letter3d_calculate($db,$options,19);
 check3d($withOptions['letter_depth_mm']===60 && $withOptions['backboard']['shape']==='rectangle' && $withOptions['backboard']['colour']==='#1122aa' && $withOptions['backboard']['margin_mm']===40.0, 'Depth and backboard choices must be normalized and returned.');
 check3d($withOptions['pricing_review_required'] && $withOptions['pricing_review_reasons']===['letter_depth','backboard'] && str_contains($withOptions['pricing_note'],'Base estimate'), 'Unpriced depth and backboard must require review.');
 check3d(($withOptions['lines'][0]['front_film_code'] ?? '')==='501 EF' && ($withOptions['lines'][0]['front_film_name'] ?? '')==='White' && ($withOptions['lines'][0]['side_film_code'] ?? '')==='502 EF' && ($withOptions['lines'][0]['side_film_name'] ?? '')==='Black', 'Validated Avery codes and names must survive.');
+$sized=$options;
+$sized['backboard']+=['width_mm'=>802.5,'height_mm'=>370,'depth_mm'=>18];
+$sized['lines'][0]['font']='montserrat';
+$sizedEstimate=letter3d_calculate($db,$sized,19);
+check3d($sizedEstimate['font_name']==='Montserrat' && $sizedEstimate['backboard']['width_mm']===802.5 && $sizedEstimate['backboard']['depth_mm']===18.0, 'Keep actual board dimensions and the catalogue font on the estimate.');
+foreach (['width_mm','height_mm','depth_mm'] as $axis) {
+    $resized=$sized; $resized['backboard'][$axis]+=1;
+    check3d(letter3d_calculate($db,$resized,19)['quote_token']!==$sizedEstimate['quote_token'],'Resizing the board must invalidate confirmation.');
+    $resized['backboard'][$axis]=0;
+    rejects3d(fn()=>letter3d_calculate($db,$resized,19),'Reject a zero board dimension.');
+}
 $noBoard=$options;$noBoard['letter_depth_mm']=null;$noBoard['backboard']=['shape'=>'none'];
 check3d(!letter3d_calculate($db,$noBoard,19)['pricing_review_required'], 'A disabled backboard with no selected depth adds no new pricing warning.');
 $changed=$options;$changed['letter_depth_mm']=100;check3d(letter3d_calculate($db,$changed,19)['quote_token']!==$withOptions['quote_token'], 'Changed depth must invalidate confirmation.');

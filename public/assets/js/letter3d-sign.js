@@ -27,6 +27,14 @@ export function prepareLetter3DSignLayers(plan,C,{totalDepthMm,backThicknessMm,b
   if(backboard.shape==='rectangle' && !(backboard.colour==='clear'||/^#[0-9a-f]{6}$/i.test(backboard.colour||'')))err('Invalid backboard colour.');
   const margin=Number(backboard.margin_mm);
   if(backboard.shape==='rectangle'&&(!Number.isFinite(margin)||margin<0||margin>500))err('Invalid backboard margin.');
+  let panel={shape:'none'};
+  if (backboard.shape==='rectangle') {
+    const width=backboard.width_mm ?? plan.bounds_mm?.width+2*margin;
+    const height=backboard.height_mm ?? plan.bounds_mm?.height+2*margin;
+    const depth=backboard.depth_mm ?? 3;
+    if (![width,height,depth].every(v=>Number.isFinite(v)&&v>0&&v<=10000)) err('Enter valid backboard dimensions.');
+    panel={shape:'rectangle',colour:backboard.colour,margin_mm:margin,width_mm:width,height_mm:height,depth_mm:depth};
+  }
   const pieces=plan.pieces.map(piece=>{
     if(!piece||!Number.isInteger(piece.line)||piece.line<0||piece.line>7)err('Invalid line.');
     // Seat the return within the routed slot at the ERP face overhang.
@@ -44,5 +52,5 @@ export function prepareLetter3DSignLayers(plan,C,{totalDepthMm,backThicknessMm,b
   });
   const rearZ=face-totalDepthMm;
   return {pieces,face_thickness_mm:face,side_thickness_mm:side,groove_depth_mm:groove,back_thickness_mm:backThicknessMm,total_depth_mm:totalDepthMm,rear_z_mm:rearZ,
-    backboard:backboard.shape==='rectangle'?{shape:'rectangle',colour:backboard.colour,margin_mm:margin}: {shape:'none'}};
+    backboard:panel};
 }

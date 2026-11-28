@@ -1,6 +1,12 @@
 <?php
 declare(strict_types=1);
 
+function letter3d_font_catalog(): array
+{
+    static $catalog;
+    return $catalog ??= json_decode(file_get_contents(__DIR__.'/../../public/assets/fonts/letter3d/catalog.json'), true, 512, JSON_THROW_ON_ERROR);
+}
+
 /** Shop-defined pricing for text-only dimensional letters. No prices are seeded. */
 function letter3d_schema(PDO $db): void
 {
@@ -121,7 +127,7 @@ function letter3d_calculate(PDO $db, array $input, float $vatPercent): array
     $product = $query->fetch(PDO::FETCH_ASSOC);
     if (!$product) throw new DomainException('This lettering option is not available for an estimate yet.');
 
-    $fonts = ['sans'=>'Sans serif', 'serif'=>'Serif', 'script'=>'Script'];
+    $fonts = array_map(static fn(array $entry): string => $entry['name'], letter3d_font_catalog()) + ['serif'=>'Serif','script'=>'Script'];
     // New workspaces send individual line styles and transforms. Older tabs
     // continue to send plain newline-delimited text with one font and colour.
     if (array_key_exists('lines', $input)) {
@@ -216,13 +222,22 @@ function letter3d_calculate(PDO $db, array $input, float $vatPercent): array
             $backboard = ['shape'=>'none'];
         } else {
             $boardColour = $backboard['colour'] ?? null;
+            $dimensions = [];
+            $customSize = count(array_intersect(['width_mm','height_mm','depth_mm'], array_keys($backboard))) > 0;
+            if ($customSize) {
+                foreach (['width_mm','height_mm','depth_mm'] as $axis) {
+                    $size = filter_var($backboard[$axis] ?? null, FILTER_VALIDATE_FLOAT);
+                    if ($size === false || !is_finite($size) || $size <= 0 || $size > 10000) throw new DomainException('Enter the backboard width, height and depth in millimetres.');
+                    $dimensions[$axis] = (float)$size;
+                }
+            }
             $boardMargin = filter_var($backboard['margin_mm'] ?? null, FILTER_VALIDATE_FLOAT);
             if (!is_string($boardColour) || ($boardColour !== 'clear' && !preg_match('/\A#[0-9a-fA-F]{6}\z/D', $boardColour))
                 || $boardMargin === false || !is_finite((float)$boardMargin) || $boardMargin < 0 || $boardMargin > 300
-                || (float)$width + 2 * $boardMargin > 10000 || (float)$height + 2 * $boardMargin > 10000) {
+                || (!$customSize && ((float)$width + 2 * $boardMargin > 10000 || (float)$height + 2 * $boardMargin > 10000))) {
                 throw new DomainException('Check the backboard colour and margin.');
             }
-            $backboard = ['shape'=>'rectangle','colour'=>strtolower($boardColour),'margin_mm'=>(float)$boardMargin];
+            $backboard = ['shape'=>'rectangle','colour'=>strtolower($boardColour),'margin_mm'=>(float)$boardMargin] + $dimensions;
         }
     }
     $reviewReasons = [];
@@ -376,7 +391,9 @@ function letter3d_handle_request(array $siteConfig): never
                     $estimate['construction']['back']['thickness_mm'], $estimate['construction']['back']['material'], $estimate['construction']['front_and_side_film'])
                 . ($estimate['letter_depth_mm'] === null ? '' : "\nSelected letter depth: {$estimate['letter_depth_mm']} mm (cost subject to review).")
                 . (($estimate['backboard']['shape'] ?? null) === 'rectangle'
-                    ? "\nBackboard: rectangular, {$estimate['backboard']['colour']}, margin {$estimate['backboard']['margin_mm']} mm (cost subject to review)."
+                    ? "\nBackboard: rectangular, {$estimate['backboard']['colour']}, " . (isset($estimate['backboard']['width_mm'])
+                        ? "{$estimate['backboard']['width_mm']} × {$estimate['backboard']['height_mm']} × {$estimate['backboard']['depth_mm']} mm (width × height × depth)"
+                        : "margin {$estimate['backboard']['margin_mm']} mm") . " (cost subject to review)."
                     : (($estimate['backboard']['shape'] ?? null) === 'none' ? "\nBackboard: none." : ''))
                 . "\nPreliminary estimate including VAT: €" . number_format($estimate['total'], 2, '.', '');
             $entry = ['submitted_at'=>date('c'), 'fields'=>['customer_name'=>$name, 'email'=>$email, 'phone'=>$phone,

@@ -13,6 +13,7 @@
   const zoomButtons = root.querySelectorAll ? [...root.querySelectorAll('[data-letter-zoom]')] : [];
   const zoomOutput = find('zoom-level'), reset = find('reset'), lights = find('lights'), back = find('back');
   const depth=find('depth'), boardShape=find('board-shape'), boardColour=find('board-colour'), boardCustom=find('board-custom'), boardMargin=find('board-margin'), boardOptions=find('board-options'), boardCustomLabel=find('board-custom-label'), priceScope=find('price-scope');
+  const boardWidth=find('board-width'), boardHeight=find('board-height'), boardDepth=find('board-depth');
   const filmData=find('films'); let filmCatalog=[];
   try { const parsed=JSON.parse(filmData?.textContent || 'null'); if(Array.isArray(parsed?.colours)) filmCatalog=parsed.colours; } catch (_) {}
   const filmsByCode=new Map(filmCatalog.filter(item=>item && typeof item.code==='string' && /^#[0-9a-f]{6}$/i.test(item.hex||'') && Array.isArray(item.finishes)).map(item=>[item.code,item]));
@@ -42,7 +43,7 @@
   let lineCount = 1;
   const fields = {product, text, font, colour, width, height, quantity};
   const defaults = Object.fromEntries(Object.entries(fields).map(([key, element]) => [key, element.value]));
-  const optionFields=Object.fromEntries(Object.entries({depth,boardShape,boardColour,boardCustom,boardMargin}).filter(([,element])=>!!element));
+  const optionFields=Object.fromEntries(Object.entries({depth,boardShape,boardColour,boardCustom,boardMargin,boardWidth,boardHeight,boardDepth}).filter(([,element])=>!!element));
   const optionDefaults=Object.fromEntries(Object.entries(optionFields).map(([key,element])=>[key,element.value]));
   const storageKey = 'adotind.letter3d.design.v1';
   let timer = 0, generation = 0, estimate = null, sending = false, requestKey = '';
@@ -67,7 +68,17 @@
     const chosen=boardColour.value==='custom' ? boardCustom?.value : boardColour.value;
     const margin=boardMargin.value.trim()==='' ? NaN : Number(boardMargin.value);
     if (!(chosen==='clear' || /^#[0-9a-f]{6}$/i.test(chosen||'')) || !Number.isFinite(margin) || margin<0 || margin>300) return null;
-    return {shape:'rectangle',colour:chosen.toLowerCase(),margin_mm:margin};
+    const board={shape:'rectangle',colour:chosen.toLowerCase(),margin_mm:margin};
+    if (!boardWidth || !boardHeight || !boardDepth) return board;
+    const bounds=manufacturing?.plan.bounds_mm;
+    for (const [key,input,letterSize] of [['width_mm',boardWidth,bounds?.width],['height_mm',boardHeight,bounds?.height],['depth_mm',boardDepth,null]]) {
+      const auto=letterSize>0 ? Number((letterSize+2*margin).toFixed(3)) : null;
+      if (key!=='depth_mm') input.placeholder=auto ? String(auto)+' (auto)' : 'Auto';
+      const value=input.value==='' ? auto : Number(input.value);
+      if (input.validity?.badInput || !Number.isFinite(value) || value<=0 || value>10000) return null;
+      board[key]=value;
+    }
+    return board;
   }
   function syncBoardControls() {
     if(boardOptions) boardOptions.hidden=!boardShape || boardShape.value!=='rectangle';
@@ -84,7 +95,7 @@
     const control = lineControls[index]; if (!control) return;
     const values = {text:'', font:'sans', colour:'#e6e9ed', side_colour:null, front_finish:'', side_finish:'', front_film_code:'', side_film_code:'', x:0, y:0, rotation:0, ...data};
     values.text = String(values.text).replace(/[\r\n]/g, '').slice(0,200);
-    if (!['sans','serif','script'].includes(values.font)) values.font = 'sans';
+    if (!(control.inputs.font?.options ? Array.from(control.inputs.font.options).some(option=>option.value===values.font) : ['sans','serif','script'].includes(values.font))) values.font = 'sans';
     if (!/^#[0-9a-f]{6}$/i.test(values.colour)) values.colour = '#e6e9ed';
     control.sideAuto = !/^#[0-9a-f]{6}$/i.test(values.side_colour || '');
     values.side_colour = control.sideAuto ? automaticSideColour(values.colour) : values.side_colour;
@@ -328,7 +339,7 @@
     if (viewport.dataset) viewport.dataset.render = 'flat';
     if (renderStatus) renderStatus.textContent = message || 'Illustrative 2D preview';
   }
-  function schedule3D(keepView = false) {
+  function schedule3D(keepView = false, fitBoard = false) {
     if (!threeContainer || !hasLines || root.hidden || threeUnavailable) return;
     const current = ++threeGeneration;
     // Never leave an older 3D design visible while the new geometry is being built.
@@ -349,7 +360,7 @@
         const selected=manufacturing;
         const board=readBackboard();
         const assembled=!!(selected && board && depth && construction?.back && typeof renderer.updateSign==='function');
-        const result = technicalView && selected ? await renderer.updateManufacturing(selected.plan,readLines(),selected.clipper) : assembled ? await renderer.updateSign(selected.plan,readLines(),selected.clipper,{totalDepthMm:Number(depth.value),backThicknessMm:construction.back.thickness_mm,backVisible,backboard:board,keepView}) : await renderer.update(readLines(),keepView);
+        const result = technicalView && selected ? await renderer.updateManufacturing(selected.plan,readLines(),selected.clipper) : assembled ? await renderer.updateSign(selected.plan,readLines(),selected.clipper,{totalDepthMm:Number(depth.value),backThicknessMm:construction.back.thickness_mm,backVisible,backboard:board,keepView:keepView && !fitBoard}) : await renderer.update(readLines(),keepView);
         if (current !== threeGeneration || (result && result.stale)) return;
         if (viewport.dataset) viewport.dataset.render = 'three';
         if(back)back.disabled=technicalView || !assembled;
@@ -390,14 +401,14 @@
     if (zoomOutput) zoomOutput.textContent = `${Math.round(zoom * 100)}%`;
   }
   function paint() {
-    const fontStyles={sans:'Letter3DSans, Arial, sans-serif', serif:'Letter3DSerif, Georgia, serif', script:'Letter3DScript, cursive'};
+    const fontFamily=key=>key==='script'?'Letter3DScript, cursive':key==='serif'?'Letter3DSerif, serif':`"Letter3D-${key}", sans-serif`;
     if (hasLines && typeof document.createElement==='function' && typeof preview.appendChild==='function') {
       preview.textContent = '';
       readLines().forEach(line=>{
         const item=document.createElement('span'); item.className='letter3d-preview-line';
         item.textContent=line.text || '\u00a0'; item.style.display='block'; item.style.whiteSpace='pre';
         item.style.width='max-content'; item.style.marginInline='auto';
-        item.style.color=line.colour; item.style.fontFamily=fontStyles[line.font] || fontStyles.sans;
+        item.style.color=line.colour; item.style.fontFamily=fontFamily(line.font);
         const side=line.side_colour || automaticSideColour(line.colour);
         item.style.textShadow=`1px 1px ${side},2px 2px ${side},3px 3px ${side},4px 4px 7px #0009` + (lightsOn ? `,0 0 8px ${line.colour},0 0 18px ${line.colour}` : '');
         item.style.transform=`translate(${line.x}%, ${line.y}%) rotate(${line.rotation}deg)`;
@@ -405,7 +416,7 @@
       });
     } else {
       preview.textContent = text.value || 'Your sign'; preview.style.color = colour.value;
-      preview.style.fontFamily = fontStyles[font.value] || 'sans-serif';
+      preview.style.fontFamily = fontFamily(font.value);
     }
     requestAnimationFrame(paintScale);
     schedule3D();
@@ -413,7 +424,7 @@
     const selected = product.selectedOptions[0];
     limits.textContent = product.value && selected ? `Allowed size: ${selected.dataset.minWidth}–${selected.dataset.maxWidth} mm wide × ${selected.dataset.minHeight}–${selected.dataset.maxHeight} mm high. Up to ${selected.dataset.maxChars} characters and ${selected.dataset.maxQuantity} signs.` : '';
   }
-  function changed(appearanceOnly = false) {
+  function changed(appearanceOnly = false, fitBoard = false) {
     const holdPriceLayout = appearanceOnly === true && product.value && height.value && (estimate || price.parentElement?.hasAttribute?.('data-updating'));
     generation++; clearTimeout(timer); estimate = null; requestKey = '';
     send.disabled = true; status.textContent = '';
@@ -423,7 +434,7 @@
       if(priceScope)priceScope.textContent='';
     }
     if (appearanceOnly === true && viewport.dataset?.render === 'three' && !technicalView) {
-      schedule3D(true);
+      if (!boardShape || readBackboard()) schedule3D(true,fitBoard);
       saveDesign();
       if (manufacturing || !cuttingEnabled) scheduleEstimate();
       return;
@@ -470,7 +481,7 @@
     saveDesign();
   });
   back?.addEventListener('change',()=>{backVisible=!!back.checked;threeRenderer?.setBackVisible?.(backVisible);saveDesign();});
-  Object.values(optionFields).forEach(el=>el.addEventListener('input',()=>{syncBoardControls();changed(el === depth);}));
+  Object.values(optionFields).forEach(el=>el.addEventListener('input',()=>{syncBoardControls();changed(true,[boardShape,boardWidth,boardHeight,boardDepth,boardMargin].includes(el));}));
   for (const button of sceneButtons) button.addEventListener('click', () => {
     if (!['studio','brick','concrete'].includes(button.dataset.letterScene)) return;
     scene = button.dataset.letterScene; paintScene(); saveDesign();

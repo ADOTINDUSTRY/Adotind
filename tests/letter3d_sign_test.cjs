@@ -19,6 +19,10 @@ const assert=require('node:assert/strict'),C=require('../public/assets/js/neon-c
  assert.ok(pvc&&!pvc.visible,'Back panel can be hidden independently');assert.ok(board&&board.visible,'Coloured sign backboard remains visible');
  pvc.geometry.computeBoundingBox();const bb=pvc.geometry.boundingBox;assert.ok(Math.abs(bb.max.z-bb.min.z-10)<1e-5,'PVC preview thickness 10mm');assert.ok(Math.abs(bb.min.z+57)<1e-5,'Rear exterior matches 60mm total depth');
  board.geometry.computeBoundingBox();assert.ok(Math.abs(board.geometry.boundingBox.max.x-board.geometry.boundingBox.min.x-122.6)<1e-4,'Board width uses margin');
+ const sized=buildLetter3DSignModel(plan,[{...line,colour:'#ff0000'}],C,{...options,lightsOn:true,backboard:{...options.backboard,width_mm:525.5,height_mm:305,depth_mm:18}});
+ const panel=sized.children.find(n=>n.userData.letterBackboard);assert.deepEqual([panel.geometry.parameters.width,panel.geometry.parameters.height,panel.geometry.parameters.depth],[525.5,305,18]);assert.equal(panel.position.z,-57-9);
+ const lit=[];sized.traverse(n=>{if(n.isMesh)for(const m of [].concat(n.material)){if(m.emissiveIntensity>0&&m.userData.letterEmission!==undefined)lit.push(m.emissive.getHexString())}});
+ assert.ok(lit.includes('ff0000') && lit.filter(c=>c==='ffffff').length>=2,'Coloured face, upper white edge and lower exposed acrylic emit light');
  const metal=meshes.find(n=>n.material?.color?.getHexString()==='000000' && !n.userData.letterBack);assert.ok(metal,'Side wall carries the selected colour');metal.geometry.computeBoundingBox();assert.ok(Math.abs(metal.geometry.boundingBox.max.z-1.2)<1e-5,'Aluminium enters acrylic groove 1.2mm');
  for(const invalid of [0,29,59,101,NaN])assert.throws(()=>prepareLetter3DSignLayers(plan,C,{...options,totalDepthMm:invalid}),'unsupported depth rejected');
  assert.throws(()=>prepareLetter3DSignLayers(plan,C,{...options,backThicknessMm:80}),'rear too thick rejected');

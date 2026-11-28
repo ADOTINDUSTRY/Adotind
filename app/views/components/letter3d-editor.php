@@ -1,6 +1,12 @@
 <?php
 // Only included inside the PIN-protected quote workspace.
 require_once __DIR__ . '/../../lib/letter3d_quote.php';
+$letterFonts = letter3d_font_catalog();
+uasort($letterFonts, static fn(array $a, array $b): int => strcasecmp($a['name'], $b['name']));
+ob_start();
+foreach ($letterFonts as $key => $entry): ?><option value="<?= e($key) ?>"<?= $key === 'sans' ? ' selected' : '' ?>><?= e($entry['name']) ?></option><?php endforeach; ?>
+<option value="serif" hidden>Serif (saved design)</option><option value="script" hidden>Script (saved design)</option>
+<?php $letterFontOptions = ob_get_clean();
 $letterProducts = [];
 $letterConstruction = null;
 $letterFilmCatalog = json_decode((string)file_get_contents(__DIR__ . '/../../data/avery500-colours.json'), true);
@@ -58,10 +64,24 @@ try {
       <p class="letter3d-disclaimer">The 3D view is illustrative; the cutting preview shows the measured face and groove vectors. The shop reviews the design before production.</p>
     </div>
     <div class="letter3d-controls">
+      <details class="letter3d-group" open><summary>Backboard</summary><div class="letter3d-group-body">
+        <label>Backboard<select data-letter-board-shape><option value="none">No backboard</option><option value="rectangle">Rectangular backboard</option></select></label>
+        <div data-letter-board-options hidden>
+          <div class="letter3d-board-size">
+            <label>Width (mm)<input type="number" data-letter-board-width min="0.001" max="10000" step="any" placeholder="Auto"></label>
+            <label>Height (mm)<input type="number" data-letter-board-height min="0.001" max="10000" step="any" placeholder="Auto"></label>
+            <label>Depth (mm)<input type="number" data-letter-board-depth min="0.001" max="10000" step="any" value="3"></label>
+          </div>
+          <p class="letter3d-note">Leave width or height empty to fit that dimension to the lettering.</p>
+          <label>Backboard colour<select data-letter-board-colour><option value="clear">Clear</option><option value="#f2f2f2">White</option><option value="#171717">Black</option><option value="custom">Custom colour</option></select></label>
+          <label data-letter-board-custom-label hidden>Custom backboard colour<input type="color" data-letter-board-custom value="#4466aa"></label>
+          <label>Margin for automatic sizing (mm)<input type="number" data-letter-board-margin min="0" max="300" step="1" value="30"></label>
+          <p class="letter3d-note">The backboard is a separate panel behind the lettering. The shop confirms its material and price.</p></div>
+      </div></details>
       <details class="letter3d-group" open><summary>Your lettering</summary><div class="letter3d-group-body">
         <label>Lettering option <select data-letter-product required><option value="">Choose an option</option><?php foreach ($letterProducts as $p): ?><option value="<?= (int)$p['id'] ?>" data-min-width="<?= e((string)$p['min_width_mm']) ?>" data-max-width="<?= e((string)$p['max_width_mm']) ?>" data-min-height="<?= e((string)$p['min_height_mm']) ?>" data-max-height="<?= e((string)$p['max_height_mm']) ?>" data-max-chars="<?= (int)$p['max_characters'] ?>" data-max-quantity="<?= (int)$p['max_quantity'] ?>"><?= e($p['name']) ?><?= $p['description'] !== '' ? ' — ' . e($p['description']) : '' ?></option><?php endforeach ?></select></label>
         <?php if (!$letterProducts): ?><p class="letter3d-note">No lettering options have been configured for pricing yet. You can still contact the team to discuss your project.</p><?php endif ?>
-        <div hidden aria-hidden="true"><textarea data-letter-text maxlength="200" data-private>Your sign</textarea><select data-letter-font><option value="sans">Sans serif</option><option value="serif">Serif</option><option value="script">Script</option></select><input type="color" data-letter-colour value="#e6e9ed"></div>
+        <div hidden aria-hidden="true"><textarea data-letter-text maxlength="200" data-private>Your sign</textarea><select data-letter-font><?= $letterFontOptions ?></select><input type="color" data-letter-colour value="#e6e9ed"></div>
         <p class="letter3d-line-help">Create up to eight lines. Set the style, front and side colours, and position of each line.</p>
         <div class="letter3d-lines" data-letter-lines>
         <?php for ($line = 0; $line < 8; $line++): ?>
@@ -69,7 +89,7 @@ try {
             <legend>Line <?= $line + 1 ?></legend>
             <label>Text<input type="text" data-letter-line-text="<?= $line ?>" value="<?= $line === 0 ? 'Your sign' : '' ?>" maxlength="200" autocomplete="off" data-private></label>
             <div class="letter3d-line-style">
-              <label>Letter style<select data-letter-line-font="<?= $line ?>"><option value="sans">Sans serif</option><option value="serif">Serif</option><option value="script">Script</option></select></label>
+              <label>Typeface<select data-letter-line-font="<?= $line ?>"><?= $letterFontOptions ?></select></label>
               <div class="letter3d-line-colours" role="group" aria-label="Colours for line <?= $line + 1 ?>">
                 <?php foreach (['front'=>'Front', 'side'=>'Side'] as $area=>$areaLabel): ?>
                 <div><label><?= e($areaLabel) ?> film<select data-letter-line-<?= e($area) ?>-film="<?= $line ?>"><option value="">Custom / not selected</option><?php foreach ($letterFilmCatalog['colours'] as $film): ?><option value="<?= e($film['code']) ?>"><?= e($film['code'].' — '.$film['name']) ?></option><?php endforeach ?></select></label>
@@ -99,13 +119,6 @@ try {
         <label>Overall letter depth<select data-letter-depth><option value="30">3 cm (30 mm)</option><option value="60" selected>6 cm (60 mm)</option><option value="100">10 cm (100 mm)</option></select></label>
         <p class="letter3d-note">Measured from the front face to the outside of the PVC back. Depth pricing is confirmed in the final quotation.</p>
       </div></details>
-      <details class="letter3d-group"><summary>Sign backboard</summary><div class="letter3d-group-body">
-        <label>Backboard<select data-letter-board-shape><option value="none">No backboard</option><option value="rectangle">Rectangular backboard</option></select></label>
-        <div data-letter-board-options hidden><label>Backboard colour<select data-letter-board-colour><option value="clear">Clear</option><option value="#f2f2f2">White</option><option value="#171717">Black</option><option value="custom">Custom colour</option></select></label>
-          <label data-letter-board-custom-label hidden>Custom backboard colour<input type="color" data-letter-board-custom value="#4466aa"></label>
-          <label>Preview margin around lettering (mm)<input type="number" data-letter-board-margin min="0" max="300" step="1" value="30"></label>
-          <p class="letter3d-note">The backboard is a separate panel behind the lettering. Its material, thickness, dimensions and price need shop confirmation.</p></div>
-      </div></details>
       <details class="letter3d-group letter3d-construction"><summary>Front-lit materials and construction</summary><div class="letter3d-group-body">
         <p>Our standard front-lit construction uses:</p>
         <ul><li data-letter-construction-front>Loading construction settings…</li><li data-letter-construction-side></li><li data-letter-construction-back></li><li data-letter-construction-film></li></ul>
@@ -128,6 +141,11 @@ try {
   </div>
 </section>
 <style>
+<?php foreach ($letterFonts as $key => $entry): ?>
+@font-face{font-family:"Letter3D-<?= e($key) ?>";src:url("/public/assets/fonts/letter3d/<?= e($entry['file']) ?>") format("truetype");font-weight:400;font-display:swap}
+<?php endforeach ?>
+.letter3d-board-size{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:.5rem}.letter3d-board-size input{min-width:0;width:100%}
+.letter3d-preview-line{font-weight:400;font-synthesis:none}
 @font-face{font-family:Letter3DSans;src:url("/public/assets/fonts/letter3d/AlegreyaSans-Regular.ttf") format("truetype");font-display:swap}
 @font-face{font-family:Letter3DSerif;src:url("/public/assets/fonts/letter3d/LibertinusSerif-Regular.ttf") format("truetype");font-display:swap}
 @font-face{font-family:Letter3DScript;src:url("/public/assets/fonts/letter3d/GreatVibes-Regular.ttf") format("truetype");font-display:swap}

@@ -1,0 +1,122 @@
+{
+  "sans": {
+    "name": "Alegreya Sans",
+    "file": "AlegreyaSans-Regular.ttf"
+  },
+  "inter": {
+    "name": "Inter",
+    "file": "inter.ttf"
+  },
+  "montserrat": {
+    "name": "Montserrat",
+    "file": "montserrat.ttf"
+  },
+  "poppins": {
+    "name": "Poppins",
+    "file": "poppins.ttf"
+  },
+  "roboto": {
+    "name": "Roboto",
+    "file": "roboto.ttf"
+  },
+  "opensans": {
+    "name": "Open Sans",
+    "file": "opensans.ttf"
+  },
+  "lato": {
+    "name": "Lato",
+    "file": "lato.ttf"
+  },
+  "raleway": {
+    "name": "Raleway",
+    "file": "raleway.ttf"
+  },
+  "oswald": {
+    "name": "Oswald",
+    "file": "oswald.ttf"
+  },
+  "bebasneue": {
+    "name": "Bebas Neue",
+    "file": "bebasneue.ttf"
+  },
+  "anton": {
+    "name": "Anton",
+    "file": "anton.ttf"
+  },
+  "archivo": {
+    "name": "Archivo",
+    "file": "archivo.ttf"
+  },
+  "archivoblack": {
+    "name": "Archivo Black",
+    "file": "archivoblack.ttf"
+  },
+  "barlow": {
+    "name": "Barlow",
+    "file": "barlow.ttf"
+  },
+  "barlowcondensed": {
+    "name": "Barlow Condensed",
+    "file": "barlowcondensed.ttf"
+  },
+  "manrope": {
+    "name": "Manrope",
+    "file": "manrope.ttf"
+  },
+  "dmsans": {
+    "name": "DM Sans",
+    "file": "dmsans.ttf"
+  },
+  "worksans": {
+    "name": "Work Sans",
+    "file": "worksans.ttf"
+  },
+  "nunitosans": {
+    "name": "Nunito Sans",
+    "file": "nunitosans.ttf"
+  },
+  "rubik": {
+    "name": "Rubik",
+    "file": "rubik.ttf"
+  },
+  "sora": {
+    "name": "Sora",
+    "file": "sora.ttf"
+  },
+  "firasans": {
+    "name": "Fira Sans",
+    "file": "firasans.ttf"
+  },
+  "sourcesans3": {
+    "name": "Source Sans 3",
+    "file": "sourcesans3.ttf"
+  },
+  "exo2": {
+    "name": "Exo 2",
+    "file": "exo2.ttf"
+  },
+  "outfit": {
+    "name": "Outfit",
+    "file": "outfit.ttf"
+  },
+  "spacegrotesk": {
+    "name": "Space Grotesk",
+    "file": "spacegrotesk.ttf"
+  },
+  "leaguespartan": {
+    "name": "League Spartan",
+    "file": "leaguespartan.ttf"
+  },
+  "urbanist": {
+    "name": "Urbanist",
+    "file": "urbanist.ttf"
+  },
+  "mulish": {
+    "name": "Mulish",
+    "file": "mulish.ttf"
+  },
+  "teko": {
+    "name": "Teko",
+    "file": "teko.ttf"
+  }
+}

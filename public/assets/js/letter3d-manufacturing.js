@@ -171,14 +171,18 @@ export function buildLetter3DManufacturing({lines,width_mm,settings,fonts,clippe
   if(!Number.isFinite(scale)||scale<=0) fail('The finished dimensions are not valid.');
   const intersectionBudget={comparisons:0};
   const perGlyph=groups.map(group=>{
-    const paths=group.map(({points,hole})=>{
+    const paths=group.map(({points})=>{
       let path=points.map(p=>({X:Math.round(p.x*scale*CLIP_SCALE),Y:Math.round(p.y*scale*CLIP_SCALE)}));
       path=clipper.Clipper.CleanPolygon(path,1);
       if(path.length<3 || Math.abs(clipper.Clipper.Area(path)) < 10) fail('A letter contour is too small to manufacture.');
-      if(clipper.Clipper.Orientation(path)===hole) path.reverse();
       return path;
     });
-    if(contoursIntersect(paths,intersectionBudget)) fail('Letter outlines intersect or touch and need artwork review.');
+    // TrueType components can legitimately overlap within one glyph. Resolve
+    // its authored nonzero fill before testing the finished letter boundaries.
+    if (fonts[lines[group.lineIndex].font].outlinesFormat !== 'truetype') {
+      if (contoursIntersect(paths,intersectionBudget)) fail('Letter outlines intersect or touch and need artwork review.');
+      paths.forEach((path,i)=>{if(clipper.Clipper.Orientation(path)===group[i].hole)path.reverse();});
+    }
     return {line:group.lineIndex,paths:union(clipper,paths)};
   });
   const source=perGlyph.flatMap(glyph=>glyph.paths);

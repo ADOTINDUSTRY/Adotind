@@ -1,17 +1,17 @@
 import * as THREE from './quote-vendor/three-0.160.1.module.min.js';
 import {fontPathToShapes} from './letter3d-geometry.js';
 import {prepareLetter3DAcrylicLayers} from './letter3d-technical.js?v=outside-groove-1';
-import {prepareLetter3DSignLayers} from './letter3d-sign.js?v=acrylic-lip-2';
+import {prepareLetter3DSignLayers} from './letter3d-sign.js?v=free-board-1';
 
 const FACE_LIGHT_INTENSITY = 2.6;
-const FONT_URLS = Object.freeze({
+const LEGACY_FONT_URLS = Object.freeze({
   sans:'/public/assets/fonts/letter3d/AlegreyaSans-Regular.ttf',
   serif:'/public/assets/fonts/letter3d/LibertinusSerif-Regular.ttf',
   script:'/public/assets/fonts/letter3d/GreatVibes-Regular.ttf'
 });
 const PARSER_URL='/public/assets/js/quote-vendor/opentype-1.3.4.min.js';
 const FONT_SIZE=100, LINE_HEIGHT=120, MAX_GLYPHS=120;
-let parserPromise;
+let parserPromise, cataloguePromise;
 const fontPromises=new Map();
 
 function unavailable(code) { const error=new Error('A dimensional preview is unavailable for this design.'); error.code=code; return error; }
@@ -24,10 +24,19 @@ function getParser() {
   }).catch(error=>{parserPromise=null;throw error;});
   return parserPromise;
 }
+async function fontUrl(name) {
+  if (Object.hasOwn(LEGACY_FONT_URLS,name)) return LEGACY_FONT_URLS[name];
+  if (!cataloguePromise) cataloguePromise=fetch('/public/assets/fonts/letter3d/catalog.json?v=1').then(response=>{
+    if (!response.ok) throw unavailable('font');
+    return response.json();
+  }).catch(error=>{cataloguePromise=null;throw error;});
+  const catalogue=await cataloguePromise;
+  if (!Object.hasOwn(catalogue,name)) throw unavailable('font');
+  return '/public/assets/fonts/letter3d/'+encodeURIComponent(catalogue[name].file);
+}
 async function getFont(name) {
-  if (!Object.hasOwn(FONT_URLS,name)) throw unavailable('font');
   if (!fontPromises.has(name)) {
-    const promise=Promise.all([getParser(),fetch(FONT_URLS[name],{credentials:'same-origin'})]).then(async ([parser,response])=>{
+    const promise=Promise.all([getParser(),fontUrl(name).then(url=>fetch(url,{credentials:'same-origin'}))]).then(async ([parser,response])=>{
       if (!response.ok) throw unavailable('font');
       try { return parser.parse(await response.arrayBuffer()); } catch (_) { throw unavailable('font'); }
     }).catch(error=>{fontPromises.delete(name);throw error;});
@@ -51,7 +60,7 @@ function validateLines(lines) {
   if (!Array.isArray(lines) || !lines.length || lines.length>8) throw unavailable('design');
   let glyphs=0;
   return lines.map(line=>{
-    if (!line || typeof line.text!=='string' || /[\r\n]/.test(line.text) || !Object.hasOwn(FONT_URLS,line.font)
+    if (!line || typeof line.text!=='string' || /[\r\n]/.test(line.text) || typeof line.font!=='string' || !/^[a-z][a-z0-9]{0,40}$/.test(line.font)
       || !/^#[0-9a-f]{6}$/i.test(line.colour || '')) throw unavailable('design');
     if (line.side_colour != null && (typeof line.side_colour !== 'string' || !/^#[0-9a-f]{6}$/i.test(line.side_colour))) throw unavailable('design');
     for (const key of ['front_finish','side_finish']) if (line[key] != null && !['matt','gloss'].includes(line[key])) throw unavailable('design');
@@ -69,6 +78,12 @@ function validateLines(lines) {
 function assertGlyphs(font, text) {
   for (const char of text) if (!font.charToGlyphIndex(char)) throw unavailable('glyph');
 }
+function litSurface(properties,emission,intensity,lightsOn) {
+  const material=new THREE.MeshPhongMaterial({...properties,emissive:emission,emissiveIntensity:lightsOn ? intensity : 0});
+  material.userData.letterEmission=intensity;
+  return material;
+}
+
 function buildLine(font,line,index,lightsOn) {
   const width=font.getAdvanceWidth(line.text,FONT_SIZE,{kerning:true});
   if (!Number.isFinite(width)) throw unavailable('font');
@@ -103,7 +118,7 @@ function buildLine(font,line,index,lightsOn) {
       value==='gloss' ? {shininess:90,specular:0x555555} : {shininess:fallback,specular:0x111111};
     // Visual approximation only: colour, gloss and light output are confirmed
     // by the shop and do not assert that any particular film transmits light.
-    const front=new THREE.MeshPhongMaterial({color:line.colour,...finish(line.front_finish,28),emissive:line.colour,emissiveIntensity:lightsOn ? FACE_LIGHT_INTENSITY : 0});
+    const front=litSurface({color:line.colour,...finish(line.front_finish,28)},line.colour,FACE_LIGHT_INTENSITY,lightsOn);
     const side=new THREE.MeshPhongMaterial({color:line.side_colour === null ? new THREE.Color(line.colour).multiplyScalar(.55) : new THREE.Color(line.side_colour),...finish(line.side_finish,22)});
     const back=new THREE.MeshPhongMaterial({color:0xffffff,emissive:0x888888,emissiveIntensity:.55,shininess:8,specular:0x080808});
     group.add(new THREE.Mesh(geometry,[front,side,back]));
@@ -148,12 +163,13 @@ function technicalPiece(piece, line, settings, lightsOn, showGrooveMarker=true) 
   if(previous>=0)upper.addGroup(start,points.count-start,previous);
   const finish=(value,fallback)=>value==='matt'?{shininess:5,specular:0x080808}:
     value==='gloss'?{shininess:90,specular:0x555555}:{shininess:fallback,specular:0x111111};
-  const front=new THREE.MeshPhongMaterial({color:line.colour,...finish(line.front_finish,28),emissive:line.colour,emissiveIntensity:lightsOn?FACE_LIGHT_INTENSITY:0});
-  const opal=new THREE.MeshPhongMaterial({color:0xffffff,emissive:0x888888,emissiveIntensity:.55,shininess:8,specular:0x080808});
+  const front=litSurface({color:line.colour,...finish(line.front_finish,28)},line.colour,FACE_LIGHT_INTENSITY,lightsOn);
+  const whiteAcrylic=()=>litSurface({color:0xffffff,shininess:8,specular:0x080808},0xffffff,1.2,lightsOn);
+  const opal=whiteAcrylic();
   // Neutral shading on the recessed floor makes the cut visible on the back.
-  const floor=new THREE.MeshPhongMaterial({color:0xaab4bc,shininess:8,specular:0x080808});
+  const floor=showGrooveMarker ? new THREE.MeshPhongMaterial({color:0xaab4bc,shininess:8,specular:0x080808}) : whiteAcrylic();
   const lower=new THREE.ExtrudeGeometry(back,{depth,bevelEnabled:false,steps:1});
-  const lowerOpal=new THREE.MeshPhongMaterial({color:0xffffff,emissive:0x888888,emissiveIntensity:.55,shininess:8,specular:0x080808});
+  const lowerOpal=whiteAcrylic();
   const group=new THREE.Group();group.add(new THREE.Mesh(upper,[front,opal,floor]));group.add(new THREE.Mesh(lower,lowerOpal));
   // Cyan is a technical centreline marker, not a physical face colour.
   for(const contour of (showGrooveMarker ? piece.groove || [] : [])){
@@ -177,20 +193,24 @@ export function buildLetter3DTechnicalModel(plan,rawLines,clipper,{lightsOn=true
   } catch(error){disposeObject(group);throw error;}
 }
 
-/** Soft, approximate face-only glow. It is not a measurement of film transmission. */
-function faceGlow(contours, colour, z, wallSpill = false) {
+/** A blurred silhouette for wall spill, or a white contour for light escaping the opal edge. */
+function faceGlow(contours, colour, z, wallSpill = false, edgeMm = 0) {
   if (typeof document === 'undefined' || !Array.isArray(contours) || !contours.length) return null;
   let left=Infinity,right=-Infinity,bottom=Infinity,top=-Infinity;
   for(const contour of contours)for(const p of contour){left=Math.min(left,p.x);right=Math.max(right,p.x);bottom=Math.min(bottom,p.y);top=Math.max(top,p.y);}
   const w=right-left,h=top-bottom;if (!(w>0&&h>0)) return null;
-  const scale=Math.min(768/w,384/h),blur=wallSpill ? 30 : 13,pad=Math.ceil(blur*3);
+  const scale=Math.min(768/w,384/h),blur=edgeMm && !wallSpill ? Math.max(1,Math.min(18,scale*edgeMm*.7)) : wallSpill ? 30 : 13,pad=Math.ceil(blur*3)+2;
   const canvas=document.createElement('canvas');canvas.width=Math.max(2,Math.ceil(w*scale)+2*pad);canvas.height=Math.max(2,Math.ceil(h*scale)+2*pad);
   const ctx=canvas.getContext('2d');if(!ctx)return null;
   ctx.filter='blur('+blur+'px)';ctx.fillStyle=colour;ctx.globalAlpha=wallSpill ? 1 : .8;ctx.beginPath();
   for(const contour of contours){contour.forEach((p,i)=>{const x=pad+(p.x-left)*scale,y=pad+(top-p.y)*scale;if(i)ctx.lineTo(x,y);else ctx.moveTo(x,y)});ctx.closePath();}
-  ctx.fill('evenodd');
+  if (!edgeMm || wallSpill) ctx.fill('evenodd');
+  if (edgeMm) {
+    ctx.strokeStyle='#ffffff';ctx.lineJoin='round';
+    ctx.lineWidth=Math.max(1,Math.min(blur*2,edgeMm*scale));ctx.globalAlpha=wallSpill ? .8 : .6;ctx.stroke();
+  }
   const texture=new THREE.CanvasTexture(canvas);texture.colorSpace=THREE.SRGBColorSpace;
-  const material=new THREE.MeshBasicMaterial({map:texture,transparent:true,opacity:wallSpill ? .65 : .80,depthWrite:false,depthTest:true,side:THREE.FrontSide});
+  const material=new THREE.MeshBasicMaterial({map:texture,transparent:true,opacity:wallSpill ? .65 : .80,depthWrite:false,depthTest:true,side:edgeMm && !wallSpill ? THREE.DoubleSide : THREE.FrontSide});
   const mesh=new THREE.Mesh(new THREE.PlaneGeometry(canvas.width/scale,canvas.height/scale),material);
   mesh.position.set((left+right)/2,(bottom+top)/2,z);mesh.renderOrder=10;mesh.userData.letterGlow=true;return mesh;
 }
@@ -213,7 +233,9 @@ export function buildLetter3DSignModel(plan,rawLines,clipper,{totalDepthMm,backT
       backGeometry.translate(0,0,assembled.rear_z_mm);
       const pvc=new THREE.Mesh(backGeometry,new THREE.MeshPhongMaterial({color:0xf3f3f0,shininess:8}));pvc.userData.letterBack=true;pvc.visible=!!backVisible;group.add(pvc);
       const glow=faceGlow(raw.face,line.colour,acrylic.face_thickness_mm+.02);if(glow){glow.visible=!!lightsOn;group.add(glow);}
-      const spill=faceGlow(raw.face,line.colour,assembled.rear_z_mm+.05,true);
+      const rim=faceGlow(raw.face,'#ffffff',acrylic.face_thickness_mm/2,false,acrylic.face_thickness_mm);
+      if(rim){rim.visible=!!lightsOn;group.add(rim);}
+      const spill=faceGlow(raw.face,line.colour,assembled.rear_z_mm+.05,true,acrylic.face_thickness_mm);
       if(spill){spill.visible=!!lightsOn;spill.renderOrder=5;group.add(spill);}
     }
     if(assembled.backboard.shape==='rectangle') {
@@ -221,8 +243,8 @@ export function buildLetter3DSignModel(plan,rawLines,clipper,{totalDepthMm,backT
       if(!bounds || !Number.isFinite(bounds.width)||!Number.isFinite(bounds.height)||bounds.width<=0||bounds.height<=0)throw unavailable('geometry');
       const clear=board.colour==='clear',colour=clear?0xcbd8e3:board.colour;
       const material=new THREE.MeshPhongMaterial({color:colour,transparent:clear,opacity:clear?.28:1,shininess:50,depthWrite:!clear});
-      const mesh=new THREE.Mesh(new THREE.BoxGeometry(bounds.width+2*board.margin_mm,bounds.height+2*board.margin_mm,3),material);
-      mesh.position.set(bounds.width/2,bounds.height/2,assembled.rear_z_mm-1.5);mesh.userData.letterBackboard=true;group.add(mesh);
+      const mesh=new THREE.Mesh(new THREE.BoxGeometry(board.width_mm,board.height_mm,board.depth_mm),material);
+      mesh.position.set(bounds.width/2,bounds.height/2,assembled.rear_z_mm-board.depth_mm/2);mesh.userData.letterBackboard=true;group.add(mesh);
     }
     return group;
   } catch(error) {disposeObject(group);throw error;}
@@ -331,8 +353,8 @@ export async function createLetter3DRenderer(container, {onUnavailable} = {}) {
       lightsOn=value;
       current?.traverse(node=>{
         if(node.userData?.letterGlow) node.visible=lightsOn;
-        if (node.isMesh && Array.isArray(node.material) && node.material[0]?.isMeshPhongMaterial) {
-          node.material[0].emissiveIntensity = lightsOn ? FACE_LIGHT_INTENSITY : 0;
+        if (node.isMesh) for (const material of Array.isArray(node.material) ? node.material : [node.material]) {
+          if (material.userData.letterEmission !== undefined) material.emissiveIntensity=lightsOn ? material.userData.letterEmission : 0;
         }
       });
       draw();
