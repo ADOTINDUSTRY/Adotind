@@ -1,4 +1,4 @@
-<aside class="quote-assistant" data-quote-assistant data-csrf="<?= e(csrf_token()) ?>" data-page="<?= e((string)($page['view'] ?? 'website')) ?>" data-service="<?= e((string)($page['service']['slug'] ?? '')) ?>" aria-label="Project assistant">
+<aside class="quote-assistant" data-quote-assistant data-csrf="<?= e(csrf_token()) ?>" data-page="<?= e((string)($page['view'] ?? 'website')) ?>" data-service="<?= e((string)($page['landing_slug'] ?? $page['service']['slug'] ?? '')) ?>" aria-label="Project assistant">
   <div class="quote-assistant-prompt" hidden role="status"><span data-assistant-prompt-text></span><button type="button" data-assistant-prompt-open>Chat with me</button><button type="button" data-assistant-dismiss aria-label="Dismiss message">×</button></div>
   <div class="quote-assistant-panel" id="quote-assistant-panel" hidden>
     <div class="quote-assistant-header">

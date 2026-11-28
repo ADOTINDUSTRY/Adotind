@@ -315,6 +315,7 @@ if ($page === null && starts_with($path, '/services/')) {
             'title' => $landing['name'] . ' in Cyprus | A Dot Industry',
             'description' => $landing['summary'],
             'landing' => $landing,
+            'landing_slug' => $slug,
             'breadcrumbs' => [
                 ['label' => 'Home', 'href' => '/'],
                 ['label' => 'Services', 'href' => '/services'],

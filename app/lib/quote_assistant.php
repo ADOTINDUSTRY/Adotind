@@ -23,6 +23,22 @@ function quote_assistant_error(PDO $db, string $conversation, int $userMessageId
     quote_assistant_reply(503, ['error'=>$message]);
 }
 
+/** Resolve only known service slugs to a safe, server-owned display name. */
+function quote_assistant_service_name(string $stage, mixed $slug): string
+{
+    if (!is_string($slug) || $slug === '' || strlen($slug) > 100) return '';
+    if ($stage === 'service-landing') {
+        $landingPages = require __DIR__ . '/../data/service-landing-pages.php';
+        return isset($landingPages[$slug]) ? (string)$landingPages[$slug]['name'] : '';
+    }
+    if ($stage === 'service-detail') {
+        foreach (require __DIR__ . '/../data/services.php' as $service) {
+            if ($service['slug'] === $slug) return (string)$service['name'];
+        }
+    }
+    return '';
+}
+
 function quote_assistant_handle(): never
 {
     if (($_SERVER['REQUEST_METHOD'] ?? '') !== 'POST') quote_assistant_reply(405, ['error'=>'Please send a message from the quote page.']);
@@ -34,14 +50,9 @@ function quote_assistant_handle(): never
     if ($message === '' || strlen($message) > 2000) quote_assistant_reply(400, ['error'=>'Please enter a message of up to 2,000 bytes.']);
     $key = getenv('GEMINI_API_KEY');
     if (!is_string($key) || trim($key) === '') quote_assistant_reply(503, ['error'=>'The assistant is not connected yet. Please contact us for help.']);
-    $allowedStages = ['website', 'home', 'about', 'services', 'service-detail', 'portfolio', 'project-detail', 'machinery', 'materials', 'industries', 'contact', 'quote_locked', 'start', 'guide', 'neon', 'picture', 'drawing', 'material', 'parts', 'result'];
+    $allowedStages = ['website', 'home', 'about', 'services', 'service-detail', 'service-landing', 'portfolio', 'project-detail', 'machinery', 'materials', 'industries', 'contact', 'quote_locked', 'start', 'guide', 'neon', 'picture', 'drawing', 'material', 'parts', 'result'];
     $stage = is_string($request['stage'] ?? null) && in_array($request['stage'], $allowedStages, true) ? $request['stage'] : 'website';
-    $serviceName = '';
-    if ($stage === 'service-detail' && is_string($request['service'] ?? null)) {
-        foreach (require __DIR__ . '/../data/services.php' as $service) {
-            if ($service['slug'] === $request['service']) { $serviceName = $service['name']; break; }
-        }
-    }
+    $serviceName = quote_assistant_service_name($stage, $request['service'] ?? null);
     $history = [];
     foreach (array_slice(is_array($request['history'] ?? null) ? $request['history'] : [], -8) as $turn) {
         if (!is_array($turn) || !in_array($turn['role'] ?? '', ['user','model'], true) || !is_string($turn['text'] ?? null)) continue;

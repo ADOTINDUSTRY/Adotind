@@ -144,7 +144,7 @@
 
   function stage() {
     if (!workspace) {
-      const pages = ['home','about','services','service-detail','portfolio','project-detail','machinery','materials','industries','contact'];
+      const pages = ['home','about','services','service-detail','service-landing','portfolio','project-detail','machinery','materials','industries','contact'];
       return assistant.dataset.page === 'online-quote' ? 'quote_locked' : pages.includes(assistant.dataset.page) ? assistant.dataset.page : 'website';
     }
     if (!workspace.querySelector('.quote-start')?.hidden) return 'start';

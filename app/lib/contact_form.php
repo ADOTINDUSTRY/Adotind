@@ -65,7 +65,7 @@ function handle_contact_submit(array $siteConfig): never
                         mkdir($targetDir, 0755, true);
                     }
                     $target = $targetDir . '/' . $safeName;
-                    if (!move_uploaded_file((string)$file['tmp_name'], $target)) {
+                    if (file_exists($target) || !move_uploaded_file((string)$file['tmp_name'], $target)) {
                         $uploadError = 'Could not save uploaded file.';
                     } else {
                         $uploadPath = $target;
@@ -112,8 +112,18 @@ function handle_contact_submit(array $siteConfig): never
         try {
             website_save_message(quote_db($siteConfig), 'inquiry', $entry);
         } catch (Throwable $error) {
+            // This path was generated and moved by this request only. A failed
+            // database insert must not leave its unreferenced upload behind.
+            if ($uploadPath !== null) {
+                $saved = realpath($uploadPath);
+                $uploadDir = realpath((string)($siteConfig['inquiries_dir'] ?? (__DIR__ . '/../../storage/inquiries')));
+                if ($saved !== false && $uploadDir !== false && dirname($saved) === $uploadDir
+                    && preg_match('/\A\d{8}-\d{6}-[0-9a-f]{12}\.(?:pdf|jpg|jpeg|png|webp|svg|dxf|dwg|zip)\z/', basename($saved))) {
+                    if (!@unlink($saved)) error_log('Could not remove failed inquiry upload');
+                }
+            }
             flash_set('form_old', $fields);
-            flash_set('form_error', 'Your inquiry could not be saved. Please try again.');
+            flash_set('form_error', $uploadPath ? 'Your inquiry could not be saved. Please try again and choose your file again.' : 'Your inquiry could not be saved. Please try again.');
             redirect('/contact', 303);
         }
         site_daily_count('inquiry');
