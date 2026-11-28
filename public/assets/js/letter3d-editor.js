@@ -9,6 +9,20 @@
   const send = find('send'), status = find('status');
   const stage = find('stage') || preview.parentElement;
   const viewport = preview.parentElement;
+  if (typeof ResizeObserver !== 'undefined') {
+    const heights = new Map([
+      [document.querySelector('.site-header'), '--l3-nav-height'],
+      [root.querySelector('.letter3d-heading'), '--l3-title-height'],
+      [stage, '--l3-view-height']
+    ]);
+    const layoutObserver = new ResizeObserver(entries => {
+      for (const {target} of entries) {
+        const height = target.getBoundingClientRect().height;
+        if (height > 0) root.style.setProperty(heights.get(target), height + 'px');
+      }
+    });
+    for (const element of heights.keys()) if (element) layoutObserver.observe(element);
+  }
   const sceneButtons = root.querySelectorAll ? [...root.querySelectorAll('[data-letter-scene]')] : [];
   const zoomButtons = root.querySelectorAll ? [...root.querySelectorAll('[data-letter-zoom]')] : [];
   const zoomOutput = find('zoom-level'), reset = find('reset'), lights = find('lights'), back = find('back');
