@@ -1,0 +1,26 @@
+3D lettering preview font and parser notices
+
+The following unmodified font binaries and their corresponding OFL licence files
+were obtained from google/fonts at commit 5026800714d07231937d92eb4cceabf06e05d74e:
+
+- Alegreya Sans Regular: ofl/alegreyasans/AlegreyaSans-Regular.ttf
+  SHA-256: 8fab634196007afca839f1e5a6fb300976daff55d8528b590ef032f01b14ea10
+  Licence: AlegreyaSans-OFL.txt
+- Libertinus Serif Regular: ofl/libertinusserif/LibertinusSerif-Regular.ttf
+  SHA-256: 81ea17858245163742c9f5ddf19e9c54667ee5e026708556fb1bf5dce7f92fae
+  Licence: LibertinusSerif-OFL.txt
+- Great Vibes Regular: ofl/greatvibes/GreatVibes-Regular.ttf
+  SHA-256: 8d509802186f1b51572531ecf313e8098f9a5bfdfaca93f0c9b34467f9982d15
+  Licence: GreatVibes-OFL.txt
+
+Source: https://github.com/google/fonts/tree/5026800714d07231937d92eb4cceabf06e05d74e/ofl
+
+OpenType.js 1.3.4 browser build is located in
+../../js/quote-vendor/opentype-1.3.4.min.js. It is from the npm package at
+https://registry.npmjs.org/opentype.js/-/opentype.js-1.3.4.tgz and licensed
+under MIT; see OpenTypeJS-MIT.txt. Package SHA-512 matches the published npm
+integrity. The browser build SHA-256 is
+c0f9c7ca85e18075a8819e5fe2dee6e1d535f9a2269f5314f36cce94a183adba.
+
+Check each font for every requested glyph; font coverage varies by language.
+Great Vibes does not cover most modern Greek characters.

@@ -21,13 +21,13 @@ try {
           </div>
           <div class="letter3d-price" aria-live="polite"><small>Estimated price</small><strong data-letter-price>Choose an option and size</strong><span data-letter-tax></span></div>
         </div>
-        <div class="letter3d-preview" aria-label="Illustrative lettering preview"><span data-letter-preview>Your sign</span></div>
+        <div class="letter3d-preview" aria-label="Illustrative lettering preview"><span data-letter-preview>Your sign</span><div class="letter3d-three" data-letter-three aria-hidden="true"></div></div>
         <div class="letter3d-stage-footer"><div class="letter3d-zoom" role="group" aria-label="Preview zoom">
           <button type="button" data-letter-zoom="out" aria-label="Zoom out">−</button>
           <output data-letter-zoom-level aria-label="Zoom level">100%</output>
           <button type="button" data-letter-zoom="in" aria-label="Zoom in">+</button>
           <button type="button" data-letter-zoom="fit">Fit</button>
-        </div><span>Illustrative preview</span></div>
+        </div><span data-letter-render-status role="status">Illustrative preview</span></div>
       </div>
       <p class="letter3d-disclaimer">The preview illustrates your lettering. We check the artwork, construction, colour and installation before production.</p>
     </div>
@@ -73,6 +73,9 @@ try {
   </div>
 </section>
 <style>
+@font-face{font-family:Letter3DSans;src:url("/public/assets/fonts/letter3d/AlegreyaSans-Regular.ttf") format("truetype");font-display:swap}
+@font-face{font-family:Letter3DSerif;src:url("/public/assets/fonts/letter3d/LibertinusSerif-Regular.ttf") format("truetype");font-display:swap}
+@font-face{font-family:Letter3DScript;src:url("/public/assets/fonts/letter3d/GreatVibes-Regular.ttf") format("truetype");font-display:swap}
 .quote-workspace:has(.letter3d-editor:not([hidden])){max-width:1420px}
 body:has(.letter3d-editor:not([hidden])) .quote-hero{display:none}
 .letter3d-editor{--l3-ink:#182236;--l3-muted:#536079;--l3-line:#d5dce6;color:var(--l3-ink);font:500 .94rem/1.5 "Inter","Segoe UI",sans-serif;min-width:0}
@@ -82,9 +85,10 @@ body:has(.letter3d-editor:not([hidden])) .quote-hero{display:none}
 .letter3d-layout{display:grid;grid-template-columns:minmax(0,1fr) minmax(300px,370px);gap:1rem;align-items:start}.letter3d-stage,.letter3d-controls{min-width:0}.letter3d-view{background:#151b29;color:#fff;border-radius:14px;overflow:hidden;box-shadow:0 4px 18px #12203d1a}
 .letter3d-stage-bar,.letter3d-stage-footer{display:flex;align-items:center;justify-content:space-between;gap:.7rem;padding:.7rem;flex-wrap:wrap;background:#111827}.letter3d-scenes,.letter3d-zoom{display:flex;align-items:center;gap:.25rem}.letter3d-scenes button,.letter3d-zoom button{border:1px solid #465267;border-radius:7px;background:#273348;color:#f4f7fb;padding:.4rem .7rem}.letter3d-scenes button[aria-pressed="true"]{background:#f4c925;color:#172033;border-color:#f4c925}.letter3d-zoom output{min-width:3rem;text-align:center;font-size:.8rem}.letter3d-stage-footer>span{font-size:.75rem;color:#c5cedd}
 .letter3d-price{display:grid;gap:0;background:#f3ca29;color:#172033;padding:.4rem .7rem;border-radius:8px;max-width:100%;line-height:1.3}.letter3d-price small{font-size:.7rem}.letter3d-price strong{font-size:.92rem}.letter3d-price span{font-size:.65rem;max-width:220px}
-.letter3d-preview{display:flex;align-items:center;justify-content:center;min-height:clamp(280px,42vw,520px);padding:25px;overflow:hidden;background:linear-gradient(150deg,#303846,#101622)}
-.letter3d-view[data-scene="brick"] .letter3d-preview{background-color:#514944;background-image:linear-gradient(0deg,transparent 95%,#292421 96%),linear-gradient(90deg,transparent 96%,#292421 97%);background-size:100% 54px,110px 54px}
-.letter3d-view[data-scene="concrete"] .letter3d-preview{background-color:#747775;background-image:radial-gradient(#ffffff18 .8px,transparent 1px),radial-gradient(#00000020 .8px,transparent 1px);background-size:9px 9px,13px 13px;background-position:0 0,4px 3px}
+.letter3d-preview{position:relative;display:flex;align-items:center;justify-content:center;min-height:clamp(280px,42vw,520px);padding:25px;overflow:hidden;background:linear-gradient(150deg,#303846,#101622)}
+.letter3d-view[data-scene="brick"] .letter3d-preview{background:#514944 linear-gradient(#1d172080,#0f0d12a6),url("/public/assets/neon/brick.jpg") center / 430px auto repeat}
+.letter3d-view[data-scene="concrete"] .letter3d-preview{background:#747775 linear-gradient(#b9b7af22,#59606850),url("/public/assets/neon/concrete.jpg") center / 530px auto repeat}
+.letter3d-three{position:absolute;inset:0;pointer-events:none;visibility:hidden}.letter3d-three canvas{display:block;width:100%;height:100%}.letter3d-preview[data-render="three"] .letter3d-three{visibility:visible}.letter3d-preview[data-render="three"] > [data-letter-preview]{visibility:hidden}
 .letter3d-preview > [data-letter-preview]{display:inline-block;flex-shrink:0;white-space:pre;text-align:center;font-size:clamp(32px,6vw,80px);line-height:1.2;text-shadow:1px 1px #8b9099,2px 2px #6a7079,3px 3px #484e57,4px 4px 7px #0009;transform-origin:center}
 .letter3d-disclaimer,.letter3d-limits,.letter3d-note{font-size:.82rem;color:var(--l3-muted)}.letter3d-disclaimer{margin:.65rem .2rem}.letter3d-controls{display:grid;gap:.7rem}.letter3d-group{border:1px solid var(--l3-line);background:#fff;border-radius:12px;overflow:hidden}.letter3d-group summary{cursor:pointer;font-weight:750;padding:.8rem 1rem;background:#f7f9fc}.letter3d-group-body{padding:1rem}.letter3d-controls label{display:grid;gap:.3rem;font-weight:650;margin:0 0 .8rem}.letter3d-controls :is(input:not([type="color"]),select,textarea){width:100%;min-width:0;padding:.6rem .65rem;border:1px solid #bcc8d8;border-radius:7px;background:#fff;color:#182236}.letter3d-controls input[type="color"]{width:3rem;height:2.5rem;padding:.15rem;border:1px solid #bcc8d8;border-radius:7px;background:#fff}.letter3d-size-grid{display:grid;grid-template-columns:1fr 1fr;gap:.7rem}.letter3d-request p{font-size:.84rem}.letter3d-request [data-letter-status]{min-height:1.5em}.letter3d-send{width:100%}
 .letter3d-line-help{color:var(--l3-muted);font-size:.84rem;margin:.4rem 0 .7rem}.letter3d-lines{display:grid;gap:.75rem}.letter3d-line{border:1px solid #d5dce6;border-radius:9px;padding:.65rem .75rem .75rem;min-width:0;margin:0;background:#f9fbfe}.letter3d-line[hidden]{display:none}.letter3d-line legend{font-weight:750;padding:0 .35rem;color:var(--l3-ink)}.letter3d-line-style{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:.75rem;align-items:start}.letter3d-line-position{border-top:1px solid #dce3ed;margin:.1rem 0 .7rem;padding-top:.35rem}.letter3d-line-position summary{padding:.3rem 0;background:transparent;font-size:.85rem;color:#31486b}.letter3d-position-label{display:grid!important;grid-template-columns:1fr auto 5rem;align-items:center;gap:.35rem!important;font-size:.83rem;margin:.6rem 0!important}.letter3d-position-label input[type=number]{grid-column:3;padding:.3rem .45rem}.letter3d-position-label input[type=range]{grid-column:1/-1;padding:0;accent-color:#1c58b8}.letter3d-add-line,.letter3d-remove-line{border:1px solid #bfcde2;background:#fff;color:#16468a;border-radius:7px;padding:.45rem .7rem;font-weight:700}.letter3d-add-line{margin-top:.75rem;width:100%}.letter3d-remove-line{font-size:.8rem}.letter3d-add-line:disabled{opacity:.5}

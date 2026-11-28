@@ -12,6 +12,8 @@
   const sceneButtons = root.querySelectorAll ? [...root.querySelectorAll('[data-letter-scene]')] : [];
   const zoomButtons = root.querySelectorAll ? [...root.querySelectorAll('[data-letter-zoom]')] : [];
   const zoomOutput = find('zoom-level'), reset = find('reset');
+  const threeContainer = find('three'), renderStatus = find('render-status');
+  let threeRenderer = null, threeInit = null, threeTimer = 0, threeGeneration = 0, threeUnavailable = false;
   // The legacy fields remain as a compatibility mirror for older saved drafts.
   const lineSets = root.querySelectorAll ? [...root.querySelectorAll('[data-letter-line]')] : [];
   const lineFields = ['text','font','colour','x','y','rotation'];
@@ -85,6 +87,37 @@
   const payload = () => ({csrf:root.dataset.csrf, product_id:product.value, text:text.value, font:font.value,
     colour:colour.value, width_mm:width.value, height_mm:height.value, quantity:quantity.value,
     ...(hasLines ? {lines:readLines()} : {})});
+  function show2D(message) {
+    if (viewport.dataset) viewport.dataset.render = 'flat';
+    if (renderStatus) renderStatus.textContent = message || 'Illustrative 2D preview';
+  }
+  function schedule3D() {
+    if (!threeContainer || !hasLines || root.hidden || threeUnavailable) return;
+    const current = ++threeGeneration;
+    // Never leave an older 3D design visible while the new geometry is being built.
+    show2D('Updating 3D preview…');
+    clearTimeout(threeTimer);
+    threeTimer = setTimeout(async () => {
+      try {
+        if (!threeInit) {
+          threeInit = import('/public/assets/js/letter3d-renderer.js').then(module => module.createLetter3DRenderer(threeContainer, {
+            onUnavailable: () => { threeUnavailable = true; ++threeGeneration; show2D('3D preview unavailable on this device; showing 2D.'); }
+          })).catch(error => { threeUnavailable = true; throw error; });
+        }
+        const renderer = await threeInit;
+        if (current !== threeGeneration) return;
+        threeRenderer = renderer;
+        renderer.resize(); renderer.setZoom(zoom);
+        const result = await renderer.update(readLines());
+        if (current !== threeGeneration || (result && result.stale)) return;
+        if (viewport.dataset) viewport.dataset.render = 'three';
+        if (renderStatus) renderStatus.textContent = 'Illustrative 3D preview';
+      } catch (_) {
+        if (current !== threeGeneration) return;
+        show2D(threeUnavailable ? '3D preview unavailable on this device; showing 2D.' : '3D preview unavailable for this text; showing 2D.');
+      }
+    }, 150);
+  }
   function paintScene() {
     if (stage.dataset) stage.dataset.scene = scene;
     for (const button of sceneButtons) button.setAttribute('aria-pressed', String(button.dataset.letterScene === scene));
@@ -112,7 +145,7 @@
     if (zoomOutput) zoomOutput.textContent = `${Math.round(zoom * 100)}%`;
   }
   function paint() {
-    const fontStyles={sans:'Arial, sans-serif', serif:'Georgia, serif', script:'cursive'};
+    const fontStyles={sans:'Letter3DSans, Arial, sans-serif', serif:'Letter3DSerif, Georgia, serif', script:'Letter3DScript, cursive'};
     if (hasLines && typeof document.createElement==='function' && typeof preview.appendChild==='function') {
       preview.textContent = '';
       readLines().forEach(line=>{
@@ -128,6 +161,7 @@
       preview.style.fontFamily = fontStyles[font.value] || 'sans-serif';
     }
     requestAnimationFrame(paintScale);
+    schedule3D();
     const selected = product.selectedOptions[0];
     limits.textContent = product.value && selected ? `Allowed size: ${selected.dataset.minWidth}–${selected.dataset.maxWidth} mm wide × ${selected.dataset.minHeight}–${selected.dataset.maxHeight} mm high. Up to ${selected.dataset.maxChars} characters and ${selected.dataset.maxQuantity} signs.` : '';
   }
@@ -155,7 +189,7 @@
       }
     }, 350);
   }
-  function setZoom(value) { zoom = Math.max(.5, Math.min(3, value)); paintScale(); saveDesign(); }
+  function setZoom(value) { zoom = Math.max(.5, Math.min(3, value)); paintScale(); if (threeRenderer) threeRenderer.setZoom(zoom); saveDesign(); }
   for (const button of sceneButtons) button.addEventListener('click', () => {
     if (!['studio','brick','concrete'].includes(button.dataset.letterScene)) return;
     scene = button.dataset.letterScene; paintScene(); saveDesign();
