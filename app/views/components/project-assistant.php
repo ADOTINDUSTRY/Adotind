@@ -21,6 +21,7 @@
           <img class="mascot-body" src="/public/assets/images/quote-assistant-mascot.webp" alt="" width="450" height="550" />
           <img class="mascot-wave" src="/public/assets/images/quote-assistant-mascot.webp" alt="" width="450" height="550" />
         </span>
+        <img class="mascot-turn-view mascot-turn-neutral" src="/public/assets/images/quote-assistant-turn-neutral.webp" alt="" width="450" height="550" />
         <img class="mascot-turn-view mascot-turn-front-quarter" src="/public/assets/images/quote-assistant-turn-front.webp" alt="" width="450" height="550" />
         <img class="mascot-turn-view mascot-turn-side" src="/public/assets/images/quote-assistant-turn-side.webp" alt="" width="450" height="550" />
         <img class="mascot-turn-view mascot-turn-rear-quarter" src="/public/assets/images/quote-assistant-turn-rear.webp" alt="" width="450" height="550" />
