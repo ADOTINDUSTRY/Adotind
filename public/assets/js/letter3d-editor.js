@@ -66,7 +66,7 @@
   // Three.js shades in linear light. Convert back to sRGB for the native color
   // input so the automatic swatch matches the existing visual appearance.
   function automaticSideColour(face) {
-    if (!/^#[0-9a-f]{6}$/i.test(face)) face = '#e6e9ed';
+    if (!/^#[0-9a-f]{6}$/i.test(face) || face.toLowerCase()==='#ffffff') return '#ffffff';
     const shade = channel => {
       const s = parseInt(channel, 16) / 255;
       const linear = s <= 0.04045 ? s / 12.92 : Math.pow((s + 0.055) / 1.055, 2.4);
@@ -107,15 +107,20 @@
   }
   function setLine(index, data) {
     const control = lineControls[index]; if (!control) return;
-    const values = {text:'', font:'sans', colour:'#e6e9ed', side_colour:null, front_finish:'', side_finish:'', front_film_code:'', side_film_code:'', x:0, y:0, rotation:0, ...data};
+    const values = {text:'', font:'sans', colour:'#ffffff', side_colour:null, front_finish:'', side_finish:'', front_film_code:'', side_film_code:'', x:0, y:0, rotation:0, ...data};
     values.text = String(values.text).replace(/[\r\n]/g, '').slice(0,200);
     if (!(control.inputs.font?.options ? Array.from(control.inputs.font.options).some(option=>option.value===values.font) : ['sans','serif','script'].includes(values.font))) values.font = 'sans';
-    if (!/^#[0-9a-f]{6}$/i.test(values.colour)) values.colour = '#e6e9ed';
+    if (!/^#[0-9a-f]{6}$/i.test(values.colour)) values.colour = '#ffffff';
     control.sideAuto = !/^#[0-9a-f]{6}$/i.test(values.side_colour || '');
-    values.side_colour = control.sideAuto ? automaticSideColour(values.colour) : values.side_colour;
     values.x=clamp(values.x,-200,200); values.y=clamp(values.y,-200,200); values.rotation=clamp(values.rotation,-180,180);
     for (const key of ['front_finish','side_finish']) if (!['matt','gloss'].includes(values[key])) values[key] = '';
-    for (const side of ['front','side']) { const code=side+'_film_code', colourKey=side==='front'?'colour':'side_colour'; const film=filmsByCode.get(values[code]); if(!film || film.hex.toLowerCase() !== String(values[colourKey]).toLowerCase()) values[code]=''; }
+    for (const side of ['front','side']) {
+      const code=side+'_film_code', colourKey=side==='front'?'colour':'side_colour';
+      const film=filmsByCode.get(values[code]), saved=String(values[colourKey]).toLowerCase();
+      if (film && saved===film.previous_hex) values[colourKey]=film.hex;
+      else if (!film || saved!==film.hex.toLowerCase()) values[code]='';
+    }
+    if (control.sideAuto) values.side_colour=automaticSideColour(values.colour);
     for (const key of lineFields) if (control.inputs[key]) control.inputs[key].value = String(values[key]);
     for (const key of ['x','y','rotation']) if (control.sliders[key]) control.sliders[key].value=String(values[key]);
     syncFilmFinish(control,'front');syncFilmFinish(control,'side');
@@ -162,7 +167,10 @@
       if (hasLines && Array.isArray(stored.lines) && stored.lines.length > 0 && stored.lines.length <= lineControls.length) {
         lineCount=stored.lines.length; stored.lines.forEach((line,index)=>setLine(index, line && typeof line==='object' ? line : {})); syncLines();
       } else fromLegacy();
-      if(stored.options && typeof stored.options==='object') for(const [key,element] of Object.entries(optionFields)) if(typeof stored.options[key]==='string' && stored.options[key].length<=100) element.value=stored.options[key];
+      if(stored.options && typeof stored.options==='object') for(const [key,element] of Object.entries(optionFields)) {
+        const value=stored.options[key];
+        if(typeof value==='string' && value.length<=100) element.value=key==='boardColour' && value==='#f2f2f2' ? '#ffffff' : value;
+      }
       if(typeof stored.backVisible==='boolean') backVisible=stored.backVisible;
       if (['studio','brick','concrete'].includes(stored.scene)) scene = stored.scene;
       if (typeof stored.lightsOn === 'boolean') lightsOn = stored.lightsOn;

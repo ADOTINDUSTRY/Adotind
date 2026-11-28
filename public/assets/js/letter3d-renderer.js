@@ -84,6 +84,12 @@ function litSurface(properties,emission,intensity,lightsOn) {
   return material;
 }
 
+function sidePigment(line) {
+  if (line.side_colour) return new THREE.Color(line.side_colour);
+  const colour=new THREE.Color(line.colour);
+  return line.colour==='#ffffff' ? colour : colour.multiplyScalar(.55);
+}
+
 function buildLine(font,line,index,lightsOn) {
   const width=font.getAdvanceWidth(line.text,FONT_SIZE,{kerning:true});
   if (!Number.isFinite(width)) throw unavailable('font');
@@ -119,8 +125,8 @@ function buildLine(font,line,index,lightsOn) {
     // Visual approximation only: colour, gloss and light output are confirmed
     // by the shop and do not assert that any particular film transmits light.
     const front=litSurface({color:line.colour,...finish(line.front_finish,28)},line.colour,FACE_LIGHT_INTENSITY,lightsOn);
-    const side=new THREE.MeshPhongMaterial({color:line.side_colour === null ? new THREE.Color(line.colour).multiplyScalar(.55) : new THREE.Color(line.side_colour),...finish(line.side_finish,22)});
-    const back=new THREE.MeshPhongMaterial({color:0xffffff,emissive:0x888888,emissiveIntensity:.55,shininess:8,specular:0x080808});
+    const side=new THREE.MeshPhongMaterial({color:sidePigment(line),...finish(line.side_finish,22)});
+    const back=new THREE.MeshPhongMaterial({color:0xffffff,shininess:8,specular:0x080808});
     group.add(new THREE.Mesh(geometry,[front,side,back]));
     const outlines=shapes.flatMap(shape=>{
       const {shape:outer,holes}=shape.extractPoints(10);
@@ -225,13 +231,12 @@ export function buildLetter3DSignModel(plan,rawLines,clipper,{totalDepthMm,backT
       const line=lines[piece.line], raw=plan.pieces.find(p=>p.line===piece.line), built=assembled.pieces.find(p=>p.line===piece.line);
       if(!line||!raw||!built)throw unavailable('design');
       group.add(technicalPiece({...piece,groove:raw.groove},line,acrylic,lightsOn,false));
-      const sideColour=line.side_colour===null?new THREE.Color(line.colour).multiplyScalar(.55):new THREE.Color(line.side_colour);
-      const sideMaterial=new THREE.MeshPhongMaterial({color:sideColour,shininess:line.side_finish==='gloss'?90:line.side_finish==='matt'?5:22});
+      const sideMaterial=new THREE.MeshPhongMaterial({color:sidePigment(line),shininess:line.side_finish==='gloss'?90:line.side_finish==='matt'?5:22});
       const wall=new THREE.ExtrudeGeometry(technicalShapes(built.wall),{depth:acrylic.groove_depth_mm-assembled.rear_z_mm,bevelEnabled:false,steps:1});
       wall.translate(0,0,assembled.rear_z_mm);group.add(new THREE.Mesh(wall,sideMaterial));
       const backGeometry=new THREE.ExtrudeGeometry(technicalShapes(built.back),{depth:assembled.back_thickness_mm,bevelEnabled:false,steps:1});
       backGeometry.translate(0,0,assembled.rear_z_mm);
-      const pvc=new THREE.Mesh(backGeometry,new THREE.MeshPhongMaterial({color:0xf3f3f0,shininess:8}));pvc.userData.letterBack=true;pvc.visible=!!backVisible;group.add(pvc);
+      const pvc=new THREE.Mesh(backGeometry,new THREE.MeshPhongMaterial({color:0xffffff,shininess:8}));pvc.userData.letterBack=true;pvc.visible=!!backVisible;group.add(pvc);
       const glow=faceGlow(raw.face,line.colour,acrylic.face_thickness_mm+.02);if(glow){glow.visible=!!lightsOn;group.add(glow);}
       const rim=faceGlow(raw.face,'#ffffff',acrylic.face_thickness_mm/2,false,acrylic.face_thickness_mm);
       if(rim){rim.visible=!!lightsOn;group.add(rim);}
@@ -264,11 +269,11 @@ export async function createLetter3DRenderer(container, {onUnavailable} = {}) {
   const initialPitch=.08, initialYaw=-.24, pitchLimit=80*Math.PI/180, radiansPerPixel=.008;
   let orbitPitch=initialPitch, orbitYaw=initialYaw;
   const scene=new THREE.Scene();
-  // A modest environment keeps an unlit white opal face distinguishable from
-  // an illuminated face while keeping the painted sides visible.
-  scene.add(new THREE.AmbientLight(0xffffff,.65));
-  const key=new THREE.DirectionalLight(0xffffff,.55); key.position.set(-2,4,8); scene.add(key);
-  const fill=new THREE.DirectionalLight(0xbad4ff,.20); fill.position.set(5,-1,4); scene.add(fill);
+  // Phong diffuse reflectance includes a 1/pi factor. A neutral studio fill
+  // keeps white stock recognisable in shadow and leaves headroom for the LEDs.
+  scene.add(new THREE.AmbientLight(0xffffff,2.45));
+  const key=new THREE.DirectionalLight(0xffffff,.36); key.position.set(-2,4,8); scene.add(key);
+  const fill=new THREE.DirectionalLight(0xffffff,.14); fill.position.set(5,-1,4); scene.add(fill);
   const camera=new THREE.OrthographicCamera(-1,1,1,-1,.1,10000);
   camera.position.set(0,0,1000); camera.lookAt(0,0,0);
   webgl.setPixelRatio(Math.min(globalThis.devicePixelRatio || 1, 2));

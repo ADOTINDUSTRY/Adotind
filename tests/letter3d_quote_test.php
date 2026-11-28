@@ -81,6 +81,9 @@ $options['backboard']=['shape'=>'rectangle','colour'=>'#1122AA','margin_mm'=>40]
 $options['lines'][0]['colour']='#f3f3ed';$options['lines'][0]['front_film_code']='501 EF';$options['lines'][0]['front_finish']='gloss';
 $options['lines'][0]['side_colour']='#202328';$options['lines'][0]['side_film_code']='502 EF';$options['lines'][0]['side_finish']='matt';
 $withOptions=letter3d_calculate($db,$options,19);
+$white=$options;
+$white['lines'][0]['colour']='#ffffff';
+check3d(letter3d_calculate($db,$white,19)['lines'][0]['front_film_name']==='White', 'Neutral white and the original swatch must both validate for 501 EF.');
 check3d($withOptions['letter_depth_mm']===60 && $withOptions['backboard']['shape']==='rectangle' && $withOptions['backboard']['colour']==='#1122aa' && $withOptions['backboard']['margin_mm']===40.0, 'Depth and backboard choices must be normalized and returned.');
 check3d($withOptions['pricing_review_required'] && $withOptions['pricing_review_reasons']===['letter_depth','backboard'] && str_contains($withOptions['pricing_note'],'Base estimate'), 'Unpriced depth and backboard must require review.');
 check3d(($withOptions['lines'][0]['front_film_code'] ?? '')==='501 EF' && ($withOptions['lines'][0]['front_film_name'] ?? '')==='White' && ($withOptions['lines'][0]['side_film_code'] ?? '')==='502 EF' && ($withOptions['lines'][0]['side_film_name'] ?? '')==='Black', 'Validated Avery codes and names must survive.');

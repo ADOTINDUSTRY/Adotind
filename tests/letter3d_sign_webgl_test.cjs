@@ -17,6 +17,25 @@ server.listen(0,'127.0.0.1',async()=>{try{
  const line={text:'A',font:'sans',colour:'#ffffff',side_colour:'#0044ff',x:0,y:0,rotation:0};
  const options={totalDepthMm:60,backThicknessMm:10,backVisible:true,backboard:{shape:'none',colour:'clear',margin_mm:0}};
  let result=await evaluate(`(async()=>await window.r.updateSign(${JSON.stringify(plan)},${JSON.stringify([line])},window.ClipperLib,${JSON.stringify(options)}))()`);assert.equal(result.rendered,true);
+ // This solid rectangular fixture covers the centre pixel from front and back.
+ const sampleCentre=()=>evaluate(`(()=>{
+   const canvas=document.querySelector('#stage canvas');
+   const gl=canvas.getContext('webgl2') || canvas.getContext('webgl');
+   window.r.setZoom(1);
+   const pixel=new Uint8Array(4);
+   gl.readPixels(Math.floor(gl.drawingBufferWidth/2),Math.floor(gl.drawingBufferHeight/2),1,1,gl.RGBA,gl.UNSIGNED_BYTE,pixel);
+   return Array.from(pixel);
+ })()`);
+ function checkWhite(pixel,minimum,surface) {
+   const rgb=pixel.slice(0,3);
+   assert.ok(pixel[3]===255 && Math.min(...rgb)>=minimum && Math.max(...rgb)-Math.min(...rgb)<=2,surface+' RGB '+rgb);
+ }
+ await evaluate('window.r.setLights(false)');const unlitFace=await sampleCentre();checkWhite(unlitFace,228,'White face with LEDs off');
+ await evaluate('window.r.setLights(true)');const litFace=await sampleCentre();checkWhite(litFace,250,'Illuminated white face');
+ assert.ok(litFace[0]>=unlitFace[0]+5,'Switching on the white face should visibly raise brightness');
+ await evaluate('window.r.orbitBy(400,0)');const litBack=await sampleCentre();checkWhite(litBack,228,'White PVC rear');
+ await evaluate('window.r.setLights(false)');assert.deepEqual(await sampleCentre(),litBack,'PVC reflects studio light in either LED state');
+ await evaluate('window.r.resetOrbit();window.r.setLights(true)');
  await evaluate('window.r.orbitBy(400,0)');const backOn=await send('Page.captureScreenshot',{format:'png'});
  await evaluate('window.r.setBackVisible(false)');const backOff=await send('Page.captureScreenshot',{format:'png'});assert.notEqual(backOff.data,backOn.data,'PVC visibility must change the rear view');
  await evaluate('window.r.resetOrbit();window.r.setLights(false)');const dark=await send('Page.captureScreenshot',{format:'png'});await evaluate('window.r.setLights(true)');const light=await send('Page.captureScreenshot',{format:'png'});assert.notEqual(light.data,dark.data,'Lighting and face glow must change preview');if(process.env.LETTER3D_TEST_SCREENSHOT)fs.writeFileSync(process.env.LETTER3D_TEST_SCREENSHOT,Buffer.from(light.data,'base64'));

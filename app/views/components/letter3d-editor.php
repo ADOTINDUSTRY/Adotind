@@ -73,7 +73,7 @@ try {
             <label>Depth (mm)<input type="number" data-letter-board-depth min="0.001" max="10000" step="any" value="3"></label>
           </div>
           <p class="letter3d-note">Leave width or height empty to fit that dimension to the lettering.</p>
-          <label>Backboard colour<select data-letter-board-colour><option value="clear">Clear</option><option value="#f2f2f2">White</option><option value="#171717">Black</option><option value="custom">Custom colour</option></select></label>
+          <label>Backboard colour<select data-letter-board-colour><option value="clear">Clear</option><option value="#ffffff">White</option><option value="#171717">Black</option><option value="custom">Custom colour</option></select></label>
           <label data-letter-board-custom-label hidden>Custom backboard colour<input type="color" data-letter-board-custom value="#4466aa"></label>
           <label>Margin for automatic sizing (mm)<input type="number" data-letter-board-margin min="0" max="300" step="1" value="30"></label>
           <p class="letter3d-note">The backboard is a separate panel behind the lettering. The shop confirms its material and price.</p></div>
@@ -81,7 +81,7 @@ try {
       <details class="letter3d-group" open><summary>Your lettering</summary><div class="letter3d-group-body">
         <label>Lettering option <select data-letter-product required><option value="">Choose an option</option><?php foreach ($letterProducts as $p): ?><option value="<?= (int)$p['id'] ?>" data-min-width="<?= e((string)$p['min_width_mm']) ?>" data-max-width="<?= e((string)$p['max_width_mm']) ?>" data-min-height="<?= e((string)$p['min_height_mm']) ?>" data-max-height="<?= e((string)$p['max_height_mm']) ?>" data-max-chars="<?= (int)$p['max_characters'] ?>" data-max-quantity="<?= (int)$p['max_quantity'] ?>"><?= e($p['name']) ?><?= $p['description'] !== '' ? ' — ' . e($p['description']) : '' ?></option><?php endforeach ?></select></label>
         <?php if (!$letterProducts): ?><p class="letter3d-note">No lettering options have been configured for pricing yet. You can still contact the team to discuss your project.</p><?php endif ?>
-        <div hidden aria-hidden="true"><textarea data-letter-text maxlength="200" data-private>Your sign</textarea><select data-letter-font><?= $letterFontOptions ?></select><input type="color" data-letter-colour value="#e6e9ed"></div>
+        <div hidden aria-hidden="true"><textarea data-letter-text maxlength="200" data-private>Your sign</textarea><select data-letter-font><?= $letterFontOptions ?></select><input type="color" data-letter-colour value="#ffffff"></div>
         <p class="letter3d-line-help">Create up to eight lines. Set the style, front and side colours, and position of each line.</p>
         <div class="letter3d-lines" data-letter-lines>
         <?php for ($line = 0; $line < 8; $line++): ?>
@@ -93,7 +93,7 @@ try {
               <div class="letter3d-line-colours" role="group" aria-label="Colours for line <?= $line + 1 ?>">
                 <?php foreach (['front'=>'Front', 'side'=>'Side'] as $area=>$areaLabel): ?>
                 <div><label><?= e($areaLabel) ?> film<select data-letter-line-<?= e($area) ?>-film="<?= $line ?>"><option value="">Custom / not selected</option><?php foreach ($letterFilmCatalog['colours'] as $film): ?><option value="<?= e($film['code']) ?>"><?= e($film['code'].' — '.$film['name']) ?></option><?php endforeach ?></select></label>
-                  <label><?= e($areaLabel) ?> colour<input type="color" <?= $area === 'front' ? 'data-letter-line-colour' : 'data-letter-line-side-colour' ?>="<?= $line ?>" value="<?= $area === 'front' ? '#e6e9ed' : '#b0b3b6' ?>"></label></div>
+                  <label><?= e($areaLabel) ?> colour<input type="color" <?= $area === 'front' ? 'data-letter-line-colour' : 'data-letter-line-side-colour' ?>="<?= $line ?>" value="#ffffff"></label></div>
                 <?php endforeach ?>
               </div>
               <p class="letter3d-side-hint">Avery 500 swatches are approximate on screen; we confirm the physical colour and stock.</p>

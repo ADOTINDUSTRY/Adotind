@@ -176,7 +176,8 @@ function letter3d_calculate(PDO $db, array $input, float $vatPercent): array
             $film = $catalog[$code] ?? null;
             if (!$film) throw new DomainException('This film colour is unavailable; choose another.');
             $faceColour = $face === 'front' ? strtolower($colour) : $sideColour;
-            if ($faceColour === null || $faceColour !== strtolower($film['hex'])) throw new DomainException('The film selection and preview colour do not match. Choose the colour again.');
+            // Existing tabs and their confirmed estimates can still carry the previous swatch.
+            if ($faceColour === null || ($faceColour !== strtolower($film['hex']) && $faceColour !== ($film['previous_hex'] ?? null))) throw new DomainException('The film selection and preview colour do not match. Choose the colour again.');
             $finish = $finishes[$face . '_finish'] ?? null;
             if ($finish !== null && !in_array($finish, $film['finishes'], true)) throw new DomainException('This film colour is not listed in the selected finish.');
             $films[$face . '_film_code'] = $code;
