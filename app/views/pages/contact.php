@@ -4,6 +4,8 @@ $errorMessage = flash_get('form_error');
 $successMessage = flash_get('form_success');
 $old = flash_get('form_old', []);
 $services = require __DIR__ . '/../../data/services.php';
+$serviceNames = array_column($services, 'name');
+$previousService = (string)($old['service_required'] ?? '');
 $heroMedia = $page['hero_media'] ?? [];
 ?>
 <?php if ($successMessage || $errorMessage): ?>
@@ -50,27 +52,30 @@ $heroMedia = $page['hero_media'] ?? [];
         <input type="hidden" name="csrf_token" value="<?= e(csrf_token()) ?>" />
 
         <label>Customer Name *
-          <input type="text" name="customer_name" value="<?= e((string)($old['customer_name'] ?? '')) ?>" data-tracking-control="customer-name" />
+          <input type="text" name="customer_name" value="<?= e((string)($old['customer_name'] ?? '')) ?>" data-private data-tracking-control="customer-name" />
           <?php if (!empty($errors['customer_name'])): ?><small class="error-text"><?= e($errors['customer_name']) ?></small><?php endif; ?>
         </label>
 
         <label>Company Name
-          <input type="text" name="company_name" value="<?= e((string)($old['company_name'] ?? '')) ?>" data-tracking-control="company-name" />
+          <input type="text" name="company_name" value="<?= e((string)($old['company_name'] ?? '')) ?>" data-private data-tracking-control="company-name" />
         </label>
 
         <label>Email *
-          <input type="email" name="email" value="<?= e((string)($old['email'] ?? '')) ?>" data-tracking-control="contact-email" />
+          <input type="email" name="email" value="<?= e((string)($old['email'] ?? '')) ?>" data-private data-tracking-control="contact-email" />
           <?php if (!empty($errors['email'])): ?><small class="error-text"><?= e($errors['email']) ?></small><?php endif; ?>
         </label>
 
         <label>Phone *
-          <input type="text" name="phone" value="<?= e((string)($old['phone'] ?? '')) ?>" data-tracking-control="contact-phone" />
+          <input type="text" name="phone" value="<?= e((string)($old['phone'] ?? '')) ?>" data-private data-tracking-control="contact-phone" />
           <?php if (!empty($errors['phone'])): ?><small class="error-text"><?= e($errors['phone']) ?></small><?php endif; ?>
         </label>
 
         <label>Service Required *
           <select name="service_required" data-tracking-control="required-service">
             <option value="">Select a service</option>
+            <?php if ($previousService !== '' && !in_array($previousService, $serviceNames, true)): ?>
+              <option value="<?= e($previousService) ?>" selected><?= e($previousService) ?></option>
+            <?php endif; ?>
             <?php foreach ($services as $service): ?>
               <?php $selected = (($old['service_required'] ?? '') === $service['name']) ? 'selected' : ''; ?>
               <option value="<?= e($service['name']) ?>" <?= $selected ?>><?= e($service['name']) ?></option>
@@ -80,24 +85,32 @@ $heroMedia = $page['hero_media'] ?? [];
         </label>
 
         <label>Project Description *
-          <textarea name="project_description" rows="5" data-tracking-control="project-description"><?= e((string)($old['project_description'] ?? '')) ?></textarea>
+          <textarea name="project_description" rows="5" data-private data-tracking-control="project-description"><?= e((string)($old['project_description'] ?? '')) ?></textarea>
           <?php if (!empty($errors['project_description'])): ?><small class="error-text"><?= e($errors['project_description']) ?></small><?php endif; ?>
         </label>
 
         <label>Dimensions
-          <input type="text" name="dimensions" value="<?= e((string)($old['dimensions'] ?? '')) ?>" data-tracking-control="contact-dimensions" />
+          <input type="text" name="dimensions" value="<?= e((string)($old['dimensions'] ?? '')) ?>" data-private data-tracking-control="contact-dimensions" />
         </label>
 
         <label>Material
-          <input type="text" name="material" value="<?= e((string)($old['material'] ?? '')) ?>" data-tracking-control="contact-material" />
+          <input type="text" name="material" value="<?= e((string)($old['material'] ?? '')) ?>" data-private data-tracking-control="contact-material" />
         </label>
 
         <label>Quantity
-          <input type="text" name="quantity" value="<?= e((string)($old['quantity'] ?? '')) ?>" data-tracking-control="contact-quantity" />
+          <input type="text" name="quantity" value="<?= e((string)($old['quantity'] ?? '')) ?>" data-private data-tracking-control="contact-quantity" />
+        </label>
+
+        <label>Location or mounting (optional)
+          <input type="text" name="installation" value="<?= e((string)($old['installation'] ?? '')) ?>" data-private />
+        </label>
+
+        <label>Finish or other details (optional)
+          <input type="text" name="finish" value="<?= e((string)($old['finish'] ?? '')) ?>" data-private />
         </label>
 
         <label>Upload Drawings / Reference
-          <input type="file" name="project_file" accept=".pdf,.jpg,.jpeg,.png,.webp,.svg,.dxf,.dwg,.zip" data-tracking-control="reference-upload" />
+          <input type="file" name="project_file" accept=".pdf,.jpg,.jpeg,.png,.webp,.svg,.dxf,.dwg,.zip" data-private data-tracking-control="reference-upload" />
           <?php if (!empty($errors['project_file'])): ?><small class="error-text"><?= e($errors['project_file']) ?></small><?php endif; ?>
         </label>
 
