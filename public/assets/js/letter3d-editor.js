@@ -411,9 +411,14 @@
     limits.textContent = product.value && selected ? `Allowed size: ${selected.dataset.minWidth}–${selected.dataset.maxWidth} mm wide × ${selected.dataset.minHeight}–${selected.dataset.maxHeight} mm high. Up to ${selected.dataset.maxChars} characters and ${selected.dataset.maxQuantity} signs.` : '';
   }
   function changed(appearanceOnly = false) {
+    const holdPriceLayout = appearanceOnly === true && product.value && height.value && (estimate || price.parentElement?.hasAttribute?.('data-updating'));
     generation++; clearTimeout(timer); estimate = null; requestKey = '';
-    send.disabled = true; price.textContent = 'Enter an option and size'; tax.textContent = ''; status.textContent = '';
-    if(priceScope)priceScope.textContent='';
+    send.disabled = true; status.textContent = '';
+    price.parentElement?.toggleAttribute?.('data-updating', Boolean(holdPriceLayout));
+    if (!holdPriceLayout) {
+      price.textContent = 'Enter an option and size'; tax.textContent = '';
+      if(priceScope)priceScope.textContent='';
+    }
     if (appearanceOnly === true && viewport.dataset?.render === 'three' && !technicalView) {
       schedule3D(true);
       saveDesign();
@@ -429,13 +434,14 @@
     if (!product.value || !text.value.trim() || !width.value || !height.value || !quantity.value) return;
     const current = generation;
     timer = setTimeout(async () => {
-      price.textContent = 'Calculating…';
+      if (!price.parentElement?.hasAttribute?.('data-updating')) price.textContent = 'Calculating…';
       try {
         const response = await fetch('/online-quote/letters3d/estimate', {method:'POST', credentials:'same-origin', headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload())});
         const data = await response.json();
         if (current !== generation) return;
         if (!response.ok || !data.estimate || typeof data.request_key !== 'string') throw new Error(data.error || 'Could not calculate this design.');
         estimate = data.estimate;
+        price.parentElement?.removeAttribute?.('data-updating');
         requestKey = data.request_key;
         price.textContent = `€${Number(estimate.total).toFixed(2)}`;
         tax.textContent = `Includes ${estimate.vat_percent}% VAT. Subject to artwork and shop review.`;
@@ -443,7 +449,9 @@
         send.disabled = sending;
       } catch (error) {
         if (current !== generation) return;
+        price.parentElement?.removeAttribute?.('data-updating');
         price.textContent = error.message || 'Estimate unavailable';
+        tax.textContent=''; if(priceScope)priceScope.textContent='';
       }
     }, 350);
   }
