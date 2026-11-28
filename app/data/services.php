@@ -80,11 +80,10 @@ return [
         'summary' => '3D lettering elements, prototypes and custom part production workflows.',
         'applications' => [
             '3D lettering components',
-            'Custom 3D printed parts',
-            'Rapid prototypes',
-            'Custom-designed product elements',
+            'Dimensional signage elements',
+            'Custom-designed components',
         ],
-        'materials' => ['Application-specific printable materials', 'Signage-compatible substrates'],
+        'materials' => ['Acrylic', 'Aluminium', 'Other signage-compatible materials as suitable'],
     ],
     [
         'slug' => 'additional-services',
