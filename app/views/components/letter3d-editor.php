@@ -49,9 +49,9 @@ try {
           <p data-letter-cutting-instructions></p>
           <button type="button" class="btn" data-letter-tech-view aria-pressed="false" disabled>Inspect grooved acrylic in 3D</button>
           <small>The 3D inspection hides the aluminium and PVC so you can turn the acrylic over and see the rear groove. Cyan marks the cutter centre. Check the toolpath in Aspire.</small>
-          <label>Cutting file format <select data-letter-export-format><option value="dxf">DXF · AutoCAD R12 (mm)</option><option value="pdf">Vector PDF · actual size</option></select></label>
+          <label>Cutting file format <select data-letter-export-format><option value="dxf">DXF · AutoCAD R12 (mm)</option><option value="pdf">Vector PDF · face and groove</option><option value="pdf-face">Vector PDF · acrylic face only</option><option value="pdf-groove">Vector PDF · groove reference only</option></select></label>
           <button type="button" class="btn" data-letter-export-dxf disabled>Download cutting vectors</button>
-          <small>In Aspire, import DXF in millimetres or PDF at actual size. Blue PDF outlines mark the acrylic edge and orange outlines mark the groove reference. Set the tool and cutting depth in CAM.</small>
+          <small>In Aspire, import DXF in millimetres or PDF at actual size. Use separate face and groove PDFs when your CAM software places all PDF paths on one layer. Set the tool and cutting depth in CAM.</small>
           <a href="/online-quote?project=drawing">Import a DXF or vector PDF in Custom CNC Cutting</a>
         </div>
       </details>

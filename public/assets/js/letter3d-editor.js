@@ -315,9 +315,11 @@
         const format=find('export-format')?.value || 'dxf';
         const result=module.buildLetter3dDxf(selected.plan,format);
         if(cuttingInstructions)cuttingInstructions.textContent=result.instructions.join(' ');
-        const objectUrl=URL.createObjectURL(new Blob([result[format]],{type:format==='pdf'?'application/pdf':'application/dxf'}));
-        const link=document.createElement('a');link.href=objectUrl;link.download='3d-letter-face-and-groove.'+format;document.body.appendChild(link);link.click();link.remove();setTimeout(()=>URL.revokeObjectURL(objectUrl),10000);
-        cuttingStatus.textContent=format.toUpperCase()+' cutting vectors downloaded.';
+        const ext=format==='dxf'?'dxf':'pdf';
+        const filename=format==='pdf-face'?'3d-letter-face':format==='pdf-groove'?'3d-letter-groove-reference':'3d-letter-face-and-groove';
+        const objectUrl=URL.createObjectURL(new Blob([result[ext]],{type:ext==='pdf'?'application/pdf':'application/dxf'}));
+        const link=document.createElement('a');link.href=objectUrl;link.download=filename+'.'+ext;document.body.appendChild(link);link.click();link.remove();setTimeout(()=>URL.revokeObjectURL(objectUrl),10000);
+        cuttingStatus.textContent=ext.toUpperCase()+' cutting vectors downloaded.';
       } catch(error){cuttingStatus.textContent=error?.message || 'Could not export the cutting vectors.';}
       finally {if(manufacturing===selected)exportDxf.disabled=false;}
     });

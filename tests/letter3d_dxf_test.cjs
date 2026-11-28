@@ -11,6 +11,7 @@ const assert=require('node:assert/strict'),fs=require('node:fs'),os=require('nod
  assert.match(dxf,/\r\nAC1009\r\n/);assert.equal((dxf.match(/\r\nSEQEND\r\n/g)||[]).length,4);assert.doesNotMatch(dxf,/LWPOLYLINE/);
  assert.deepEqual(normalizeDxf(dxf),{needsUnits:true});const normalized=normalizeDxf(dxf,'4').dxf;
  const pdf=buildLetter3dDxf(fixture,'pdf').pdf;assert.ok(pdf.startsWith('%PDF-'));assert.equal((pdf.match(/h S/g)||[]).length,4);
+ for (const option of ['pdf-face','pdf-groove']){const separate=buildLetter3dDxf(fixture,option).pdf;assert.equal((separate.match(/h S/g)||[]).length,2);assert.equal(separate.match(/MediaBox \[[^\]]+\]/)[0],pdf.match(/MediaBox \[[^\]]+\]/)[0]);}
  const rows=normalized.replace(/\r?\n/g,'\r\n').trimEnd().split(/\r\n/);assert.equal(rows.length%2,0,'Every DXF code must have a value');const pairs=[];for(let i=0;i<rows.length;i+=2)pairs.push([Number(rows[i]),rows[i+1]]);
  const findHeader=(key)=>{let i=pairs.findIndex(p=>p[0]===9&&p[1]===key);return pairs[i+1]};assert.deepEqual(findHeader('$ACADVER'),[1,'AC1015']);assert.deepEqual(findHeader('$INSUNITS'),[70,'4']);
  let section='',entries=[],active=null;for(let i=0;i<pairs.length;i++){const [code,v]=pairs[i];if(code===0&&v==='SECTION'&&pairs[i+1]?.[0]===2){section=pairs[i+1][1];continue}if(code===0&&v==='ENDSEC'){section='';continue}if(section!=='ENTITIES')continue;if(code===0){if(active)entries.push(active);active={type:v,attrs:[]}}else if(active)active.attrs.push([code,v]);}if(active)entries.push(active);

@@ -56,7 +56,10 @@ export function buildLetter3dDxf(geometry, format = 'dxf') {
     'The reference is 2 mm from the face edge; it is not the cutter centreline. A DXF cannot set the cutting side, bit or depth. Check the toolpath and test the fit before cutting.',
   ];
   const layers = [['FACE_CUT',face],['GROOVE_REFERENCE',groove]];
-  if (format === 'pdf') return {pdf: vectorPdf(layers, expectedWidth, expectedHeight), instructions};
+  if (['pdf','pdf-face','pdf-groove'].includes(format)) {
+    const chosen = layers.filter(([layer]) => format === 'pdf' || (format === 'pdf-face' ? layer === 'FACE_CUT' : layer === 'GROOVE_REFERENCE'));
+    return {pdf: vectorPdf(chosen, expectedWidth, expectedHeight), instructions};
+  }
   if (format !== 'dxf') throw new Error('Unknown cutting file format.');
   const groups = [0,'SECTION',2,'HEADER',9,'$ACADVER',1,'AC1009',9,'$LUNITS',70,2,
     9,'$EXTMIN',10,0,20,0,30,0,9,'$EXTMAX',10,number(maxX),20,number(maxY),30,0,0,'ENDSEC',
@@ -80,8 +83,8 @@ function vectorPdf(layers, width, height) {
   const pt = mm => Number((mm * 72 / 25.4).toFixed(6));
   if (Math.max(pt(width),pt(height)) > 14400) throw new Error('This drawing exceeds the full-size PDF page limit. Choose DXF.');
   const commands = ['0 w','1 j'];
-  for (const [index,[,paths]] of layers.entries()) {
-    commands.push(index === 0 ? '0 0.28 0.7 RG' : '0.78 0.19 0 RG');
+  for (const [layer,paths] of layers) {
+    commands.push(layer === 'FACE_CUT' ? '0 0.28 0.7 RG' : '0.78 0.19 0 RG');
     for (const path of paths) {
       for (const [i,{x,y}] of path.entries()) commands.push(pt(x)+' '+pt(y)+(i ? ' l' : ' m'));
       commands.push('h S');
