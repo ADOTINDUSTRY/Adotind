@@ -73,7 +73,7 @@ try {
     for ($i=0; $i<50; $i++) { try { [$status,$session] = http3d_request($base . '/session', 'GET', null, $cookie); if ($status===200) { $ready=true; break; } } catch (Throwable $e) {} usleep(100000); }
     http3d_assert($ready && is_array($session) && is_string($session['csrf'] ?? null), 'Fixture server did not start: ' . (string)@file_get_contents($fixture . '/server.log'));
     $csrf = $session['csrf'];
-    $design = ['csrf'=>$csrf,'product_id'=>1,'text'=>'A B','font'=>'sans','colour'=>'#ff00aa','width_mm'=>1000,'height_mm'=>500,'quantity'=>2];
+    $design = ['csrf'=>$csrf,'product_id'=>1,'text'=>"A\r\nB",'font'=>'sans','colour'=>'#ff00aa','width_mm'=>1000,'height_mm'=>500,'quantity'=>2];
     [$status] = http3d_request($base . '/estimate', 'POST', $design, $cookie);
     http3d_assert($status === 403, 'Locked session must not receive an estimate.');
     // Exercise the real PIN handler using the fixture-only PIN and real CSRF.
@@ -123,7 +123,7 @@ try {
     http3d_assert(($entry['fields']['customer_name'] ?? '') === 'Fixture customer' && ($entry['fields']['email'] ?? '') === 'fixture@example.test'
         && ($entry['fields']['phone'] ?? '') === '12345' && ($entry['fields']['service_required'] ?? '') === '3D lettering'
         && ($entry['fields']['quantity'] ?? '') === '2' && ($entry['fields']['dimensions'] ?? '') === '1000 × 500 mm'
-        && ($entry['estimate']['width_mm'] ?? null) == 1000 && ($entry['estimate']['height_mm'] ?? null) == 500 && ($entry['estimate']['text'] ?? '') === 'A B'
+        && ($entry['estimate']['width_mm'] ?? null) == 1000 && ($entry['estimate']['height_mm'] ?? null) == 500 && ($entry['estimate']['text'] ?? '') === "A\nB" && str_contains($entry['fields']['project_description'] ?? '', "Text: A\nB\n")
         && ($entry['estimate']['colour'] ?? '') === '#ff00aa' && ($entry['estimate']['font'] ?? '') === 'sans'
         && ($entry['estimate']['total'] ?? null) == 59.5 && $entry['uploaded_file'] === null, 'Saved inquiry must match the confirmed design and contact details.');
     [$status,$last] = http3d_request($base . '/estimate', 'POST', $design, $cookie);

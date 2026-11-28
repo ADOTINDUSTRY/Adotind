@@ -34,9 +34,11 @@ function letter3d_calculate(PDO $db, array $input, float $vatPercent): array
     $product = $query->fetch(PDO::FETCH_ASSOC);
     if (!$product) throw new DomainException('This lettering option is not available for an estimate yet.');
 
-    $text = trim(is_string($input['text'] ?? null) ? $input['text'] : '');
-    if ($text === '' || strlen($text) > 1000 || !preg_match('/\A[\p{L}\p{N}\p{M}\p{P}\p{Zs}]+\z/uD', $text)) {
-        throw new DomainException('Enter one line of lettering using letters, numbers or punctuation.');
+    // Preserve intentional line breaks in the design while normalising browser
+    // newline formats for consistent price tokens and stored requests.
+    $text = trim(str_replace(["\r\n", "\r"], "\n", is_string($input['text'] ?? null) ? $input['text'] : ''));
+    if ($text === '' || strlen($text) > 1000 || substr_count($text, "\n") >= 8 || !preg_match('/\A[\p{L}\p{N}\p{M}\p{P}\p{Zs}\n]+\z/uD', $text)) {
+        throw new DomainException('Enter up to eight lines using letters, numbers or punctuation.');
     }
     $compactText = preg_replace('/\s+/u', '', $text);
     $characters = is_string($compactText) ? preg_match_all('/\X/u', $compactText) : false;
