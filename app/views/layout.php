@@ -128,7 +128,6 @@ $trackingEnabled = is_writable('/var/www/site-tracking') && $isPublicPage;
     <?php endif; ?>
     <?php if ($isPublicPage): ?>
     <script src="/public/assets/js/quote-assistant.js?v=<?= e((string)filemtime(__DIR__ . '/../../public/assets/js/quote-assistant.js')) ?>" defer></script>
-    <script type="module" src="/public/assets/js/quote-assistant-3d.js?v=<?= e((string)filemtime(__DIR__ . '/../../public/assets/js/quote-assistant-3d.js')) ?>"></script>
     <?php endif; ?>
     <?php if ($trackingEnabled): ?>
     <?php $trackingPageSlug = $page['service']['slug'] ?? $page['project']['slug'] ?? ''; ?>
