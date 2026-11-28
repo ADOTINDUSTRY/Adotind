@@ -9,6 +9,7 @@
   const results = [...workspace.querySelectorAll('.quote-result-card, .quote-booking-card')];
   const projects = [...start.querySelectorAll('[data-keywords]')];
   const panels = [...workspace.querySelectorAll('[data-project-panel]')];
+  const inquiryQuestions = JSON.parse(workspace.querySelector('#project-inquiry-questions').textContent);
   const trail = [];
   const neon = panels.find(panel => panel.dataset.projectPanel === 'neon');
   const loaded = new Map();
@@ -98,18 +99,42 @@
     trail.push(active);
     show(name);
   }
+  function selectProject(button, navigate = true) {
+    if (!button) return;
+    const workflow = button.dataset.quoteWorkflow;
+    if (!['neon', 'drawing', 'picture', 'inquiry'].includes(workflow)) return;
+    if (workflow === 'inquiry') {
+      const inquiry = panels.find(panel => panel.dataset.projectPanel === 'inquiry');
+      const name = button.querySelector('strong').textContent.trim();
+      inquiry.querySelector('[data-project-inquiry-name]').textContent = name;
+      inquiry.querySelector('[data-project-inquiry-service]').value = name;
+      const questions = inquiryQuestions[button.dataset.quotePath] || {};
+      inquiry.querySelectorAll('[data-inquiry-field]').forEach(label => {
+        const question = questions[label.dataset.inquiryField];
+        const input = label.querySelector('input');
+        label.hidden = !Array.isArray(question);
+        input.disabled = label.hidden;
+        if (!label.hidden) {
+          label.querySelector('[data-inquiry-label]').textContent = question[0];
+          input.placeholder = question[1];
+        }
+      });
+    }
+    if (navigate) go(workflow); else show(workflow);
+  }
   start.querySelectorAll('[data-quote-path]').forEach(button => {
     button.addEventListener('click', () => {
       if (button.dataset.quotePath === 'guide') {
         workspace.dispatchEvent(new CustomEvent('quote-assistant-request'));
         return;
       }
-      go(button.dataset.quotePath);
+      selectProject(button);
     });
   });
   workspace.addEventListener('quote-assistant-navigate', event => {
     const target = event.detail?.target;
-    if (['neon','drawing','picture'].includes(target)) go(target);
+    const button = projects.find(project => project.dataset.quotePath === target);
+    if (button) selectProject(button);
   });
   back.addEventListener('click', () => {
     if (active === 'neon') {
@@ -146,7 +171,7 @@
     open.hidden = !project;
     if (project) open.textContent = 'Open ' + project.querySelector('strong').textContent;
   });
-  open.addEventListener('click', () => go(answer.value));
+  open.addEventListener('click', () => selectProject(projects.find(button => button.dataset.quotePath === answer.value)));
   const drawing = form.elements.vector_file;
   const contents = form.elements.drawing_contents;
   function validateDrawing() {
@@ -175,7 +200,8 @@
   form.addEventListener('submit', event => {
     if (!advance()) event.preventDefault();
   });
-  const neonUrl = () => location.hash === '#neon' || new URLSearchParams(location.search).get('project') === 'neon';
+  const neonEnabled = projects.some(button => button.dataset.quotePath === 'neon');
+  const neonUrl = () => neonEnabled && (location.hash === '#neon' || new URLSearchParams(location.search).get('project') === 'neon');
   function restoreNeonTrail() {
     trail.length=0;
     if (Array.isArray(window.history.state?.neonTrail)) trail.push(...window.history.state.neonTrail);
@@ -186,9 +212,10 @@
   });
   if (neonUrl()) restoreNeonTrail();
   const requestedProject = new URLSearchParams(location.search).get('project');
-  const initialProject = ['drawing','picture'].includes(requestedProject) ? requestedProject : null;
-  show(neonUrl() ? 'neon' : initialProject || (workspace.querySelector('.alert-error') ? 'drawing' : results.length ? 'result' : 'start'), neonUrl() || !!initialProject);
-  if (initialProject) {
+  const initialProject = projects.find(button => button.dataset.quotePath === requestedProject && requestedProject !== 'neon');
+  if (initialProject) selectProject(initialProject, false);
+  else show(neonUrl() ? 'neon' : (workspace.querySelector('.alert-error') && projects.some(button => button.dataset.quotePath === 'drawing') ? 'drawing' : results.length ? 'result' : 'start'), neonUrl());
+  if (requestedProject && requestedProject !== 'neon') {
     const url = new URL(location.href);
     url.searchParams.delete('project');
     window.history.replaceState(window.history.state, '', url);

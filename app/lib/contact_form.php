@@ -27,6 +27,8 @@ function handle_contact_submit(array $siteConfig): never
         'dimensions' => sanitize_text((string)($_POST['dimensions'] ?? '')),
         'material' => sanitize_text((string)($_POST['material'] ?? '')),
         'quantity' => sanitize_text((string)($_POST['quantity'] ?? '')),
+        'installation' => sanitize_text((string)($_POST['installation'] ?? '')),
+        'finish' => sanitize_text((string)($_POST['finish'] ?? '')),
     ];
 
     $errors = [];

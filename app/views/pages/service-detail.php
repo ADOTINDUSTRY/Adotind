@@ -28,6 +28,19 @@ $detail = (require __DIR__ . '/../../data/service_details.php')[$service['slug']
 </section>
 <?php endif; ?>
 
+<?php $relatedLandings = array_filter($page['service_landings'] ?? [], static fn($landing) => $landing['parent'] === $service['slug']); ?>
+<?php if ($relatedLandings !== []): ?>
+<section class="section" data-tracking-section="specific-services">
+  <div class="container"><h2>Explore this service</h2><div class="service-grid">
+    <?php foreach ($relatedLandings as $slug => $landing): ?>
+    <article class="service-card"><h3><?= e($landing['name']) ?></h3><p><?= e($landing['summary']) ?></p>
+      <a class="text-link" href="/services/<?= e($slug) ?>">Explore <?= e($landing['name']) ?></a>
+    </article>
+    <?php endforeach; ?>
+  </div></div>
+</section>
+<?php endif; ?>
+
 <section class="section">
   <div class="container two-col">
     <div data-tracking-section="applications">

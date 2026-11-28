@@ -2068,6 +2068,10 @@ html:has(.tracking-consent-banner[open]) { overflow: hidden; }
 .project-options button:hover, .project-options button:focus-visible { background: #eef4ff; border-color: #5575a8; }
 .project-options strong, .project-options span { display: block; }
 .project-options span { color: #455671; font-size: .9rem; }
+.quote-inquiry-questions { border:1px solid #d6deea; border-radius:8px; padding:1rem; min-width:0; }
+.quote-inquiry-questions legend { font-weight:700; padding:0 .35rem; }
+.quote-inquiry-questions legend small { font-size:.8em; font-weight:400; }
+.quote-inquiry-questions p { margin:.2rem 0 .8rem; }
 .project-help { justify-self: start; padding: .6rem 0; background: none; border: 0; text-decoration: underline; color: #273e83; font: inherit; cursor: pointer; }
 .neon-preview { display: grid; place-items: center; min-height: 12rem; padding: 2rem; background: #10131d; border-radius: 10px; }
 #neon-preview-text { max-width: 100%; overflow-wrap: anywhere; text-align: center; font-size: clamp(2rem, 5vw, 4rem); text-shadow: 0 0 4px currentColor, 0 0 16px currentColor; }

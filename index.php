@@ -54,6 +54,7 @@ if (($_GET['live'] ?? '') === '0') unset($_SESSION['report_preview']);
 dashboard_bootstrap_storage($siteConfig);
 
 $services = require __DIR__ . '/app/data/services.php';
+$serviceLandings = require __DIR__ . '/app/data/service-landing-pages.php';
 $projects = require __DIR__ . '/app/data/projects.php';
 $machinery = require __DIR__ . '/app/data/machinery.php';
 $mediaLibrary = dashboard_media_load($siteConfig);
@@ -239,6 +240,7 @@ $routes = [
         'title' => 'Services | A Dot Industry Manufacturing Capabilities',
         'description' => 'Explore sign manufacturing, CNC router services, laser cutting and engraving, printing, fabrication and 3D manufacturing solutions.',
         'services' => $services,
+        'service_landings' => $serviceLandings,
         'hero_media' => $mediaByLocation['services-hero'],
         'breadcrumbs' => [['label' => 'Home', 'href' => '/'], ['label' => 'Services', 'href' => '/services']],
     ],
@@ -306,6 +308,24 @@ $page = $routes[$path] ?? null;
 
 if ($page === null && starts_with($path, '/services/')) {
     $slug = substr($path, strlen('/services/'));
+    if (isset($serviceLandings[$slug])) {
+        $landing = $serviceLandings[$slug];
+        $page = [
+            'view' => 'service-landing',
+            'title' => $landing['name'] . ' in Cyprus | A Dot Industry',
+            'description' => $landing['summary'],
+            'landing' => $landing,
+            'breadcrumbs' => [
+                ['label' => 'Home', 'href' => '/'],
+                ['label' => 'Services', 'href' => '/services'],
+                ['label' => $landing['name'], 'href' => '/services/' . $slug],
+            ],
+        ];
+    }
+}
+
+if ($page === null && starts_with($path, '/services/')) {
+    $slug = substr($path, strlen('/services/'));
     foreach ($services as $service) {
         if ($service['slug'] === $slug) {
             $page = [
@@ -313,6 +333,7 @@ if ($page === null && starts_with($path, '/services/')) {
                 'title' => $service['name'] . ' | A Dot Industry',
                 'description' => $service['summary'],
                 'service' => $service,
+                'service_landings' => $serviceLandings,
                 'breadcrumbs' => [
                     ['label' => 'Home', 'href' => '/'],
                     ['label' => 'Services', 'href' => '/services'],

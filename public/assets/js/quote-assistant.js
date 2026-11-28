@@ -18,9 +18,6 @@
   const history = [];
   let suggested = false, timer, welcomeTimer, farewellTimer, sitTimer, turnTimer, chairTurnTimer, lowerTimer, settleTimer, pending = false;
   try { if (sessionStorage.getItem('adot_assistant_sitting') === '1') assistant.dataset.mascotState = 'sitting'; } catch (_) {}
-  const labels = workspace
-    ? {neon:'Open neon designer',drawing:'Open CNC cutting',picture:'Open picture preview'}
-    : {neon:'Go to neon designer',drawing:'Go to cutting quote',picture:'Go to picture preview'};
 
   function open() {
     clearTimeout(sitTimer);
@@ -180,10 +177,11 @@
       if (!response.ok || typeof data.answer !== 'string') throw new Error(typeof data.error === 'string' ? data.error : 'Unable to get a response.');
       addMessage(data.answer, 'model');
       history.push({role:'user',text:message},{role:'model',text:data.answer});
-      if (Object.hasOwn(labels, data.suggestion)) {
+      if (typeof data.suggestion === 'string' && /^[a-z0-9]+$/.test(data.suggestion)
+          && data.suggestion !== 'none' && typeof data.suggestion_label === 'string' && data.suggestion_label) {
         const button = document.createElement('button');
         button.type = 'button'; button.className = 'quote-assistant-suggestion';
-        button.textContent = labels[data.suggestion];
+        button.textContent = (workspace ? 'Open ' : 'Go to ') + data.suggestion_label;
         button.addEventListener('click', () => {
           if (workspace) {
             workspace.dispatchEvent(new CustomEvent('quote-assistant-navigate', {detail:{target:data.suggestion}}));

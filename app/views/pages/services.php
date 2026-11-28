@@ -16,6 +16,22 @@
   </div>
 </section>
 
+<section class="section" data-tracking-section="specific-services">
+  <div class="container">
+    <h2>Explore services by project</h2>
+    <p>Find guidance for a particular material or type of work.</p>
+    <div class="service-grid">
+      <?php foreach (($page['service_landings'] ?? []) as $slug => $landing): ?>
+      <article class="service-card">
+        <h3><?= e($landing['name']) ?></h3>
+        <p><?= e($landing['summary']) ?></p>
+        <a href="/services/<?= e($slug) ?>" class="text-link">Explore <?= e($landing['name']) ?></a>
+      </article>
+      <?php endforeach; ?>
+    </div>
+  </div>
+</section>
+
 <section class="section" data-tracking-section="service-list">
   <div class="container">
     <div class="service-grid">

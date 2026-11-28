@@ -18,12 +18,20 @@ function quote_project_catalog(?PDO $db = null): array
         if (!$json) return $defaults;
         $catalog = json_decode($json, true, 8, JSON_THROW_ON_ERROR);
         $projects = [];
+        $seen = [];
         foreach (is_array($catalog) ? $catalog : [] as $item) {
             $id = is_array($item) ? ($item['id'] ?? null) : null;
-            if (!is_string($id) || !isset($defaults[$id]) || !is_string($item['name'] ?? null) || !is_string($item['description'] ?? null)) continue;
+            if (!is_string($id) || !isset($defaults[$id]) || isset($seen[$id]) || !is_string($item['name'] ?? null) || !is_string($item['description'] ?? null)) continue;
+            $seen[$id] = true;
+            if (($item['enabled'] ?? true) === false) continue;
             $projects[$id] = ['name'=>$item['name'], 'description'=>$item['description']] + $defaults[$id];
         }
-        return $projects + $defaults;
+        // Existing saved catalogs predate newer categories. Add only genuinely
+        // missing defaults; do not re-enable an explicitly disabled entry.
+        foreach ($defaults as $id => $default) {
+            if (!isset($seen[$id])) $projects[$id] = $default;
+        }
+        return $projects;
     } catch (Throwable $e) {
         error_log('Quote project settings could not be loaded: ' . get_class($e));
         return $defaults;

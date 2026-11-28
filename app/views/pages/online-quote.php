@@ -17,6 +17,8 @@ $result = is_array($page['quote_result'] ?? null) ? $page['quote_result'] : null
 $currency = (string)($settings['currency_symbol'] ?? '€');
 $waBase = (string)($siteConfig['whatsapp'] ?? '');
 $viberBase = (string)($siteConfig['viber'] ?? '');
+require_once __DIR__ . '/../../lib/public_project_picker.php';
+$knownProjects = require __DIR__ . '/../../data/quote-projects.php';
 ?>
 <?php if ($quoteError || $quoteSuccess): ?>
 <div hidden data-tracking-outcome="<?= $quoteError ? 'quote_error' : (str_starts_with($quoteSuccess, 'Order request') ? 'order_requested' : 'price_shown') ?>" data-tracking-reason="<?= e((string)$quoteErrorReason) ?>"></div>
@@ -47,7 +49,7 @@ $viberBase = (string)($siteConfig['viber'] ?? '');
       <?php if (is_string($pinSuccess)): ?><p class="quote-access-notice" role="status"><?= e($pinSuccess) ?></p><?php endif; ?>
       <?php if (is_string($pinError)): ?><p class="alert alert-error"><?= e($pinError) ?></p><?php endif; ?>
       <form action="/online-quote/pin" method="post" class="quote-form quote-pin-form" novalidate>
-        <?php if (in_array(($_GET['project'] ?? ''), ['neon','drawing','picture'], true)): ?><input type="hidden" name="project" value="<?= e($_GET['project']) ?>"><?php endif; ?>
+        <?php if (is_string($_GET['project'] ?? null) && isset($knownProjects[$_GET['project']])): ?><input type="hidden" name="project" value="<?= e($_GET['project']) ?>"><?php endif; ?>
         <input type="hidden" name="csrf_token" value="<?= e(csrf_token()) ?>" />
         <label>Enter PIN
           <input type="password" name="pin" inputmode="numeric" maxlength="12" placeholder="PIN" required data-private />
@@ -89,15 +91,15 @@ $viberBase = (string)($siteConfig['viber'] ?? '');
         <label for="project-search">Find a project</label>
         <input id="project-search" type="search" placeholder="Search projects, e.g. neon sign" autocomplete="off" />
         <div class="project-options">
-          <?php require_once __DIR__ . '/../../lib/public_project_picker.php';
-          $projectCatalog = quote_project_catalog();
+          <?php $projectCatalog = quote_project_catalog();
           foreach ($projectCatalog as $id => $project): ?>
-          <button type="button" data-quote-path="<?= e($id) ?>" data-keywords="<?= e($project['keywords']) ?>">
+          <button type="button" data-quote-path="<?= e($id) ?>" data-quote-workflow="<?= e($project['workflow']) ?>" data-keywords="<?= e($project['keywords']) ?>">
             <strong><?= e($project['name']) ?></strong><span><?= e($project['description']) ?></span>
+            <?php if ($project['workflow'] === 'inquiry'): ?><small>Request a quote from our team</small><?php endif; ?>
           </button>
           <?php endforeach; ?>
         </div>
-        <p id="project-empty" role="status" hidden>No matching projects. Try another word or use the project guide below.</p>
+        <p id="project-empty" role="status" <?= $projectCatalog ? 'hidden' : '' ?>>No matching projects. Try another word or use the project guide below.</p>
         <button type="button" class="project-help" data-quote-path="guide">Help me choose a project</button>
       </div>
     </section>
@@ -108,12 +110,42 @@ $viberBase = (string)($siteConfig['viber'] ?? '');
         <select id="guide-answer">
           <option value="">Choose an option</option>
           <?php $guidePrompts = ['neon'=>'I want a name or message that lights up', 'drawing'=>'I have a technical drawing and need pieces cut', 'picture'=>'I have a picture and want to cut its shape']; ?>
-          <?php foreach (array_keys($projectCatalog) as $id): ?><option value="<?= e($id) ?>"><?= e($guidePrompts[$id]) ?></option><?php endforeach; ?>
+          <?php foreach ($projectCatalog as $id => $project): ?><option value="<?= e($id) ?>"><?= e($guidePrompts[$id] ?? $project['name']) ?></option><?php endforeach; ?>
           <option value="unsure">Something else, or I’m not sure</option>
         </select>
       </label>
       <div id="guide-response" aria-live="polite"></div>
       <button type="button" id="guide-open" class="btn" hidden>Open project</button>
+    </section>
+    <section class="quote-card quote-form" data-project-panel="inquiry" hidden>
+      <h2>Tell us about your project</h2>
+      <p>Our team will review your details and contact you with the next step. This service does not offer an instant price yet.</p>
+      <script type="application/json" id="project-inquiry-questions"><?= json_encode(require __DIR__ . '/../../data/quote-inquiry-questions.php', JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR) ?></script>
+      <form class="quote-form" method="post" action="/contact/submit" enctype="multipart/form-data">
+        <input type="hidden" name="csrf_token" value="<?= e(csrf_token()) ?>" />
+        <input type="hidden" name="service_required" data-project-inquiry-service />
+        <p>Selected project: <strong data-project-inquiry-name></strong></p>
+        <div class="quote-prototype-grid quote-grid-two">
+          <label>Your name <input name="customer_name" required maxlength="200" data-private /></label>
+          <label>Email <input type="email" name="email" required maxlength="254" data-private /></label>
+          <label>Phone <input type="tel" name="phone" required maxlength="60" data-private /></label>
+          <label>Company (optional) <input name="company_name" maxlength="200" data-private /></label>
+        </div>
+        <label>What would you like to make? <textarea name="project_description" rows="4" required maxlength="5000" data-private></textarea></label>
+        <fieldset class="quote-inquiry-questions">
+          <legend>More details <small>(optional)</small></legend>
+          <p>Share anything you already know. Our team can help with the rest.</p>
+          <div class="quote-prototype-grid quote-grid-two">
+            <label data-inquiry-field="dimensions" hidden><span data-inquiry-label>Dimensions</span><input name="dimensions" maxlength="200" data-private disabled /></label>
+            <label data-inquiry-field="material" hidden><span data-inquiry-label>Material</span><input name="material" maxlength="200" data-private disabled /></label>
+            <label data-inquiry-field="quantity" hidden><span data-inquiry-label>Quantity</span><input name="quantity" maxlength="100" data-private disabled /></label>
+            <label data-inquiry-field="installation" hidden><span data-inquiry-label>Location or mounting</span><input name="installation" maxlength="200" data-private disabled /></label>
+            <label data-inquiry-field="finish" hidden><span data-inquiry-label>Finish</span><input name="finish" maxlength="200" data-private disabled /></label>
+          </div>
+        </fieldset>
+        <label>Drawing or photo (optional; up to 10 MB) <input type="file" name="project_file" accept=".pdf,.jpg,.jpeg,.png,.webp,.svg,.dxf,.dwg,.zip" data-private /></label>
+        <button type="submit" class="btn">Send project inquiry</button>
+      </form>
     </section>
     <?php require __DIR__ . '/../components/neon-editor.php'; ?>
     <details class="quote-card quote-artwork" data-tracking-section="artwork-preview">
@@ -253,7 +285,8 @@ $viberBase = (string)($siteConfig['viber'] ?? '');
       <?php $est = $result['estimate']; $currency = (string)($est['currency'] ?? $currency); $token = (string)($result['token'] ?? ''); ?>
       <article id="current-estimate" class="quote-card quote-result-card" data-tracking-section="quote-result">
         <p class="quote-card-kicker">Your estimate</p>
-        <h2>Estimated total: <?= e($currency . number_format((float)$est['total_cost'], 2)) ?></h2>
+        <h2>Preliminary estimate: <?= e($currency . number_format((float)$est['total_cost'], 2)) ?></h2>
+        <p>The final price, drawing dimensions, material suitability and production require review by our team.</p>
         <?php if (isset($result['previous_price'])): ?>
           <p class="quote-access-notice" role="status">The price changed from <?= e($result['previous_price']) ?> to <?= e($currency . number_format((float)$est['total_cost'], 2)) ?>. Review this amount before sending your order request.</p>
         <?php elseif ($reviewNotice): ?><p role="status"><?= e($reviewNotice) ?></p><?php endif; ?>

@@ -11,6 +11,17 @@ function quote_db_path(array $siteConfig): string
     return rtrim($root, '/') . '/quote-system.sqlite';
 }
 
+function quote_migrate_safety_columns(PDO $db): void
+{
+    // The ERP can initialize these same columns first. Keep migration
+    // additive and never infer approval from the pre-existing rate entries.
+    $machineColumns = array_column($db->query('PRAGMA table_info(quote_machines)')->fetchAll(PDO::FETCH_ASSOC), 'name');
+    $rateColumns = array_column($db->query('PRAGMA table_info(quote_machine_materials)')->fetchAll(PDO::FETCH_ASSOC), 'name');
+    if (!in_array('bed_width_mm', $machineColumns, true)) $db->exec('ALTER TABLE quote_machines ADD COLUMN bed_width_mm REAL DEFAULT NULL');
+    if (!in_array('bed_height_mm', $machineColumns, true)) $db->exec('ALTER TABLE quote_machines ADD COLUMN bed_height_mm REAL DEFAULT NULL');
+    if (!in_array('shop_reviewed', $rateColumns, true)) $db->exec('ALTER TABLE quote_machine_materials ADD COLUMN shop_reviewed INTEGER NOT NULL DEFAULT 0');
+}
+
 function quote_db(array $siteConfig): PDO
 {
     static $pdo = null;
@@ -32,7 +43,7 @@ function quote_db(array $siteConfig): PDO
     $pdo->exec('PRAGMA foreign_keys = ON');
     $pdo->exec('PRAGMA journal_mode = WAL');
     // Schema/seed only once per database file; user_version marks completion.
-    if ((int)$pdo->query('PRAGMA user_version')->fetchColumn() < 3) {
+    if ((int)$pdo->query('PRAGMA user_version')->fetchColumn() < 4) {
         $pdo->exec('BEGIN IMMEDIATE');
         try {
             $version = (int)$pdo->query('PRAGMA user_version')->fetchColumn();
@@ -58,6 +69,10 @@ function quote_db(array $siteConfig): PDO
                 $pdo->exec('ALTER TABLE quote_estimates ADD COLUMN booking_key TEXT;
                     CREATE UNIQUE INDEX quote_estimates_booking_key ON quote_estimates(booking_key);
                     PRAGMA user_version=3');
+            }
+            if ($version < 4) {
+                quote_migrate_safety_columns($pdo);
+                $pdo->exec('PRAGMA user_version=4');
             }
             $pdo->exec('COMMIT');
         } catch (Throwable $e) {
@@ -858,6 +873,36 @@ function online_quote_fail(string $message, string $reason): never
     redirect('/online-quote', 303);
 }
 
+/** Check settings the shop has explicitly verified before offering a price. */
+function quote_require_reviewed_capacity(array $machine, array $material, array $rate, array $input): void
+{
+    $machineName = strtolower((string)($machine['code'] ?? '') . ' ' . (string)($machine['name'] ?? ''));
+    $machineKey = preg_replace('/[^a-z0-9]+/', '', $machineName) ?? '';
+    $materialKey = preg_replace('/[^a-z0-9]+/', '', strtolower((string)($material['name'] ?? ''))) ?? '';
+    $isCo2 = str_contains($machineKey, 'co2') || str_contains($machineKey, 'carbondioxide');
+    $isPvc = str_contains($materialKey, 'pvc') || str_contains($materialKey, 'polyvinylchloride')
+        || str_contains($materialKey, 'vinyl') || str_contains($materialKey, 'foamex') || str_contains($materialKey, 'sintra');
+    if ($isCo2 && $isPvc) {
+        throw new DomainException('This material cannot be quoted for CO2 laser cutting. Please contact us for a safe alternative.');
+    }
+    if ((int)($rate['shop_reviewed'] ?? 0) !== 1) {
+        throw new DomainException('This machine and material combination needs shop review before we can estimate a price. Please contact us.');
+    }
+    $bedW = (float)($machine['bed_width_mm'] ?? 0);
+    $bedH = (float)($machine['bed_height_mm'] ?? 0);
+    if (!is_finite($bedW) || !is_finite($bedH) || $bedW <= 0 || $bedH <= 0) {
+        throw new DomainException('This machine’s working area has not been verified. Please contact us for a review.');
+    }
+    $fits = static fn(float $w, float $h): bool => is_finite($w) && is_finite($h) && $w > 0 && $h > 0
+        && (($w <= $bedW && $h <= $bedH) || ($h <= $bedW && $w <= $bedH));
+    if (!$fits((float)($input['part_width_mm'] ?? 0), (float)($input['part_height_mm'] ?? 0))) {
+        throw new DomainException('The entered part size does not fit the selected machine’s configured working area. Please contact us for review.');
+    }
+    if (!$fits((float)($material['sheet_width_mm'] ?? 0), (float)($material['sheet_height_mm'] ?? 0))) {
+        throw new DomainException('The configured material sheet does not fit the selected machine’s working area. Please contact us for review.');
+    }
+}
+
 function quote_current_pricing(array $siteConfig, array $input): array
 {
     $db = quote_db($siteConfig);
@@ -871,6 +916,7 @@ function quote_current_pricing(array $siteConfig, array $input): array
     $material = $material->fetch();
     $rate = $rate->fetch();
     if (!$machine || !$material || !$rate) throw new DomainException('This machine and material combination is no longer available. Please choose again.');
+    quote_require_reviewed_capacity($machine, $material, $rate, $input);
     $settings = quote_settings($siteConfig);
     return [
         'machine'=>$machine, 'material'=>$material, 'rate'=>$rate, 'pricing_settings'=>$settings,
