@@ -508,6 +508,28 @@ img {
 }
 
 .home-concept { margin: 0; }
+.quote-assistant { position:fixed; right:20px; bottom:20px; z-index:1040; color:#18233a; font-size:14px; }
+.quote-assistant-toggle { float:right; border:0; border-radius:999px; padding:12px 17px; background:#fde613; color:#121a2c; font-weight:750; box-shadow:0 7px 24px #0004; cursor:pointer; }
+.quote-assistant-panel { clear:both; width:min(370px,calc(100vw - 32px)); max-height:min(590px,calc(100dvh - 90px)); margin-bottom:10px; background:#fff; border:1px solid #d8e1f0; border-radius:16px; box-shadow:0 16px 48px #0005; overflow:hidden; display:flex; flex-direction:column; }
+.quote-assistant-panel[hidden],.quote-assistant-prompt[hidden] { display:none; }
+.quote-assistant-header { display:flex; justify-content:space-between; gap:10px; padding:15px 16px; color:#fff; background:#111c40; }
+.quote-assistant-header strong,.quote-assistant-header small { display:block; }
+.quote-assistant-header small { margin-top:3px; color:#c3cfe4; }
+.quote-assistant-header button,.quote-assistant-prompt [data-assistant-dismiss] { border:0; background:transparent; color:inherit; font-size:23px; line-height:1; cursor:pointer; }
+.quote-assistant-conversation { overflow:auto; flex:1; min-height:90px; max-height:260px; padding:14px; }
+.quote-assistant-conversation p { margin:0 0 9px; padding:10px 12px; border-radius:12px; background:#f0f3f9; color:#18233a; white-space:pre-wrap; overflow-wrap:anywhere; line-height:1.45; }
+.quote-assistant-conversation .assistant-user { background:#e5edff; margin-left:25px; }
+.quote-assistant-suggestion { margin:0 0 10px; border:1px solid #2850a2; border-radius:8px; padding:8px 12px; color:#173b80; background:#fff; cursor:pointer; font-weight:700; }
+.quote-assistant-disclosure { margin:0; padding:0 14px 10px; font-size:11px; line-height:1.35; color:#52627a; }
+.quote-assistant-form { display:flex; gap:8px; align-items:end; padding:0 14px 14px; }
+.quote-assistant-form textarea { width:100%; min-width:0; resize:vertical; border:1px solid #a7b5ca; border-radius:8px; padding:8px; color:#18233a; background:#fff; font:inherit; }
+.quote-assistant-label { position:absolute; width:1px; height:1px; overflow:hidden; clip-path:inset(50%); }
+.quote-assistant-form .btn { padding:10px 12px; }
+.quote-assistant-error { color:#9b1c1c; margin:0; padding:0 14px 14px; }
+.quote-assistant-prompt { position:absolute; right:0; bottom:55px; width:min(290px,calc(100vw - 32px)); padding:12px; border-radius:12px; background:#fff; box-shadow:0 8px 25px #0003; line-height:1.4; }
+.quote-assistant-prompt [data-assistant-prompt-open] { display:block; border:0; background:none; color:#214997; font-weight:700; padding:6px 0 0; cursor:pointer; }
+.quote-assistant-prompt [data-assistant-dismiss] { position:absolute; right:8px; top:6px; color:#54637a; }
+@media(max-width:600px) { .quote-assistant { right:12px; bottom:12px; } }
 .home-manufacturing-concept {
   position: relative;
   margin: 1.5rem 0;

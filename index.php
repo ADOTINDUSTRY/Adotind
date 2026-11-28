@@ -44,6 +44,10 @@ if (starts_with($earlyPath, '/media/')) {
 }
 
 session_start();
+if ($earlyPath === '/online-quote/assistant') {
+    require_once __DIR__ . '/app/lib/quote_assistant.php';
+    quote_assistant_handle();
+}
 if (($_GET['live'] ?? '') === '1') $_SESSION['report_preview'] = true;
 if (($_GET['live'] ?? '') === '0') unset($_SESSION['report_preview']);
 

@@ -114,6 +114,7 @@ $trackingEnabled = is_writable('/var/www/site-tracking') && $isPublicPage;
     <script src="/public/assets/js/quote-preview.js?v=<?= e(is_file($quoteJsPath) ? (string)filemtime($quoteJsPath) : '1') ?>" defer></script>
     <script src="/public/assets/js/artwork-proof.js?v=<?= e((string)filemtime(__DIR__ . '/../../public/assets/js/artwork-proof.js')) ?>" defer></script>
     <script src="/public/assets/js/quote-steps.js?v=<?= e((string)filemtime(__DIR__ . '/../../public/assets/js/quote-steps.js')) ?>" defer></script>
+    <script src="/public/assets/js/quote-assistant.js?v=<?= e((string)filemtime(__DIR__ . '/../../public/assets/js/quote-assistant.js')) ?>" defer></script>
     <script type="application/json" id="neon-retail-rates"><?= json_encode(neon_public_rates(), JSON_THROW_ON_ERROR | JSON_HEX_TAG) ?></script>
     <?php
       $neonAsset = static fn(string $path): string => $path . '?v=' . filemtime(__DIR__ . '/../..' . $path);

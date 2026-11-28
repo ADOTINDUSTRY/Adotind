@@ -79,6 +79,21 @@ $viberBase = (string)($siteConfig['viber'] ?? '');
 <?php else: ?>
 <section class="section section-light quote-page">
   <div class="container quote-workspace" data-tracking-section="quote-workspace">
+    <aside class="quote-assistant" data-quote-assistant data-csrf="<?= e(csrf_token()) ?>" aria-label="Project assistant">
+      <div class="quote-assistant-prompt" hidden role="status">Need a hand choosing or making your project? <button type="button" data-assistant-prompt-open>Ask the assistant</button><button type="button" data-assistant-dismiss aria-label="Dismiss help suggestion">×</button></div>
+      <div class="quote-assistant-panel" id="quote-assistant-panel" hidden>
+        <div class="quote-assistant-header"><div><strong>Project assistant</strong><small>Let’s find the right starting point</small></div><button type="button" data-assistant-close aria-label="Close assistant">×</button></div>
+        <div class="quote-assistant-conversation" data-assistant-messages aria-live="polite"><p class="assistant-reply">Hi! What would you like to make? Tell me about your idea and I’ll help you find the next step.</p></div>
+        <p class="quote-assistant-disclosure">Messages are sent to Google Gemini. Please avoid sharing sensitive information. AI can make mistakes.</p>
+        <form class="quote-assistant-form" data-assistant-form>
+          <label class="quote-assistant-label" for="quote-assistant-input">Your message</label>
+          <textarea id="quote-assistant-input" rows="2" maxlength="800" placeholder="Describe your project…" required data-private></textarea>
+          <button type="submit" class="btn" data-assistant-send>Send</button>
+        </form>
+        <p class="quote-assistant-error" data-assistant-error role="status" hidden></p>
+      </div>
+      <button class="quote-assistant-toggle" type="button" data-assistant-toggle aria-expanded="false" aria-controls="quote-assistant-panel">✦ <span>Need help?</span></button>
+    </aside>
     <?php if (is_string($pinSuccess)): ?><p class="quote-access-notice" role="status"><?= e($pinSuccess) ?></p><?php endif; ?>
     <?php if (is_string($quoteSuccess)): ?><p class="alert alert-success"><?= e($quoteSuccess) ?></p><?php endif; ?>
     <?php if (is_string($quoteError)): ?><p class="alert alert-error"><?= e($quoteError) ?></p><?php endif; ?>

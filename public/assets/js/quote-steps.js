@@ -99,7 +99,17 @@
     show(name);
   }
   start.querySelectorAll('[data-quote-path]').forEach(button => {
-    button.addEventListener('click', () => go(button.dataset.quotePath));
+    button.addEventListener('click', () => {
+      if (button.dataset.quotePath === 'guide') {
+        workspace.dispatchEvent(new CustomEvent('quote-assistant-request'));
+        return;
+      }
+      go(button.dataset.quotePath);
+    });
+  });
+  workspace.addEventListener('quote-assistant-navigate', event => {
+    const target = event.detail?.target;
+    if (['neon','drawing','picture'].includes(target)) go(target);
   });
   back.addEventListener('click', () => {
     if (active === 'neon') {
