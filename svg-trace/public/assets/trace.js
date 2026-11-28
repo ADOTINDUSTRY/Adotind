@@ -15,6 +15,10 @@
   const imgBitmap = $('img-bitmap');
   const bitmapTab = ws.querySelector('[data-show="bitmap"]');
   const editingBitmap = () => canvas.classList.contains('bitmap');
+  const inspecting = () => canvas.classList.contains('inspect');
+  const smooth = ws.querySelector('[name="segment_length"]');
+  const compareSmooth = $('compare-smooth');
+  let lastTraceRevision = -1;
   let bitmapUrl = '', bitmapRevision = -1;
   const exts = JSON.parse(ws.dataset.exts || '[]');
   const previewable = JSON.parse(ws.dataset.preview || '[]');
@@ -89,6 +93,10 @@
     syncOutputs();
   };
   const syncOutputs = () => {
+    if (compareSmooth) {
+      compareSmooth.value = smooth.value;
+      $('compare-level').textContent = smooth.value;
+    }
     ws.querySelectorAll('input[name][type="range"]').forEach((el) => {
       const o = $('o-' + el.name);
       if (o) o.textContent = el.name === 'colors' && el.value === '0' ? 'Auto' : el.value;
@@ -101,12 +109,15 @@
   };
   const scheduleAuto = () => {
     if (convertUrl) revision++;
-    resumeTrace = !!pendingFile && auto.checked && !editingBitmap();
+    resumeTrace = !!pendingFile && (auto.checked || inspecting()) && !editingBitmap();
     saveSettings();
     clearTimeout(autoTimer);
     if (!(sourceFileId || pendingFile)) return;
     if (editingBitmap()) autoTimer = setTimeout(() => convert('bitmap'),350);
-    else if (auto.checked) autoTimer = setTimeout(convert,650);
+    else if (auto.checked || inspecting()) {
+      if (inspecting()) setStatus('Updating the trace…');
+      autoTimer = setTimeout(convert,650);
+    }
   };
   presetSel.addEventListener('change', () => { applyPreset(presetSel.value); scheduleAuto(); });
   fields().forEach((el) => el.addEventListener('input', () => {
@@ -117,6 +128,19 @@
     } else scheduleAuto();
   }));
   applyPreset(presetSel.value);
+  compareSmooth?.addEventListener('input', () => {
+    smooth.value = compareSmooth.value;
+    smooth.dispatchEvent(new Event('input'));
+  });
+  function applyOverlayDisplay() {
+    if (!compareSmooth) return;
+    $('compare-ink').style.opacity = Number($('compare-opacity').value)/100;
+    $('compare-ink').classList.toggle('hide-points',!$('compare-points').checked);
+  }
+  for (const id of ['compare-opacity','compare-points']) $(id)?.addEventListener('input', () => {
+    applyOverlayDisplay(); saveSettings();
+  });
+  applyOverlayDisplay();
 
   // ---- file selection ----
   const choose = (file) => {
@@ -168,8 +192,10 @@
   ws.querySelectorAll('.ws-tabs button').forEach((b) => b.addEventListener('click', () => {
     ws.querySelectorAll('.ws-tabs button').forEach((x) => x.classList.toggle('on', x === b));
     canvas.className = 'ws-canvas ' + b.dataset.show;
+    if ($('compare-tools')) $('compare-tools').hidden = !inspecting();
     if ($('result-caption')) $('result-caption').textContent = editingBitmap() ? 'Prepared bitmap' : 'Vector (SVG)';
     if (editingBitmap() && pendingFile && bitmapRevision !== revision && !restoring) convert('bitmap');
+    if (inspecting() && pendingFile && lastTraceRevision !== revision && !restoring) convert();
     zoom.layout();
     saveSettings();
   }));
@@ -199,10 +225,11 @@
     const layout = () => {
       vps.forEach((vp) => {
         const b = box(vp);
-        vp.querySelectorAll('img').forEach(img => Object.assign(img.style, { width: b.W + 'px', height: b.H + 'px', left: b.left + 'px', top: b.top + 'px' }));
+        vp.querySelectorAll('img,#compare-ink').forEach(img => Object.assign(img.style, { width: b.W + 'px', height: b.H + 'px', left: b.left + 'px', top: b.top + 'px' }));
       });
       const vp = vps.find((v) => v.clientWidth) || vps[0];
       $('zoom-level').textContent = z === 1 && !ox && !oy ? 'Fit' : Math.round(fitScale(vp) * z * 100) + '%';
+      if (inspecting()) ws.dispatchEvent(new Event('st:viewport'));
     };
     const at = (vp, k, cx, cy) => {
       const b = box(vp), nz = Math.min(64, Math.max(0.2, z * k));
@@ -278,6 +305,7 @@
 
   // ---- edited in the point editor ----
   ws.addEventListener('st:edited', (e) => {
+    lastTraceRevision = revision;
     release(svgUrl);
     if (wireUrl) URL.revokeObjectURL(wireUrl);
     const editUrl = URL.createObjectURL(new Blob([e.detail.text], { type: 'image/svg+xml' }));
@@ -339,6 +367,7 @@
         clearVector();
         const blob = new Blob([data.svg], { type: 'image/svg+xml' });
         const url = URL.createObjectURL(blob);
+        lastTraceRevision = submittedRevision;
         await render({ status: 'completed', duration_ms: data.duration_ms, input: data,
           output: { text: data.svg, view_url: url, download_url: url, name: pendingFile.name.replace(/\.[^.]+$/, '') + '.svg', size_bytes: blob.size } });
         finish();
@@ -465,7 +494,8 @@
     fields().forEach(el => { if (el.type !== 'radio' || el.checked) inputs[el.name] = el.value; });
     return {preset:presetSel.value, inputs, auto:auto.checked, wire:wire.checked,
       advanced:!!ws.querySelector('.adv')?.open, mode:ws.querySelector('.ws-tabs .on')?.dataset.show,
-      swipe:$('swipe').value, zoom:zoom.snapshot(), resume:resumeTrace};
+      swipe:$('swipe').value, opacity:$('compare-opacity')?.value, points:$('compare-points')?.checked,
+      zoom:zoom.snapshot(), resume:resumeTrace};
   }
   function saveSettings() {
     clearTimeout(settingsTimer);
@@ -497,6 +527,11 @@
     if (advanced) advanced.open = !!s.advanced;
     const tab = [...ws.querySelectorAll('.ws-tabs button')].find(b => b.dataset.show === s.mode);
     if (tab) tab.click();
+    if (compareSmooth) {
+      $('compare-opacity').value=s.opacity ?? 90;
+      $('compare-points').checked=s.points ?? true;
+      applyOverlayDisplay();
+    }
     $('swipe').value = s.swipe ?? '50';
     canvas.style.setProperty('--swipe',$('swipe').value + '%');
     zoom.restore(s.zoom);
@@ -523,6 +558,7 @@
       }
       restoreSettings(saved.settings);
       if (saved.vector?.text && pendingFile) {
+        lastTraceRevision = revision;
         vectorData = saved.vector;
         const {text,width,height,name} = vectorData;
         const blob = new Blob([text],{type:'image/svg+xml'}), url = URL.createObjectURL(blob);
@@ -533,7 +569,7 @@
         setStatus('Your image is ready to trace.');
       }
       if (saved.ai && pendingFile && !saved.editor) await openAiTrace(saved.ai);
-      resume = !!(pendingFile && !saved.editor && !saved.ai && saved.settings?.resume && auto.checked);
+      resume = !!(pendingFile && !saved.editor && !saved.ai && saved.settings?.resume && (auto.checked || inspecting()));
       lastSettings = JSON.stringify(currentSettings());
     } catch (_) {
       setStatus('The tab draft could not be fully restored. You can select an image to continue.','err');

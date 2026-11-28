@@ -148,7 +148,8 @@ $slider = static function (string $name, array $s): void { ?>
           <div class="ws-tabs" role="tablist">
             <?php if (!empty($page['private_trace'])): ?><button type="button" data-show="bitmap">Bitmap preview</button><?php endif; ?>
             <button type="button" class="on" data-show="split">Side by side</button>
-            <button type="button" data-show="overlay">Compare</button>
+            <?php if (!empty($page['private_trace'])): ?><button type="button" data-show="inspect">Compare</button><?php endif; ?>
+            <button type="button" data-show="overlay"><?= !empty($page['private_trace']) ? 'Wipe' : 'Compare' ?></button>
             <button type="button" data-show="vector">Vector</button>
             <button type="button" data-show="original">Original</button>
           </div>
@@ -161,12 +162,20 @@ $slider = static function (string $name, array $s): void { ?>
           </div>
           <label class="check"><input type="checkbox" id="wire" /> Show lines only</label>
         </div>
+        <?php if (!empty($page['private_trace'])): ?>
+        <div id="compare-tools" hidden>
+          <label>Smoothness <output id="compare-level">3.5</output><input id="compare-smooth" type="range" min="3.5" max="10" step="0.5" value="3.5" /></label>
+          <label>Trace opacity<input id="compare-opacity" type="range" min="0" max="100" value="90" /></label>
+          <label class="check"><input id="compare-points" type="checkbox" checked /> Show points</label>
+          <output id="compare-count" aria-live="polite">Awaiting trace</output>
+        </div>
+        <?php endif; ?>
         <div class="ws-canvas split" id="canvas">
-          <figure><div class="vp"><img id="img-original" alt="Original image" draggable="false" /></div><figcaption>Original</figcaption></figure>
+          <figure><div class="vp"><img id="img-original" alt="Original image" draggable="false" /><?php if (!empty($page['private_trace'])): ?><svg id="compare-ink" aria-hidden="true"></svg><?php endif; ?></div><figcaption>Original</figcaption></figure>
           <figure><div class="vp"><img id="img-vector" alt="Traced SVG" draggable="false" /><?php if (!empty($page['private_trace'])): ?><img id="img-bitmap" alt="Prepared bitmap" draggable="false" /><?php endif; ?></div><figcaption id="result-caption">Vector (SVG)</figcaption></figure>
           <input type="range" id="swipe" min="0" max="100" value="50" aria-label="Compare position" />
         </div>
-        <p class="muted fine ws-help">Scroll to zoom, drag to move. In Compare, slide to reveal the original under the vector.</p>
+        <p class="muted fine ws-help">Scroll over a detail or double-click it to zoom. Drag to move.</p>
         <div class="ws-stats" id="stats"></div>
         <div class="ws-actions">
           <a class="btn btn-primary" id="download" href="#" download hidden>Download SVG</a>

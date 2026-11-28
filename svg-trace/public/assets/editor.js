@@ -466,6 +466,58 @@
     wheelTimer = setTimeout(() => { wheelTimer = null; scheduleEditorDraft(); },120);
   }, {passive:true});
   const reviewEntry = $('review-traced-points');
+  const comparison = $('compare-ink');
+  if (comparison) {
+    let groups = [], total = 0, frame = 0;
+    const recount = () => {
+      frame = 0;
+      if ($('compare-tools').hidden || !total) return;
+      const box = comparison.parentElement.getBoundingClientRect();
+      let visible = 0;
+      for (const {outline,nodes} of groups) {
+        const m = outline.getScreenCTM();
+        if (!m) continue;
+        for (const [x,y] of nodes) {
+          const sx = m.a*x + m.c*y + m.e, sy = m.b*x + m.d*y + m.f;
+          if (sx>=box.left && sx<=box.right && sy>=box.top && sy<=box.bottom) visible++;
+        }
+      }
+      const count = visible.toLocaleString()+' in view · '+total.toLocaleString()+' total points';
+      if ($('compare-count').textContent!==count) $('compare-count').textContent=count;
+    };
+    const scheduleCount = () => { if (!frame) frame=requestAnimationFrame(recount); };
+    const drawComparison = ({detail}) => {
+      const root = new DOMParser().parseFromString(detail.text,'image/svg+xml').documentElement;
+      comparison.setAttribute('viewBox',root.getAttribute('viewBox') || [0,0,parseFloat(root.getAttribute('width')) || 1,parseFloat(root.getAttribute('height')) || 1].join(' '));
+      comparison.setAttribute('preserveAspectRatio',root.getAttribute('preserveAspectRatio') || 'xMidYMid meet');
+      const drawing = document.createDocumentFragment();
+      groups=[]; total=0;
+      for (const path of root.querySelectorAll('path')) {
+        const d=path.getAttribute('d') || '';
+        const nodes=parseD(d).flatMap(contour=>contour.nodes);
+        if (!nodes.length) continue;
+        const transforms=[];
+        for (let el=path;el && el!==root;el=el.parentElement) {
+          if (el.hasAttribute('transform')) transforms.unshift(el.getAttribute('transform'));
+        }
+        const group=mk('g');
+        if (transforms.length) group.setAttribute('transform',transforms.join(' '));
+        const outline=mk('path',{d,class:'trace-edge'});
+        const markers=nodes.map(([x,y])=>'M'+x+' '+y+'h0').join('');
+        group.append(outline,mk('path',{d:markers,class:'trace-nodes'}));
+        drawing.append(group); groups.push({outline,nodes}); total+=nodes.length;
+      }
+      comparison.replaceChildren(drawing);
+      $('compare-count').textContent=total.toLocaleString()+' total points';
+      scheduleCount();
+    };
+    ws.addEventListener('st:viewport',scheduleCount);
+    ws.addEventListener('st:result',drawComparison);
+    ws.addEventListener('st:edited',drawComparison);
+    ws.addEventListener('st:reset',() => {
+      groups=[]; total=0; comparison.replaceChildren(); $('compare-count').textContent='Awaiting trace';
+    });
+  }
   ws.addEventListener('st:result', (e) => {
     srcText = e.detail.text; origUrl = e.detail.original || ''; openBtn.hidden = false;
     if (reviewEntry) reviewEntry.hidden = false;
