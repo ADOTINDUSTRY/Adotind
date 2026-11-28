@@ -87,21 +87,38 @@ $knownProjects = require __DIR__ . '/../../data/quote-projects.php';
 
     <section class="quote-card quote-start" hidden>
       <h2 tabindex="-1">What would you like to make?</h2>
+      <p class="project-intro">Choose a starting point and we’ll guide you through the next steps.</p>
       <div class="quote-form project-picker">
         <label for="project-search">Find a project</label>
-        <input id="project-search" type="search" placeholder="Search projects, e.g. neon sign" autocomplete="off" />
-        <div class="project-options">
-          <?php $projectCatalog = quote_project_catalog();
+        <div class="project-search-box">
+          <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><circle cx="11" cy="11" r="6.5"/><path d="m16 16 4 4"/></svg>
+          <input id="project-search" type="search" placeholder="Search projects" autocomplete="off" aria-describedby="project-count" />
+          <button type="button" id="project-clear" class="project-clear" aria-label="Clear project search" hidden>Clear</button>
+        </div>
+        <div class="project-list-heading"><h3>Explore projects</h3><p id="project-count" aria-live="polite"></p></div>
+        <div class="project-options" aria-label="Available projects">
+          <?php
+          $projectCatalog = quote_project_catalog();
+          // Local icon paths and labels describe the starting point, not a promise of an automatic price.
+          $projectTypes = [
+            'neon' => ['Sign designer', 'M12 2l1.4 4.2L18 8l-4.6 1.8L12 14l-1.4-4.2L6 8l4.6-1.8L12 2z M5 15l.9 2.1L8 18l-2.1.9L5 21l-.9-2.1L2 18l2.1-.9L5 15z'],
+            'drawing' => ['DXF cutting', 'M4 4h16v16H4z M8 4v16 M4 9h16 M12 13l2 2 3-4'],
+            'picture' => ['Image preview', 'M4 4h16v16H4z M4 16l5-5 4 4 2-2 5 5 M16 8h.01'],
+            'letters3d' => ['Letter designer', 'M4 19 9 5h3l5 14 M6.2 14h8.6 M18 7l2 1v11l-2 1'],
+            'printing' => ['Print designer', 'M6 9V4h12v5 M6 17H4V9h16v8h-2 M6 14h12v6H6z M17 11h.01'],
+            'frames' => ['Frame designer', 'M3 5h18v14H3z M7 9h10v6H7z'],
+            'inquiry' => ['Team review', 'M4 5h16v11H9l-5 4V5z M8 10h8'],
+          ];
           foreach ($projectCatalog as $id => $project): ?>
+          <?php [$projectType, $projectIcon] = $projectTypes[$project['workflow']] ?? ['Explore project', 'M4 4h16v16H4z']; ?>
           <button type="button" data-quote-path="<?= e($id) ?>" data-quote-workflow="<?= e($project['workflow']) ?>" data-keywords="<?= e($project['keywords']) ?>">
-            <strong><?= e($project['name']) ?></strong><span><?= e($project['description']) ?></span>
-            <?php if ($project['workflow'] === 'drawing'): ?><small>DXF cutting configurator</small><?php endif; ?>
-            <?php if ($project['workflow'] === 'inquiry'): ?><small>Request a quote from our team</small><?php endif; ?>
+            <svg class="project-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="<?= e($projectIcon) ?>"/></svg>
+            <div class="project-card-content"><strong><?= e($project['name']) ?></strong><span><?= e($project['description']) ?></span><small><?= e($projectType) ?></small></div>
           </button>
           <?php endforeach; ?>
         </div>
         <p id="project-empty" role="status" <?= $projectCatalog ? 'hidden' : '' ?>>No matching projects. Try another word or use the project guide below.</p>
-        <button type="button" class="project-help" data-quote-path="guide">Help me choose a project</button>
+        <button type="button" class="project-help" data-quote-path="guide"><strong>Not sure where to start?</strong><span>Help me choose a project</span></button>
       </div>
     </section>
     <button type="button" class="quote-back" hidden>&larr; Back</button>

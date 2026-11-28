@@ -196,14 +196,35 @@
     show(trail.pop() || 'start');
   });
   const search = start.querySelector('#project-search');
-  search.addEventListener('input', () => {
-    const terms = search.value.trim().toLowerCase().split(/\s+/);
+  const clearSearch = start.querySelector('#project-clear');
+  const projectCount = start.querySelector('#project-count');
+  const projectEmpty = start.querySelector('#project-empty');
+  // Ignore accents when matching, so common Greek and Latin searches remain forgiving.
+  const searchText = value => value.normalize('NFD').replace(/\p{M}/gu, '').toLocaleLowerCase();
+  function filterProjects() {
+    const query = searchText(search.value.trim());
+    const terms = query ? query.split(/\s+/) : [];
+    let count = 0;
     projects.forEach(button => {
-      const text = (button.textContent + ' ' + button.dataset.keywords).toLowerCase();
+      const text = searchText(button.textContent + ' ' + (button.dataset.keywords || ''));
       button.hidden = !terms.every(term => text.includes(term));
+      if (!button.hidden) count++;
     });
-    start.querySelector('#project-empty').hidden = projects.some(button => !button.hidden);
+    projectEmpty.hidden = count !== 0;
+    if (projectCount) projectCount.textContent = count + ' ' + (count === 1 ? 'project' : 'projects') + (query ? ' found' : ' available');
+    if (clearSearch) clearSearch.hidden = !search.value;
+  }
+  function clearProjectSearch() {
+    search.value = '';
+    filterProjects();
+    search.focus();
+  }
+  search.addEventListener('input', filterProjects);
+  search.addEventListener('keydown', event => {
+    if (event.key === 'Escape' && search.value) { event.preventDefault(); clearProjectSearch(); }
   });
+  clearSearch?.addEventListener('click', clearProjectSearch);
+  filterProjects();
   const answer = workspace.querySelector('#guide-answer');
   const open = workspace.querySelector('#guide-open');
   answer.addEventListener('change', () => {
