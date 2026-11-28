@@ -116,7 +116,7 @@
     threeTimer = setTimeout(async () => {
       try {
         if (!threeInit) {
-          threeInit = import('/public/assets/js/letter3d-renderer.js').then(module => module.createLetter3DRenderer(threeContainer, {
+          threeInit = import(root.dataset.rendererSrc || '/public/assets/js/letter3d-renderer.js').then(module => module.createLetter3DRenderer(threeContainer, {
             onUnavailable: () => { threeUnavailable = true; ++threeGeneration; show2D('3D preview unavailable on this device; showing 2D.'); }
           })).catch(error => { threeUnavailable = true; throw error; });
         }

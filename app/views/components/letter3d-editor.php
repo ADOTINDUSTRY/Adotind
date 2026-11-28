@@ -8,7 +8,7 @@ try {
     $letterProducts = $letterDb->query('SELECT id,name,description,min_width_mm,max_width_mm,min_height_mm,max_height_mm,max_characters,max_quantity FROM quote_letter3d_products WHERE enabled=1 AND reviewed=1 ORDER BY name,id')->fetchAll(PDO::FETCH_ASSOC);
 } catch (Throwable $e) { error_log('3D lettering options unavailable: ' . get_class($e)); }
 ?>
-<section class="letter3d-editor" data-project-panel="letters3d" data-letter3d data-csrf="<?= e(csrf_token()) ?>" aria-labelledby="letter3d-title" hidden>
+<section class="letter3d-editor" data-project-panel="letters3d" data-letter3d data-csrf="<?= e(csrf_token()) ?>" data-renderer-src="/public/assets/js/letter3d-renderer.js?v=<?= e((string)filemtime(__DIR__ . '/../../../public/assets/js/letter3d-renderer.js')) ?>" aria-labelledby="letter3d-title" hidden>
   <header class="letter3d-heading"><div><h2 id="letter3d-title">3D letter designer</h2><p>Create your lettering and see a preliminary estimate.</p></div><button type="button" data-letter-reset>Start over</button></header>
   <div class="letter3d-layout">
     <div class="letter3d-stage">
