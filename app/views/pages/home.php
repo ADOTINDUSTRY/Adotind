@@ -22,7 +22,10 @@ $featuredMedia = $page['featured_media'] ?? [];
         <img src="<?= e($heroMedia[0]['url']) ?>" alt="<?= e((string)($heroMedia[0]['title'] ?? 'Project image')) ?>" loading="lazy" />
       </div>
     <?php else: ?>
-      <?= placeholder_html('factory', 'Project Gallery Pending', 'Project photos will appear here soon.') ?>
+      <figure class="hero-media-card home-concept">
+        <img src="/public/assets/images/home-signage-concept.webp" alt="Illustration of illuminated acrylic signage" width="1672" height="941" fetchpriority="high" />
+        <figcaption>Illustrative concept</figcaption>
+      </figure>
     <?php endif; ?>
   </div>
 </section>
@@ -35,6 +38,10 @@ $featuredMedia = $page['featured_media'] ?? [];
       through controlled workflows across design, cutting, shaping, assembly,
       printing and finishing.
     </p>
+    <figure class="home-manufacturing-concept">
+      <img src="/public/assets/images/home-manufacturing-concept.webp" alt="Illustration of precision-cut acrylic and metal components" width="1672" height="941" loading="lazy" />
+      <figcaption>Illustrative concept</figcaption>
+    </figure>
     <div class="cap-grid">
       <article data-tracking-section="sign-manufacturing">
         <h3>Sign Manufacturing</h3>

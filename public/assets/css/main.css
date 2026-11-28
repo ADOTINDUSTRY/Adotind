@@ -507,6 +507,21 @@ img {
   display: block;
 }
 
+.home-concept { margin: 0; }
+.home-concept figcaption, .home-manufacturing-concept figcaption {
+  margin-top: .5rem;
+  font-size: .75rem;
+  opacity: .75;
+}
+.home-manufacturing-concept { margin: 1.5rem 0; }
+.home-manufacturing-concept img {
+  display: block;
+  width: 100%;
+  max-height: 280px;
+  object-fit: cover;
+  border: 1px solid rgba(11, 18, 38, .1);
+}
+
 .eyebrow {
   display: inline-flex;
   align-items: center;
