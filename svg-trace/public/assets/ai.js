@@ -19,13 +19,17 @@
   let options, proposal, flight;
   const apply = $('trace-ai-apply'), generate = $('trace-ai-generate'), status = $('trace-ai-status');
   const prompt = $('trace-ai-instruction');
+  const checkpoint = () => $('ws').dispatchEvent(new Event('st:ai-draft'));
   const clearProposal = () => {
     proposal = null;
     apply.disabled = true;
     $('trace-ai-after').replaceChildren();
   };
-  dialog.addEventListener('close', () => { flight?.abort(); flight = null; options = null; });
-  prompt.addEventListener('input', () => { clearProposal(); status.textContent = ''; });
+  dialog.addEventListener('close', () => {
+    if (dialog.open) return;
+    flight?.abort(); flight = null; options = null; checkpoint();
+  });
+  prompt.addEventListener('input', () => { clearProposal(); status.textContent = ''; checkpoint(); });
   generate.addEventListener('click', async () => {
     if (!options || generate.disabled) return;
     const current = options;
@@ -34,6 +38,7 @@
     generate.disabled = prompt.disabled = true;
     clearProposal();
     status.textContent = 'Drawing a preview…';
+    checkpoint();
     try {
       const response = await fetch('/online-quote/svg-trace/ai', {
         method: 'POST', signal: controller.signal, credentials: 'same-origin',
@@ -50,7 +55,7 @@
     } catch (error) {
       if (!controller.signal.aborted) status.textContent = error.message;
     } finally {
-      if (flight === controller) { generate.disabled = prompt.disabled = false; flight = null; }
+      if (flight === controller) { generate.disabled = prompt.disabled = false; flight = null; checkpoint(); }
     }
   });
   apply.addEventListener('click', () => {
@@ -59,7 +64,7 @@
     dialog.close();
     use(paths);
   });
-  function review(opts) {
+  function review(opts, saved) {
     options = opts;
     clearProposal();
     generate.disabled = prompt.disabled = false;
@@ -69,7 +74,16 @@
     status.textContent = '';
     dialog.showModal();
     generate.focus();
-    generate.click();
+    if (saved) {
+      prompt.value = saved.instruction ?? prompt.value;
+      if (Array.isArray(saved.paths) && saved.paths.length) {
+        proposal = saved.paths;
+        $('trace-ai-after').replaceChildren(vector(proposal, opts.box));
+        apply.disabled = false;
+      }
+      status.textContent = saved.interrupted ? 'The request was interrupted. Generate a preview to try again.' : saved.message || '';
+      checkpoint();
+    } else generate.click();
   }
   async function referenceImage(src, maxSide) {
     const img = new Image();
@@ -96,7 +110,7 @@
     const jpeg = canvas.toDataURL('image/jpeg', .9);
     return { w, h, jpeg, width:canvas.width, height:canvas.height };
   }
-  async function traceImage(file, accept) {
+  async function traceImage(file, accept, saved = null) {
     const url = URL.createObjectURL(file);
     try {
       const {w,h,jpeg,width,height} = await referenceImage(url,960);
@@ -107,8 +121,11 @@
           const svg = vector(paths, box);
           svg.setAttribute('width', w); svg.setAttribute('height', h);
           accept(new XMLSerializer().serializeToString(svg), w, h);
-        } });
+        } }, saved);
     } finally { URL.revokeObjectURL(url); }
   }
-  window.svgTraceAI = { traceImage, thumbnail: async src => (await referenceImage(src, 384)).jpeg.split(',')[1] };
+  function snapshot() {
+    return dialog.open && options ? {instruction:prompt.value, paths:proposal, interrupted:!!flight, message:status.textContent} : null;
+  }
+  window.svgTraceAI = { traceImage, snapshot, thumbnail: async src => (await referenceImage(src, 384)).jpeg.split(',')[1] };
 })();

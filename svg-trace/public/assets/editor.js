@@ -189,6 +189,28 @@
   let sel = -1;            // selected path index
   let node = null;         // { si, ni }
   let seg = null;          // { si, k }
+  let boxMode = false, boxPoints = [], boxNotice = '';
+  function clearBoxSelection() {
+    boxMode = false;
+    boxPoints = [];
+    boxNotice = '';
+  }
+  // These values are also used by history and the tab's saved editing session.
+  const captureBoxSelection = () => ({boxMode, points:boxPoints.map(p => ({...p}))});
+  function restoreBoxSelection(state) {
+    clearBoxSelection();
+    if (!state?.boxMode) return;
+    boxMode = true;
+    const seen = new Set();
+    for (const p of Array.isArray(state.points) ? state.points : []) {
+      if (!p || ![p.pi,p.si,p.ni].every(Number.isInteger)) continue;
+      const path = paths[p.pi], key = p.pi + ':' + p.si + ':' + p.ni;
+      if (!seen.has(key) && path?.editable && !path.removed && path.subs[p.si]?.nodes[p.ni]) {
+        boxPoints.push({pi:p.pi,si:p.si,ni:p.ni});
+        seen.add(key);
+      }
+    }
+  }
   let undo = [], redo = [];
   let changed = false;
   const gImg = mk('g'), gPaths = mk('g'), gOver = mk('g', { class: 'ed-over' });
@@ -211,7 +233,7 @@
   };
   const snapshot = (indexes) => ({
     items: indexes.map(pi => ({pi, subs:structuredClone(paths[pi].subs), removed:paths[pi].removed, dirty:paths[pi].dirty})),
-    sel, node: node && {...node}, seg: seg && {...seg},
+    sel, node: node && {...node}, seg: seg && {...seg}, box:captureBoxSelection(),
   });
   const remember = (pi, reviewEdit = false) => {
     if (!reviewEdit) pointReview?.invalidate();
@@ -229,19 +251,43 @@
   };
 
   // ---------- drawing ----------
+  function drawBoxPoints(unit) {
+    const r = 2.8 * unit, anchorPaths = [];
+    paths.forEach(path => {
+      if (!path.editable || path.removed) return;
+      path.subs.forEach(sp => sp.nodes.forEach(([x,y]) =>
+        anchorPaths.push('M' + (x-r) + ' ' + (y-r) + 'h' + (2*r) + 'v' + (2*r) + 'h' + (-2*r) + 'z')));
+    });
+    gOver.append(mk('path',{d:anchorPaths.join(''),class:'ed-box-anchors'}));
+    for (const {pi,si,ni} of boxPoints) {
+      const [x,y] = paths[pi].subs[si].nodes[ni];
+      gOver.append(mk('rect',{x:x-1.4*r,y:y-1.4*r,width:2.8*r,height:2.8*r,class:'ed-box-selected'}));
+    }
+  }
   const draw = () => {
     gOver.replaceChildren();
     let total = 0;
     paths.forEach((P) => { if (P.editable && !P.removed) P.subs.forEach((s) => { total += s.nodes.length; }); });
     const P = paths[sel];
-    const active = P?.editable && !P.removed;
+    const active = !boxMode && P?.editable && !P.removed;
+    $('ed-box-select').setAttribute('aria-pressed', String(boxMode));
+    svg.classList.toggle('box-selecting',boxMode);
     $('ed-undo').disabled = !undo.length; $('ed-redo').disabled = !redo.length;
     $('ed-add').disabled = !active || !seg;
-    $('ed-delete').disabled = !active || !node || P.subs[node.si].nodes.length <= 2;
+    $('ed-delete').disabled = boxMode ? !boxPoints.length : !active || !node || P.subs[node.si].nodes.length <= 2;
+    $('ed-delete').textContent = boxMode ? 'Delete points' : 'Delete point';
     $('ed-delete-shape').disabled = $('ed-fit-shape').disabled = !active;
     $('ed-straight').disabled = $('ed-curve').disabled = !active || !(node || seg);
     $('ed-smooth').disabled = !active || !node || around(P.subs[node.si], node.ni).includes(-1);
     pointReview?.renderCanvas();
+    if (boxMode) {
+      drawBoxPoints(pxUnit());
+      const count = boxPoints.length;
+      info.textContent = (boxNotice ? boxNotice + ' ' : '') + (count
+        ? count + (count === 1 ? ' point selected.' : ' points selected.') + ' Shift-drag to add points.'
+        : 'Drag a box around the points you want to select.');
+      return;
+    }
     if (!P || P.removed) {
       info.textContent = `${total.toLocaleString()} points. Click a shape to edit it.`;
       return;
@@ -283,7 +329,7 @@
   };
 
   // ---------- open / close ----------
-  const open = () => {
+  const open = (saved) => {
     if (!srcText) return;
     doc = new DOMParser().parseFromString(srcText, 'image/svg+xml');
     if (doc.querySelector('parsererror')) { alert('This SVG could not be opened in the editor.'); return; }
@@ -316,13 +362,15 @@
       return { el, view, subs, editable, translated: !!m, removed: false, dirty: false };
     });
     sel = -1; node = seg = null; undo = []; redo = []; changed = false;
+    clearBoxSelection();
     gImg.style.display = showOrig.checked ? '' : 'none';
     ed.hidden = false;
     document.body.classList.add('ed-open');
     ws.inert = true;
     svg.focus();
     pointReview?.open();
-    requestAnimationFrame(fit);
+    if (!restoreEditorDraft(saved)) fit();
+    scheduleEditorDraft();
   };
   const result = () => {
     const copy = doc.cloneNode(true);
@@ -341,9 +389,82 @@
       pointReview?.close();
       ed.hidden = true; ws.inert = false; $('ed-keys').open = false;
       document.body.classList.remove('ed-open'); openBtn.focus();
+      scheduleEditorDraft();
     }
   };
 
+  // The source SVG is stored with the workspace. Keep only changed paths here,
+  // and attach them to that precise source so Cancel still recovers the original.
+  let stampedText, stamp, queuedDraft = false;
+  function sourceStamp() {
+    if (stampedText !== srcText) {
+      let hash = 2166136261;
+      for (let i=0; i<srcText.length; i++) hash = Math.imul(hash ^ srcText.charCodeAt(i), 16777619);
+      stamp = srcText.length + ':' + (hash >>> 0);
+      stampedText = srcText;
+    }
+    return stamp;
+  }
+  function editorDraft() {
+    if (ed.hidden || !doc || !srcText) return null;
+    const edits = [];
+    paths.forEach((path, pi) => {
+      if (path.dirty || path.removed) edits.push({ pi, subs:path.subs, removed:path.removed });
+    });
+    return {version:1, base:sourceStamp(), edits, undo, redo, view, sel, node, seg,
+      showOriginal:showOrig.checked, keysOpen:$('ed-keys').open, box:captureBoxSelection(),
+      review:pointReview?.captureDraft()};
+  }
+  function scheduleEditorDraft() {
+    if (queuedDraft || !window.svgTraceDraft?.editorChanged) return;
+    queuedDraft = true;
+    setTimeout(() => {
+      queuedDraft = false;
+      window.svgTraceDraft.editorChanged(editorDraft());
+    }, 0);
+  }
+  function restoreEditorDraft(saved) {
+    if (saved?.version !== 1 || saved.base !== sourceStamp() || !Array.isArray(saved.edits)) return false;
+    for (const edit of saved.edits) {
+      if (!paths[edit.pi]?.editable || !Array.isArray(edit.subs)) return false;
+    }
+    for (const edit of saved.edits) {
+      const path = paths[edit.pi];
+      path.subs = edit.subs; path.removed = !!edit.removed;
+      refresh(edit.pi);
+    }
+    changed = saved.edits.length > 0;
+    const history = entries => Array.isArray(entries) ? entries.filter(entry =>
+      Array.isArray(entry?.items) && entry.items.every(item => paths[item.pi]?.editable && Array.isArray(item.subs))).slice(-300) : [];
+    undo = history(saved.undo); redo = history(saved.redo);
+    sel = paths[saved.sel]?.editable && !paths[saved.sel].removed ? saved.sel : -1;
+    const subs = paths[sel]?.subs;
+    node = subs?.[saved.node?.si]?.nodes[saved.node?.ni] ? saved.node : null;
+    seg = !node && subs?.[saved.seg?.si]?.segs[saved.seg?.k] ? saved.seg : null;
+    restoreBoxSelection(saved.box);
+    showOrig.checked = saved.showOriginal !== false;
+    gImg.style.display = showOrig.checked ? '' : 'none';
+    $('ed-keys').open = !!saved.keysOpen;
+    pointReview?.restoreDraft(saved.review);
+    if (Array.isArray(saved.view) && saved.view.length === 4 && saved.view.every(Number.isFinite) && saved.view[2] > 0 && saved.view[3] > 0) {
+      view = saved.view.slice();
+      setView();
+    } else fit();
+    return true;
+  }
+  window.svgTraceEditorSnapshot = editorDraft;
+  window.svgTraceEditorCheckpointPending = () => !!(queuedDraft || wheelTimer || act?.saved || act?.moved);
+  ws.addEventListener('st:restore-editor', e => { if (e.detail) open(e.detail); });
+  // Store finished gestures. A pagehide snapshot also covers reload during a drag.
+  for (const event of ['click','change','input','pointerup','pointercancel','toggle']) {
+    ed.addEventListener(event,scheduleEditorDraft,true);
+  }
+  document.addEventListener('keydown', () => { if (!ed.hidden) scheduleEditorDraft(); });
+  let wheelTimer;
+  svg.addEventListener('wheel', () => {
+    clearTimeout(wheelTimer);
+    wheelTimer = setTimeout(() => { wheelTimer = null; scheduleEditorDraft(); },120);
+  }, {passive:true});
   const reviewEntry = $('review-traced-points');
   ws.addEventListener('st:result', (e) => {
     srcText = e.detail.text; origUrl = e.detail.original || ''; openBtn.hidden = false;
@@ -451,7 +572,73 @@
     if (B.t === 'C') B.c1 = add(p, mul(d, len(sub(B.c1, p)) || len(sub(next, p)) / 3));
     refresh(sel); draw();
   };
+  // Join a run of removed anchors once using its original end tangents.
+  // Adjacent surviving anchors retain their original curve/arc data exactly.
+  function removeAnchors(sp, indices) {
+    const n = sp.nodes.length, kept = [];
+    for (let i = 0; i < n; i++) if (!indices.has(i)) kept.push(i);
+    const newSegments = [];
+    for (let k = 0; k < kept.length - (sp.closed ? 0 : 1); k++) {
+      const a = kept[k], b = kept[(k+1) % kept.length];
+      if ((a+1)%n === b) { newSegments.push(sp.segs[a]); continue; }
+      let length = 0, allStraight = true;
+      for (let i = a; i !== b; i = (i+1)%n) {
+        length += len(sub(sp.nodes[(i+1)%n], sp.nodes[i]));
+        if (sp.segs[i].t !== 'L') allStraight = false;
+      }
+      if (allStraight) { newSegments.push({t:'L'}); continue; }
+      const last = (b+n-1)%n, A = sp.nodes[a], B = sp.nodes[b];
+      const distance = Math.min(length/3, len(sub(B,A)) * .75);
+      newSegments.push({t:'C',
+        c1:add(A, mul(tangentAt(A,sp.segs[a],sp.nodes[(a+1)%n],0), distance)),
+        c2:sub(B, mul(tangentAt(sp.nodes[last],sp.segs[last],B,1), distance)),
+      });
+    }
+    sp.nodes = kept.map(i => sp.nodes[i]);
+    sp.segs = newSegments;
+  }
+  function deleteBoxPoints() {
+    if (!boxPoints.length) return;
+    const contours = new Map();
+    for (const p of boxPoints) {
+      const sp = paths[p.pi].subs[p.si];
+      if (!contours.has(sp)) contours.set(sp, {sp,pi:p.pi,points:[]});
+      contours.get(sp).points.push(p);
+    }
+    const edits = [], protectedContours = [], deletedContours = new Set();
+    for (const item of contours.values()) {
+      const remaining = item.sp.nodes.length - item.points.length;
+      if (remaining === 0) deletedContours.add(item.sp);
+      else if (remaining < (item.sp.closed ? 3 : 2)) {
+        protectedContours.push(item);
+        continue;
+      }
+      edits.push(item);
+    }
+    const changedPaths = [...new Set(edits.map(edit => edit.pi))];
+    if (changedPaths.length) {
+      remember(changedPaths);
+      for (const {sp,points} of edits) {
+        if (!deletedContours.has(sp)) removeAnchors(sp,new Set(points.map(p=>p.ni)));
+      }
+      for (const pi of changedPaths) {
+        if (deletedContours.size) paths[pi].subs = paths[pi].subs.filter(sp => !deletedContours.has(sp));
+        refresh(pi);
+      }
+    }
+    // Removing a sibling subpath can shift the index of a protected contour.
+    const protectedPoints = protectedContours.flatMap(({pi,sp,points}) => {
+      const si = paths[pi].subs.indexOf(sp);
+      return points.map(p => ({...p,si}));
+    });
+    const removed = boxPoints.length-protectedPoints.length;
+    boxPoints = protectedPoints;
+    boxNotice = removed ? 'Deleted ' + removed + (removed === 1 ? ' point.' : ' points.') : '';
+    if (protectedPoints.length) boxNotice += ' Select the whole contour to remove it, or leave at least 3 points on a closed contour and 2 on an open line.';
+    draw();
+  }
   const del = (wholeShape = false) => {
+    if (boxMode) { if (!wholeShape) deleteBoxPoints(); return; }
     const P = cur();
     if (!P || (!wholeShape && (!node || P.subs[node.si].nodes.length <= 2))) return;
     const pi = sel;
@@ -492,6 +679,7 @@
       P.dirty = item.dirty;
     }
     sel = u.sel; node = u.node; seg = u.seg;
+    restoreBoxSelection(u.box);
     changed = paths.some(path => path.dirty);
     draw();
   };
@@ -505,17 +693,19 @@
 
   if ($('ed-refine-panel') && window.createTracePointReview) {
     pointReview = window.createTracePointReview({
-      overlay: reviewOverlay, make: mk, pathData: toD, unit: pxUnit,
+      overlay: reviewOverlay, make: mk, pathData: toD, unit: pxUnit, checkpoint:scheduleEditorDraft,
       drawing: () => ({paths, vb, original:origUrl}),
       selection: () => ({pi:sel, si:node?.si ?? seg?.si ?? (paths[sel]?.subs.length === 1 ? 0 : -1),
         focus:node ? {type:'node', index:node.ni} : seg ? {type:'segment', index:seg.k} : null}),
       selectTarget(pi, si, index, segment) {
+        clearBoxSelection();
         sel = pi; node = segment ? null : {si,ni:index}; seg = segment ? {si,k:index,t:.5} : null;
         draw();
       },
       commit(updates) {
         const indexes = [...new Set(updates.map(update => update.pi))];
         remember(indexes, true);
+        clearBoxSelection();
         for (const {pi, si, contour} of updates) paths[pi].subs[si] = contour;
         indexes.forEach(refresh);
         node = seg = null;
@@ -550,10 +740,56 @@
 
   // ---------- pointer ----------
   let act = null;
+  function toggleBoxMode() {
+    const enable = !boxMode;
+    if (enable) pointReview?.invalidate();
+    clearBoxSelection();
+    boxMode = enable;
+    node = seg = null;
+    sel = -1;
+    svg.focus({preventScroll:true});
+    draw();
+  }
+  $('ed-box-select').addEventListener('click', toggleBoxMode);
+  function finishBox(end, event) {
+    const start = act.q;
+    const moved = Math.hypot(event.clientX-act.x,event.clientY-act.y) >= 3;
+    const left = Math.min(start[0],end[0]), right = Math.max(start[0],end[0]);
+    const top = Math.min(start[1],end[1]), bottom = Math.max(start[1],end[1]);
+    const hits = [];
+    let nearestPoint = null, nearestDistance = 8 * pxUnit();
+    paths.forEach((path,pi) => {
+      if (!path.editable || path.removed) return;
+      path.subs.forEach((sp,si) => sp.nodes.forEach(([x,y],ni) => {
+        if (moved) {
+          if (left <= x && x <= right && top <= y && y <= bottom) hits.push({pi,si,ni});
+        } else {
+          const distance = Math.hypot(x-end[0],y-end[1]);
+          if (distance <= nearestDistance) { nearestDistance = distance; nearestPoint = {pi,si,ni}; }
+        }
+      }));
+    });
+    if (nearestPoint) hits.push(nearestPoint);
+    if (act.additive) {
+      const key = p => p.pi + ':' + p.si + ':' + p.ni;
+      const seen = new Set(boxPoints.map(key));
+      boxPoints = boxPoints.concat(hits.filter(p => !seen.has(key(p))));
+    } else {
+      boxPoints = hits;
+    }
+    boxNotice = '';
+  }
   svg.addEventListener('pointerdown', (e) => {
-    if (e.button !== 0 && e.button !== 1) return;
+    if (act || (e.button !== 0 && e.button !== 1)) return;
     const t = e.target, q = toSvg(e);
     try { svg.setPointerCapture(e.pointerId); } catch (_) { /* pointer already gone */ }
+    if (boxMode && e.button === 0) {
+      svg.focus({preventScroll:true});
+      const marquee = mk('rect',{x:q[0],y:q[1],width:0,height:0,class:'ed-marquee'});
+      svg.append(marquee);
+      act = {type:'box',id:e.pointerId,q,x:e.clientX,y:e.clientY,additive:e.shiftKey,marquee};
+      return;
+    }
     const P = cur();
     if (P && e.button === 0 && t.dataset.ni !== undefined) {
       node = { si: +t.dataset.si, ni: +t.dataset.ni }; seg = null;
@@ -580,6 +816,15 @@
   });
   svg.addEventListener('pointermove', (e) => {
     if (!act) return;
+    if (act.type === 'box') {
+      if (e.pointerId !== act.id) return;
+      const [x,y] = toSvg(e), [startX,startY] = act.q;
+      act.marquee.setAttribute('x',Math.min(x,startX));
+      act.marquee.setAttribute('y',Math.min(y,startY));
+      act.marquee.setAttribute('width',Math.abs(x-startX));
+      act.marquee.setAttribute('height',Math.abs(y-startY));
+      return;
+    }
     const P = cur();
     if (act.type === 'pan') {
       const dx = e.clientX - act.x, dy = e.clientY - act.y;
@@ -613,8 +858,16 @@
   });
   const up = (e) => {
     if (!act) return;
+    if (act.type === 'box') {
+      if (e.pointerId !== act.id) return;
+      act.marquee.remove();
+      if (e.type === 'pointerup') finishBox(toSvg(e),e);
+      act = null;
+      draw();
+      return;
+    }
     svg.classList.remove('grab');
-    if (act.type === 'pan' && !act.moved) {
+    if (act.type === 'pan' && !act.moved && !boxMode) {
       const pi = act.target.dataset ? act.target.dataset.pi : undefined;
       const P = cur();
       const hit = P ? nearest(P, act.q) : null;
@@ -628,6 +881,7 @@
   };
   svg.addEventListener('pointerup', up);
   svg.addEventListener('pointercancel', up);
+  svg.addEventListener('lostpointercapture', e => { if (act?.type === 'box') up(e); });
   const insertPoint = (hit) => {
     const P = cur();
     if (!P || !hit) return;
@@ -640,6 +894,7 @@
   };
   $('ed-add').addEventListener('click', () => insertPoint(seg));
   svg.addEventListener('dblclick', (e) => {
+    if (boxMode) return;
     const hit = cur() && nearest(cur(), toSvg(e));
     if (hit && hit.d <= 8 * pxUnit()) insertPoint(hit);
   });
@@ -665,13 +920,14 @@
     if (e.target.matches?.('input:not([type=checkbox]), textarea, select, [contenteditable=true]')) return;
     const key = e.key.toLowerCase(), mod = e.ctrlKey || e.metaKey;
     const command = mod ? (key === 'z' ? (e.shiftKey ? 'redo' : 'undo') : key === 'y' ? 'redo' : null)
-      : ({s:'smooth', c:'curve', l:'straight', i:'add', f:'fit-shape', '0':'fit',
+      : ({b:'box-select', s:'smooth', c:'curve', l:'straight', i:'add', f:'fit-shape', '0':'fit',
           delete:e.shiftKey ? 'delete-shape' : 'delete', backspace:'delete'})[key];
     if (command) { e.preventDefault(); if (!e.repeat) $('ed-' + command).click(); return; }
     if (mod) return;
     if (key === '?') { e.preventDefault(); $('ed-keys').open = !$('ed-keys').open; return; }
     if (key === 'escape') {
       if ($('ed-keys').open) $('ed-keys').open = false;
+      else if (boxMode) clearBoxSelection();
       else if (node || seg) node = seg = null;
       else sel = -1;
       draw(); return;

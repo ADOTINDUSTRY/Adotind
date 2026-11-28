@@ -25,6 +25,17 @@
   let pollTimer = null, autoTimer = null;
   let svgUrl = '', wireUrl = '', sourceUrl = '';
   let revision = 0;
+  let vectorData = null, restoring = false, resumeTrace = false;
+  let settingsTimer, lastSettings = '';
+  const draft = convertUrl && window.createSvgTraceTabDraft?.(() => {
+    if (document.getElementById('draft-warning')) return;
+    const warning = document.createElement('p');
+    warning.id = 'draft-warning'; warning.className = 'ws-status err'; warning.setAttribute('role','status');
+    warning.textContent = 'This browser could not save the tab draft. Download your SVG before leaving.';
+    statusEl.after(warning);
+  });
+  const save = patch => { if (draft && !restoring) draft.set(patch); };
+  if (draft) window.svgTraceDraft = {editorChanged: snapshot => save({editor:snapshot})};
   const release = (url) => { if (url.startsWith('blob:')) URL.revokeObjectURL(url); };
   const clearVector = () => {
     release(svgUrl); release(wireUrl);
@@ -42,7 +53,7 @@
   const fmtBytes = (n) => n < 1024 ? n + ' B' : n < 1048576 ? (n / 1024).toFixed(1) + ' KB' : (n / 1048576).toFixed(2) + ' MB';
   const refreshGo = () => { go.disabled = busy || (!pendingFile && !sourceFileId); };
   const aiTrace = $('ai-trace');
-  aiTrace?.addEventListener('click', async () => {
+  async function openAiTrace(saved) {
     const file = pendingFile;
     if (!file) return;
     try {
@@ -54,9 +65,10 @@
         const url = URL.createObjectURL(blob);
         render({status:'completed', duration_ms:0, input:{width,height}, output:{text,view_url:url,download_url:url,name:'ai-traced.svg',size_bytes:blob.size}});
         setStatus('AI drawing applied. Open Edit points to adjust its curves.', 'ok');
-      });
+      }, saved);
     } catch (error) { setStatus(error.message || 'Could not open this image for AI tracing.', 'err'); }
-  });
+  }
+  aiTrace?.addEventListener('click', () => openAiTrace());
 
   // ---- settings ----
   const fields = () => ws.querySelectorAll('input[name][type="range"], input[name][type="radio"]');
@@ -81,7 +93,9 @@
     ws.querySelectorAll('[data-only]').forEach((el) => { el.hidden = !show[el.dataset.only]; });
   };
   const scheduleAuto = () => {
-    if (convertUrl) { revision++; clearVector(); }
+    if (convertUrl) revision++;
+    resumeTrace = !!pendingFile && auto.checked;
+    saveSettings();
     if (!auto.checked || !(sourceFileId || pendingFile)) return;
     clearTimeout(autoTimer);
     autoTimer = setTimeout(convert, 650);
@@ -96,7 +110,7 @@
     const ext = extOf(file.name);
     if (exts.length && !exts.includes(ext)) { setStatus('This file type is not supported. You can upload: ' + ws.dataset.labels + '.', 'err'); return; }
     if (maxBytes && file.size > maxBytes) { setStatus('This file is too large (' + fmtSize(file.size) + '). The maximum is ' + fmtSize(maxBytes) + '.', 'err'); return; }
-    pendingFile = file;
+    pendingFile = file; vectorData = null;
     if (aiTrace) aiTrace.disabled = false;
     revision++;
     sourceFileId = null;
@@ -110,9 +124,24 @@
     zoom.fit();
     setStatus(auto.checked ? 'Uploading…' : 'Ready. Choose a style and press Convert.');
     refreshGo();
+    if (draft) {
+      resumeTrace = auto.checked;
+      const settings = currentSettings();
+      lastSettings = JSON.stringify(settings);
+      save({source:{id:crypto.randomUUID(),name:file.name,file}, vector:null, editor:null, ai:null, settings});
+    }
     if (auto.checked) convert();
   };
   fileInput.addEventListener('change', () => choose(fileInput.files[0]));
+  function keepCurrentDrawing() {
+    // Work on the visible SVG when an automatic re-trace is still pending.
+    // Its late response must not replace the drawing under an active editor.
+    if (!draft || !resumeTrace || !vectorData) return;
+    revision++; again = false; clearTimeout(autoTimer);
+    resumeTrace = false; saveSettings();
+  }
+  $('edit').addEventListener('click', keepCurrentDrawing);
+  $('review-traced-points')?.addEventListener('click', keepCurrentDrawing);
   ['dragenter', 'dragover'].forEach((ev) => drop.addEventListener(ev, (e) => { e.preventDefault(); drop.classList.add('over'); }));
   ['dragleave', 'drop'].forEach((ev) => drop.addEventListener(ev, (e) => { e.preventDefault(); drop.classList.remove('over'); }));
   drop.addEventListener('drop', (e) => choose(e.dataTransfer.files[0]));
@@ -122,8 +151,11 @@
     ws.querySelectorAll('.ws-tabs button').forEach((x) => x.classList.toggle('on', x === b));
     canvas.className = 'ws-canvas ' + b.dataset.show;
     zoom.layout();
+    saveSettings();
   }));
-  $('swipe').addEventListener('input', (e) => canvas.style.setProperty('--swipe', e.target.value + '%'));
+  $('swipe').addEventListener('input', (e) => {
+    canvas.style.setProperty('--swipe', e.target.value + '%'); saveSettings();
+  });
   canvas.style.setProperty('--swipe', '50%');
 
   // ---- zoom / pan (shared by both panes so they stay aligned) ----
@@ -155,6 +187,7 @@
       const left = cx - (cx - b.left) * k, top = cy - (cy - b.top) * k;
       z = nz; ox = left - (vp.clientWidth - W2) / 2; oy = top - (vp.clientHeight - H2) / 2;
       layout();
+      queueSettings();
     };
     vps.forEach((vp) => {
       vp.addEventListener('wheel', (e) => {
@@ -165,7 +198,7 @@
       let drag = null;
       vp.addEventListener('pointerdown', (e) => { drag = { x: e.clientX - ox, y: e.clientY - oy }; vp.setPointerCapture(e.pointerId); vp.classList.add('grab'); });
       vp.addEventListener('pointermove', (e) => { if (!drag) return; ox = e.clientX - drag.x; oy = e.clientY - drag.y; layout(); });
-      const end = () => { drag = null; vp.classList.remove('grab'); };
+      const end = () => { if (drag) saveSettings(); drag = null; vp.classList.remove('grab'); };
       vp.addEventListener('pointerup', end);
       vp.addEventListener('pointercancel', end);
       vp.addEventListener('dblclick', (e) => { const r = vp.getBoundingClientRect(); at(vp, 2, e.clientX - r.left, e.clientY - r.top); });
@@ -176,12 +209,19 @@
       const a = b.dataset.zoom;
       if (a === 'in') at(vp, 1.5, ...c);
       else if (a === 'out') at(vp, 1 / 1.5, ...c);
-      else if (a === 'fit') { z = 1; ox = oy = 0; layout(); }
+      else if (a === 'fit') { z = 1; ox = oy = 0; layout(); saveSettings(); }
       else { const k = 1 / (fitScale(vp) * z); at(vp, k, ...c); }
     }));
     [imgO, imgV].forEach((img) => img.addEventListener('load', layout));
     window.addEventListener('resize', layout);
-    return { layout, fit: () => { z = 1; ox = oy = 0; layout(); } };
+    return { layout, fit: () => { z = 1; ox = oy = 0; layout(); },
+      snapshot: () => ({z,ox,oy}),
+      restore: state => {
+        if (state && [state.z,state.ox,state.oy].every(Number.isFinite) && state.z>=.2 && state.z<=64) {
+          ({z,ox,oy} = state); layout();
+        }
+      }
+    };
   })();
 
   // ---- "lines only" view: every shape drawn as a thin outline ----
@@ -204,7 +244,13 @@
       return URL.createObjectURL(new Blob([new XMLSerializer().serializeToString(doc)], { type: 'image/svg+xml' }));
     } catch (_) { return ''; }
   };
-  wire.addEventListener('change', showVector);
+  wire.addEventListener('change', () => { showVector(); saveSettings(); });
+  auto.addEventListener('change', () => {
+    if (!auto.checked) { clearTimeout(autoTimer); resumeTrace = busy; }
+    saveSettings();
+  });
+  ws.querySelector('.adv')?.addEventListener('toggle', saveSettings);
+  ws.addEventListener('st:ai-draft', () => save({ai:window.svgTraceAI?.snapshot?.() ?? null}));
 
   // ---- edited in the point editor ----
   ws.addEventListener('st:edited', (e) => {
@@ -215,6 +261,10 @@
     svgUrl = editUrl;
     dl.href = editUrl;
     dl.setAttribute('download', 'traced-edited.svg');
+    if (draft) {
+      vectorData = {...vectorData, id:crypto.randomUUID(), name:'traced-edited.svg', text:e.detail.text};
+      save({vector:vectorData,editor:null});
+    }
     showVector();
     setStatus('Your edits are applied. Download SVG now saves the edited version.', 'ok');
   });
@@ -234,6 +284,7 @@
     else return;
 
     busy = true; again = false; refreshGo();
+    resumeTrace = true; saveSettings();
     const submittedRevision = revision;
     figV.classList.add('updating');
     setStatus(pendingFile ? 'Uploading…' : 'Starting…');
@@ -256,7 +307,9 @@
       sourceFileId = data.job.input.file_id;
       track(data.job);
     } catch (err) {
-      if (!convertUrl || submittedRevision === revision) setStatus(err.message, 'err');
+      if (!convertUrl || submittedRevision === revision) {
+        setStatus(err.message, 'err'); resumeTrace = false; saveSettings();
+      }
       finish();
     }
   };
@@ -335,7 +388,14 @@
       try {
         const text = job.output.text || await (await fetch(job.output.view_url, { credentials: 'same-origin' })).text();
         wireUrl = makeWire(text);
-        ws.dispatchEvent(new CustomEvent('st:result', { detail: { text, original: imgO.currentSrc || imgO.src } }));
+        if (draft && !restoring) {
+          resumeTrace = false;
+          vectorData = {id:crypto.randomUUID(),text,width:job.input.width,height:job.input.height,name:job.output.name};
+          const settings = currentSettings();
+          lastSettings = JSON.stringify(settings);
+          save({vector:vectorData,editor:null,settings});
+        }
+        ws.dispatchEvent(new CustomEvent('st:result', { detail: { text, original: sourceUrl || imgO.currentSrc || imgO.src } }));
         const paths = (text.match(/<path\b/g) || []).length;
         const cols = new Set((text.match(/(?:fill|stroke)="(#[0-9a-fA-F]{3,8})"/g) || []).map((m) => m.split('"')[1].toLowerCase()));
         const lines = /fill="none"/.test(text) && !/fill="#/.test(text);
@@ -351,4 +411,100 @@
       showVector();
     }
   };
+
+  function currentSettings() {
+    const inputs = {};
+    fields().forEach(el => { if (el.type !== 'radio' || el.checked) inputs[el.name] = el.value; });
+    return {preset:presetSel.value, inputs, auto:auto.checked, wire:wire.checked,
+      advanced:!!ws.querySelector('.adv')?.open, mode:ws.querySelector('.ws-tabs .on')?.dataset.show,
+      swipe:$('swipe').value, zoom:zoom.snapshot(), resume:resumeTrace};
+  }
+  function saveSettings() {
+    clearTimeout(settingsTimer);
+    if (!draft || restoring || (!pendingFile && !ws.dataset.draftReady)) return;
+    const settings = currentSettings(), token = JSON.stringify(settings);
+    if (token !== lastSettings) { lastSettings = token; save({settings}); }
+  }
+  function queueSettings() {
+    if (!draft || restoring) return;
+    clearTimeout(settingsTimer);
+    settingsTimer = setTimeout(saveSettings,100);
+  }
+  function restoreSettings(s) {
+    if (!s) return;
+    if (presets[s.preset]) { presetSel.value = s.preset; applyPreset(s.preset); }
+    fields().forEach(el => {
+      if (!(el.name in (s.inputs || {}))) return;
+      if (el.type === 'radio') el.checked = s.inputs[el.name] === el.value;
+      else el.value = s.inputs[el.name];
+    });
+    syncOutputs();
+    auto.checked = !!s.auto; wire.checked = !!s.wire;
+    const advanced = ws.querySelector('.adv');
+    if (advanced) advanced.open = !!s.advanced;
+    const tab = [...ws.querySelectorAll('.ws-tabs button')].find(b => b.dataset.show === s.mode);
+    if (tab) tab.click();
+    $('swipe').value = s.swipe ?? '50';
+    canvas.style.setProperty('--swipe',$('swipe').value + '%');
+    zoom.restore(s.zoom);
+  }
+  async function restoreDraft() {
+    let resume = false;
+    try {
+      const saved = await draft.load();
+      // Explicit artwork chosen during startup takes precedence over the old draft.
+      if (pendingFile || revision || svgUrl || ws.inert) return;
+      restoring = true;
+      const source = saved.source;
+      if (source?.file instanceof Blob) {
+        pendingFile = source.file instanceof File && source.file.name ? source.file :
+          new File([source.file],source.name,{type:source.file.type});
+        sourceUrl = URL.createObjectURL(pendingFile);
+        imgO.src = sourceUrl;
+        $('drop-label').textContent = pendingFile.name;
+        try {
+          const files = new DataTransfer(); files.items.add(pendingFile); fileInput.files = files.files;
+        } catch (_) { /* Drag and drop continues to work without a FileList setter. */ }
+        if (aiTrace) aiTrace.disabled = false;
+        view.hidden = false; refreshGo();
+      }
+      restoreSettings(saved.settings);
+      if (saved.vector?.text && pendingFile) {
+        vectorData = saved.vector;
+        const {text,width,height,name} = vectorData;
+        const blob = new Blob([text],{type:'image/svg+xml'}), url = URL.createObjectURL(blob);
+        await render({status:'completed',input:{width,height},output:{text, name, size_bytes:blob.size, view_url:url, download_url:url}});
+        setStatus('Your tab draft has been restored.','ok');
+        if (saved.editor) ws.dispatchEvent(new CustomEvent('st:restore-editor',{detail:saved.editor}));
+      } else if (pendingFile) {
+        setStatus('Your image is ready to trace.');
+      }
+      if (saved.ai && pendingFile && !saved.editor) await openAiTrace(saved.ai);
+      resume = !!(pendingFile && !saved.editor && !saved.ai && saved.settings?.resume && auto.checked);
+      lastSettings = JSON.stringify(currentSettings());
+    } catch (_) {
+      setStatus('The tab draft could not be fully restored. You can select an image to continue.','err');
+    } finally {
+      restoring = false;
+      ws.dataset.draftReady = '1';
+      ws.dispatchEvent(new Event('st:draft-ready'));
+    }
+    if (resume) convert();
+  }
+  if (draft) {
+    function flush() {
+      if (restoring || !ws.dataset.draftReady) return;
+      saveSettings();
+      if (window.svgTraceEditorSnapshot && pendingFile && (window.svgTraceEditorCheckpointPending?.() ?? !$('ed').hidden)) {
+        save({editor:window.svgTraceEditorSnapshot()});
+      }
+      draft.journal();
+    }
+    window.addEventListener('pagehide',flush);
+    document.addEventListener('visibilitychange',() => { if (document.hidden) flush(); });
+    // The editor and its restore listener are installed by a later deferred script.
+    if (document.readyState === 'loading' || document.readyState === 'interactive') {
+      document.addEventListener('DOMContentLoaded',restoreDraft,{once:true});
+    } else restoreDraft();
+  }
 })();

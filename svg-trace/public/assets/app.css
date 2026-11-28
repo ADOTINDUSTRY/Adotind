@@ -216,6 +216,12 @@ body.ed-open { overflow: hidden; }
 .ed-handle { fill: #fff; stroke: #1e6bff; stroke-width: 1.5; cursor: move; }
 .ed-node { fill: #fff; stroke: #1e6bff; stroke-width: 1.5; cursor: move; }
 .ed-node.on { fill: #1e6bff; }
+.ed-box-toggle[aria-pressed="true"] { background: var(--brand); color: #fff; border-color: var(--brand); }
+.ed-svg.box-selecting, .ed-svg.box-selecting .ed-path { cursor: crosshair; }
+.ed-svg.box-selecting .ed-review-overlay { visibility: hidden; }
+.ed-box-anchors { fill: #fff; stroke: #3177b4; stroke-width: 1; pointer-events: none; }
+.ed-box-selected { fill: #1560d2; stroke: white; stroke-width: 1.4; pointer-events: none; }
+.ed-marquee { fill: #2878ee20; stroke: #166bea; stroke-width: 1.5; stroke-dasharray: 5 3; vector-effect: non-scaling-stroke; pointer-events: none; }
 .ed-bar { gap: 5px 12px; padding: 7px 12px; }
 .ed-bar .btn:disabled { opacity: .45; cursor: default; }
 .ed-foot { align-items: baseline; }

@@ -119,7 +119,7 @@ $slider = static function (string $name, array $s): void { ?>
       <button class="btn btn-primary ws-go" id="review-traced-points" type="button" hidden>Review traced points with AI</button>
       <button class="btn btn-sm" id="ai-trace" type="button" disabled>Redraw image with AI</button>
       <?php endif; ?>
-      <p class="muted fine"><?= !empty($page['private_trace']) ? 'Download your SVG to keep your edits. Uploaded logos are removed after conversion.' : 'Files are private and deleted automatically after 30 days.' ?></p>
+      <p class="muted fine"><?= !empty($page['private_trace']) ? 'This tab remembers your work when you refresh. Download your SVG to keep a copy.' : 'Files are private and deleted automatically after 30 days.' ?></p>
     </aside>
 
     <div class="ws-stage">
@@ -165,6 +165,7 @@ $slider = static function (string $name, array $s): void { ?>
       <div class="ed-group">
         <button type="button" class="btn btn-sm" id="ed-undo" title="Undo (Ctrl / Cmd + Z)">Undo</button>
         <button type="button" class="btn btn-sm" id="ed-redo" title="Redo (Ctrl / Cmd + Shift + Z)">Redo</button>
+        <button type="button" class="btn btn-sm ed-box-toggle" id="ed-box-select" aria-pressed="false" title="Drag a box around points. Shift-drag adds to the selection (B)">Box select</button>
         <button type="button" class="btn btn-sm" id="ed-add" title="Insert a point on the selected segment (I)">Add point</button>
         <button type="button" class="btn btn-sm" id="ed-straight" title="Straighten the selected segment or point (L)">Straight</button>
         <button type="button" class="btn btn-sm" id="ed-curve" title="Convert to a Bézier curve (C)">Curve</button>
@@ -237,7 +238,8 @@ $slider = static function (string $name, array $s): void { ?>
         <dl>
           <dt>S / C / L</dt><dd>Smooth point / convert to curve / straighten</dd>
           <dt>I</dt><dd>Insert a point where you selected a segment</dd>
-          <dt>Delete / Backspace</dt><dd>Remove one point</dd>
+          <dt>B</dt><dd>Box select points. Shift-drag to add another area</dd>
+          <dt>Delete / Backspace</dt><dd>Remove the selected points</dd>
           <dt>Shift + Delete</dt><dd>Remove the whole shape</dd>
           <dt>[ / ]</dt><dd>Previous / next point, including inner contours</dd>
           <dt>Arrow keys</dt><dd>Nudge a point. Hold Shift for ten steps</dd>

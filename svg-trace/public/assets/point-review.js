@@ -88,6 +88,7 @@
           ', ' + (item.action === 'straighten' ? 'segment ' : 'point ') + (item.index+1) + '. ' + item.reason;
       }
       renderCanvas();
+      editor.checkpoint?.();
     }
     function renderCanvas() {
       const layer = editor.overlay;
@@ -291,6 +292,38 @@
     function close() {
       clear(); panel.hidden = true; toggle.setAttribute('aria-expanded','false');
     }
+    function captureDraft() {
+      const edit = ({action,index,reason}) => ({action,index,reason});
+      return {visible:!panel.hidden, scope:scope.value, instruction:$('instruction').value,
+        message:baseMessage, interrupted:!!flight, cursor, appliedCount, skippedCount,
+        targets:targets.filter(t => t.suggestions.length).map(t => ({
+          pi:t.pi, si:t.si, focus:t.focus, original:t.accepted.length ? t.source : null,
+          accepted:t.accepted.map(edit), suggestions:t.suggestions.map(edit),
+        }))};
+    }
+    function restoreDraft(state) {
+      if (!state || !Array.isArray(state.targets)) return;
+      clear();
+      scope.value = ['drawing','contour','point'].includes(state.scope) ? state.scope : 'drawing';
+      $('instruction').value = state.instruction || '';
+      appliedCount = state.appliedCount || 0; skippedCount = state.skippedCount || 0;
+      const {paths} = editor.drawing();
+      for (const item of state.targets) {
+        const current = paths[item.pi]?.subs[item.si];
+        if (!current || !Array.isArray(item.suggestions)) continue;
+        const target = {id:'p'+item.pi+'s'+item.si, pi:item.pi, si:item.si, source:item.original || current,
+          accepted:item.accepted || [], focus:item.focus, suggestions:[], candidates:[]};
+        for (const s of item.suggestions) addSuggestion(target,s.action,s.index,s.reason);
+        refreshPending(target);
+        targets.push(target);
+      }
+      pending = targets.flatMap(t => t.suggestions);
+      cursor = Math.max(0, Math.min(state.cursor || 0,pending.length-1));
+      baseMessage = state.interrupted ? 'The review was interrupted. Ask AI to review the current points again.' : state.message || '';
+      panel.hidden = !state.visible;
+      toggle.setAttribute('aria-expanded', String(!panel.hidden));
+      renderPanel();
+    }
     toggle.addEventListener('click',() => panel.hidden ? open() : close());
     $('close').addEventListener('click',() => { close(); toggle.focus(); });
     scope.addEventListener('change',() => { clear(); renderPanel(); });
@@ -302,6 +335,6 @@
     $('apply').addEventListener('click',() => apply([pending[cursor]].filter(Boolean)));
     $('all').addEventListener('click',() => apply(pending.slice()));
     $('skip').addEventListener('click',skip);
-    return {open,close,invalidate,renderCanvas};
+    return {open,close,invalidate,renderCanvas,captureDraft,restoreDraft};
   };
 })();
