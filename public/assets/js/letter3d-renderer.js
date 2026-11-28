@@ -292,7 +292,9 @@ export async function createLetter3DRenderer(container, {onUnavailable} = {}) {
         group.rotation.set(orbitPitch,orbitYaw,0);
         if(disposed || lost || mine!==generation){disposeObject(group);return {stale:true};}
         if(current){scene.remove(current);disposeObject(current);}
-        current=group;scene.add(group);reframe();return {rendered:true,mode:'sign'};
+        current=group;scene.add(group);
+        if (options.keepView) draw(); else reframe();
+        return {rendered:true,mode:'sign'};
       }catch(error){disposeObject(group);throw error;}
     },
     setBackVisible(value) {

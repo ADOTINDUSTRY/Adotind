@@ -325,11 +325,11 @@
     if (viewport.dataset) viewport.dataset.render = 'flat';
     if (renderStatus) renderStatus.textContent = message || 'Illustrative 2D preview';
   }
-  function schedule3D() {
+  function schedule3D(keepView = false) {
     if (!threeContainer || !hasLines || root.hidden || threeUnavailable) return;
     const current = ++threeGeneration;
     // Never leave an older 3D design visible while the new geometry is being built.
-    show2D('Updating 3D preview…');
+    if (!keepView) show2D('Updating 3D preview…');
     clearTimeout(threeTimer);
     threeTimer = setTimeout(async () => {
       try {
@@ -341,11 +341,12 @@
         const renderer = await threeInit;
         if (current !== threeGeneration) return;
         threeRenderer = renderer;
-        renderer.resize(); renderer.setZoom(zoom); renderer.setLights?.(lightsOn);
+        if (!keepView) { renderer.resize(); renderer.setZoom(zoom); }
+        renderer.setLights?.(lightsOn);
         const selected=manufacturing;
         const board=readBackboard();
         const assembled=!!(selected && board && depth && construction?.back && typeof renderer.updateSign==='function');
-        const result = technicalView && selected ? await renderer.updateManufacturing(selected.plan,readLines(),selected.clipper) : assembled ? await renderer.updateSign(selected.plan,readLines(),selected.clipper,{totalDepthMm:Number(depth.value),backThicknessMm:construction.back.thickness_mm,backVisible,backboard:board}) : await renderer.update(readLines());
+        const result = technicalView && selected ? await renderer.updateManufacturing(selected.plan,readLines(),selected.clipper) : assembled ? await renderer.updateSign(selected.plan,readLines(),selected.clipper,{totalDepthMm:Number(depth.value),backThicknessMm:construction.back.thickness_mm,backVisible,backboard:board,keepView}) : await renderer.update(readLines());
         if (current !== threeGeneration || (result && result.stale)) return;
         if (viewport.dataset) viewport.dataset.render = 'three';
         if(back)back.disabled=technicalView || !assembled;
@@ -409,10 +410,16 @@
     const selected = product.selectedOptions[0];
     limits.textContent = product.value && selected ? `Allowed size: ${selected.dataset.minWidth}–${selected.dataset.maxWidth} mm wide × ${selected.dataset.minHeight}–${selected.dataset.maxHeight} mm high. Up to ${selected.dataset.maxChars} characters and ${selected.dataset.maxQuantity} signs.` : '';
   }
-  function changed() {
+  function changed(appearanceOnly = false) {
     generation++; clearTimeout(timer); estimate = null; requestKey = '';
     send.disabled = true; price.textContent = 'Enter an option and size'; tax.textContent = ''; status.textContent = '';
     if(priceScope)priceScope.textContent='';
+    if (appearanceOnly === true && manufacturing && viewport.dataset?.render === 'three' && !technicalView) {
+      schedule3D(true);
+      saveDesign();
+      scheduleEstimate();
+      return;
+    }
     paint(); saveDesign();
     if (cuttingEnabled) { scheduleCutting(); return; }
     scheduleEstimate();
@@ -452,7 +459,7 @@
     saveDesign();
   });
   back?.addEventListener('change',()=>{backVisible=!!back.checked;threeRenderer?.setBackVisible?.(backVisible);saveDesign();});
-  Object.values(optionFields).forEach(el=>el.addEventListener('input',()=>{syncBoardControls();changed();}));
+  Object.values(optionFields).forEach(el=>el.addEventListener('input',()=>{syncBoardControls();changed(el === depth);}));
   for (const button of sceneButtons) button.addEventListener('click', () => {
     if (!['studio','brick','concrete'].includes(button.dataset.letterScene)) return;
     scene = button.dataset.letterScene; paintScene(); saveDesign();
@@ -542,7 +549,7 @@
           if (raw !== '' && Number.isFinite(Number(raw)) && Number(raw)!==value) line.inputs[key].value=String(value);
           if (line.sliders[key]) line.sliders[key].value=String(value);
         }
-        syncLines(); changed();
+        syncLines(); changed(['colour','side_colour','front_film_code','side_film_code','front_finish','side_finish'].includes(key));
       });
       for (const key of ['x','y','rotation']) line.inputs[key].addEventListener('blur', () => {
         const max=key==='rotation'?180:200, value=clamp(line.inputs[key].value,-max,max);
@@ -555,7 +562,7 @@
         if (sending) return;
         line.sideAuto=true; line.inputs.side_colour.value=automaticSideColour(line.inputs.colour.value);
         if(line.inputs.side_film_code)line.inputs.side_film_code.value='';syncFilmFinish(line,'side');
-        syncLines(); changed();
+        syncLines(); changed(true);
       });
       line.remove?.addEventListener('click', () => {
         if (sending || lineCount<=1 || index>=lineCount) return;
