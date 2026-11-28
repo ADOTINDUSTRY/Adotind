@@ -24,19 +24,24 @@ function quote_svg_trace_dispatch(string $path): never
     header('X-Robots-Tag: noindex, nofollow');
     header('X-Content-Type-Options: nosniff');
     $convert = $path === QUOTE_TRACE_URL . '/convert';
+    $ai = $path === QUOTE_TRACE_URL . '/ai';
     if (!online_quote_unlocked()) {
-        if ($convert) quote_svg_trace_json(403, ['error'=>'Open Online Quote and enter the testing PIN to trace your logo.']);
+        if ($convert || $ai) quote_svg_trace_json(403, ['error'=>'Open Online Quote and enter the testing PIN to trace your logo.']);
         redirect('/online-quote?project=svgtrace', 303);
     }
     if (!isset(quote_project_catalog()['svgtrace'])) quote_svg_trace_json(404, ['error'=>'SVG Trace is unavailable.']);
     $root = quote_svg_trace_root();
     $method = $_SERVER['REQUEST_METHOD'] ?? 'GET';
-    if ($convert) {
+    if ($convert || $ai) {
         if ($method !== 'POST') {
             header('Allow: POST');
             quote_svg_trace_json(405, ['error'=>'Use a logo upload to trace.']);
         }
         if (!csrf_valid($_SERVER['HTTP_X_CSRF_TOKEN'] ?? null)) quote_svg_trace_json(403, ['error'=>'Reload the editor and try again.']);
+        if ($ai) {
+            require_once __DIR__ . '/svg_trace_ai.php';
+            svg_trace_ai_handle();
+        }
         session_write_close();
         require_once $root . '/app/lib/conversion.php';
         quote_svg_trace_upload();
@@ -45,7 +50,7 @@ function quote_svg_trace_dispatch(string $path): never
         header('Allow: GET, HEAD');
         quote_svg_trace_json(405, ['error'=>'Open the editor to continue.']);
     }
-    $assets = ['app.css'=>'text/css', 'trace.js'=>'application/javascript', 'editor.js'=>'application/javascript'];
+    $assets = ['app.css'=>'text/css', 'trace.js'=>'application/javascript', 'editor.js'=>'application/javascript', 'ai.js'=>'application/javascript'];
     foreach ($assets as $name => $type) {
         if ($path === QUOTE_TRACE_URL . '/assets/' . $name) {
             session_write_close();

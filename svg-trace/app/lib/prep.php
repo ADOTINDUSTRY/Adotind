@@ -53,6 +53,8 @@ final class StPrep
 
         $sample = self::sample($img);
         $hasAlpha = $sample['alpha'];
+        $lightInk = $bw && ($s['preset'] ?? '') === 'font'
+            && self::lightLettering($img, $sample['pixels'], $s['ink'] ?? 'auto');
         $palette = $bw ? [[0, 0, 0], [255, 255, 255]] : self::palette($sample['pixels'], (int)($s['colors'] ?? 0));
         $wantKey = $hasAlpha || (!$bw && (int)($s['remove_bg'] ?? 0) > 0);
         $key = $wantKey ? self::pickKey($palette) : null;
@@ -61,6 +63,7 @@ final class StPrep
         if ($hasAlpha) {
             $flat = imagecreatetruecolor($w, $h);
             $bg = $bw || $key === null ? [255, 255, 255] : $key;
+            if ($lightInk) $bg = [0, 0, 0];
             imagefill($flat, 0, 0, imagecolorallocate($flat, ...$bg));
             imagealphablending($flat, true);
             imagecopy($flat, $img, 0, 0, 0, 0, $w, $h);
@@ -100,6 +103,7 @@ final class StPrep
 
         if ($bw) {
             imagefilter($img, IMG_FILTER_GRAYSCALE);
+            if ($lightInk) imagefilter($img, IMG_FILTER_NEGATE);
             // Shift brightness so the fixed 50 % midpoint becomes the chosen threshold.
             $shift = 128 - (int)($s['threshold'] ?? 128);
             if ($shift !== 0) {
@@ -179,7 +183,32 @@ final class StPrep
         ];
     }
 
-    /** Remove SVG shapes whose fill is (close to) the key colour. */
+    /** For opaque artwork the outer edge votes for the background. On a transparent
+     * canvas use the visible ink instead, including white letters in a PNG. */
+    private static function lightLettering(\GdImage $img, array $pixels, string $ink): bool
+    {
+        if ($ink !== 'auto') return $ink === 'light';
+        $right = imagesx($img) - 1;
+        $bottom = imagesy($img) - 1;
+        $opaque = $dark = 0;
+        for ($i = 0; $i < 32; $i++) {
+            $x = (int)round($right * $i / 31);
+            $y = (int)round($bottom * $i / 31);
+            foreach ([[$x, 0], [$x, $bottom], [0, $y], [$right, $y]] as [$sx, $sy]) {
+                $c = imagecolorat($img, $sx, $sy);
+                if ((($c >> 24) & 127) > 63) continue;
+                $opaque++;
+                if (299 * (($c >> 16) & 255) + 587 * (($c >> 8) & 255) + 114 * ($c & 255) < 128000) $dark++;
+            }
+        }
+        if ($opaque >= 64) return $dark * 2 > $opaque;
+        $light = 0;
+        foreach ($pixels as [$r, $g, $b]) {
+            if (299 * $r + 587 * $g + 114 * $b >= 128000) $light++;
+        }
+        return $light * 2 > count($pixels);
+    }
+
     /** Tracer speckle size for an image scaled by $scale. */
     public static function speckle(int $speckle, float $scale): int
     {

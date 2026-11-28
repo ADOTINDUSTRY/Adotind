@@ -26,7 +26,29 @@ try {
             throw new RuntimeException('Expected editable paths at the original artwork size.');
         }
     }
-    echo "Editable logo and centreline SVG conversions passed.\n";
+    // An O with an accent. Test opaque and transparent light/dark lettering.
+    foreach ([[0,255,false],[255,0,false],[255,0,true],[0,255,true]] as [$ink,$paper,$transparent]) {
+        $image = imagecreatetruecolor(100,100);
+        imagealphablending($image,false);
+        imagesavealpha($image,true);
+        $bg = imagecolorallocatealpha($image,$paper,$paper,$paper,$transparent ? 127 : 0);
+        $fg = imagecolorallocate($image,$ink,$ink,$ink);
+        imagefill($image,0,0,$bg);
+        imagefilledellipse($image,50,60,50,60,$fg);
+        imagefilledellipse($image,50,60,28,40,$bg);
+        imagefilledellipse($image,50,16,6,6,$fg);
+        imagepng($image,$source);
+        $settings = StEngine::normaliseSettings(['preset'=>'font']);
+        $prep = StPrep::prepare($source,$png,$settings);
+        $run = StConversion::tracePrepared($png,$svg,$prep,$settings,30,768,StConfig::load());
+        $doc = new DOMDocument();
+        if (!$run['ok'] || !$doc->loadXML(StConversion::readSvg($svg,$prep,$settings))) throw new RuntimeException('Font trace failed.');
+        $paths = $doc->getElementsByTagName('path');
+        $loops = 0;
+        foreach ($paths as $p) $loops += substr_count($p->getAttribute('d'),'M');
+        if ($paths->length !== 2 || $loops !== 3) throw new RuntimeException('Font trace lost an accent or letter counter.');
+    }
+    echo "Logo, centreline and four lettering polarity cases passed.\n";
 } finally {
     foreach ([$source, $png, $svg] as $path) if (is_file($path)) unlink($path);
     rmdir($dir);

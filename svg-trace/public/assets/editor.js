@@ -163,7 +163,7 @@
       s.segs.forEach((g) => { if (g.t === 'C') { g.c1 = m(g.c1); g.c2 = m(g.c2); } });
     });
   };
-  const f = (n) => String(Math.round(n * 100) / 100);
+  const f = (n) => String(Math.round(n * 1000) / 1000);
   const fp = (p) => f(p[0]) + ' ' + f(p[1]);
   const toD = (subs) => subs.map((s) => {
     const n = s.nodes.length;
@@ -189,7 +189,7 @@
   let sel = -1;            // selected path index
   let node = null;         // { si, ni }
   let seg = null;          // { si, k }
-  let undo = [];
+  let undo = [], redo = [];
   let changed = false;
   const gImg = mk('g'), gPaths = mk('g'), gOver = mk('g', { class: 'ed-over' });
   svg.append(gImg, gPaths, gOver);
@@ -207,8 +207,11 @@
     view = [vb[0] - pad, vb[1] - pad, vb[2] + 2 * pad, vb[3] + 2 * pad];
     setView();
   };
+  const snapshot = (pi) => ({ pi, subs: structuredClone(paths[pi].subs), removed: paths[pi].removed,
+    dirty: paths[pi].dirty, sel, node: node && {...node}, seg: seg && {...seg} });
   const remember = (pi) => {
-    undo.push({ pi, subs: JSON.parse(JSON.stringify(paths[pi].subs)), removed: paths[pi].removed });
+    undo.push(snapshot(pi));
+    redo = [];
     if (undo.length > 300) undo.shift();
     changed = true;
   };
@@ -226,6 +229,14 @@
     let total = 0;
     paths.forEach((P) => { if (P.editable && !P.removed) P.subs.forEach((s) => { total += s.nodes.length; }); });
     const P = paths[sel];
+    const active = P?.editable && !P.removed;
+    $('ed-undo').disabled = !undo.length; $('ed-redo').disabled = !redo.length;
+    $('ed-add').disabled = !active || !seg;
+    $('ed-delete').disabled = !active || !node || P.subs[node.si].nodes.length <= 2;
+    $('ed-delete-shape').disabled = $('ed-fit-shape').disabled = !active;
+    $('ed-straight').disabled = $('ed-curve').disabled = !active || !(node || seg);
+    $('ed-smooth').disabled = !active || !node || around(P.subs[node.si], node.ni).includes(-1);
+    if ($('ed-ai')) $('ed-ai').disabled = !active || !(node || seg || P.subs.length === 1);
     if (!P || P.removed) {
       info.textContent = `${total.toLocaleString()} points. Click a shape to edit it.`;
       return;
@@ -299,23 +310,32 @@
       gPaths.append(view);
       return { el, view, subs, editable, translated: !!m, removed: false, dirty: false };
     });
-    sel = -1; node = seg = null; undo = []; changed = false;
+    sel = -1; node = seg = null; undo = []; redo = []; changed = false;
     gImg.style.display = showOrig.checked ? '' : 'none';
     ed.hidden = false;
     document.body.classList.add('ed-open');
+    ws.inert = true;
+    svg.focus();
     requestAnimationFrame(fit);
   };
   const result = () => {
-    paths.forEach((P) => {
-      if (P.removed) { P.el.remove(); return; }
+    const copy = doc.cloneNode(true);
+    const elements = copy.querySelectorAll('path');
+    paths.forEach((P, i) => {
+      if (P.removed) { elements[i].remove(); return; }
       if (!P.dirty) return;
-      P.el.setAttribute('d', toD(P.subs));
-      if (P.translated) P.el.removeAttribute('transform');
+      elements[i].setAttribute('d', toD(P.subs));
+      if (P.translated) elements[i].removeAttribute('transform');
     });
-    const xml = new XMLSerializer().serializeToString(doc).replace(/^\s*<\?xml[^>]*\?>\s*/, '');
+    const xml = new XMLSerializer().serializeToString(copy).replace(/^\s*<\?xml[^>]*\?>\s*/, '');
     return '<?xml version="1.0" encoding="UTF-8"?>\n' + xml;
   };
-  const close = () => { ed.hidden = true; document.body.classList.remove('ed-open'); };
+  const close = () => {
+    if (!ed.hidden) {
+      ed.hidden = true; ws.inert = false; $('ed-keys').open = false;
+      document.body.classList.remove('ed-open'); openBtn.focus();
+    }
+  };
 
   ws.addEventListener('st:result', (e) => { srcText = e.detail.text; origUrl = e.detail.original || ''; openBtn.hidden = false; });
   ws.addEventListener('st:reset', () => { srcText = ''; openBtn.hidden = true; close(); });
@@ -333,9 +353,6 @@
   });
   $('ed-download').addEventListener('click', () => {
     const text = result();
-    srcText = text;
-    ws.dispatchEvent(new CustomEvent('st:edited', { detail: { text } }));
-    open(); // re-read so further edits start from what was saved
     const a = document.createElement('a');
     a.href = URL.createObjectURL(new Blob([text], { type: 'image/svg+xml' }));
     a.download = 'traced-edited.svg';
@@ -345,6 +362,19 @@
   });
   showOrig.addEventListener('change', () => { gImg.style.display = showOrig.checked ? '' : 'none'; });
   $('ed-fit').addEventListener('click', fit);
+  $('ed-fit-shape').addEventListener('click', () => {
+    if (!cur()) return;
+    const b = cur().view.getBBox(), pad = Math.max(1, Math.max(b.width,b.height) * .08);
+    view = [b.x-pad,b.y-pad,b.width+2*pad,b.height+2*pad]; setView();
+  });
+  $('ed-font').addEventListener('click', () => {
+    if (!confirm('Trace the original image again using the lettering preset? This replaces the current curves.')) return;
+    close();
+    $('preset').value = 'font';
+    $('preset').dispatchEvent(new Event('change'));
+    if (!$('auto').checked) $('go').click();
+    $('preset').focus();
+  });
 
   // ---------- edit actions ----------
   const cur = () => (sel >= 0 && !paths[sel].removed ? paths[sel] : null);
@@ -369,6 +399,11 @@
     const t = targets().sort((x, y) => y[1] - x[1]); // highest index first so splices don't shift the rest
     if (!t.length) return;
     remember(sel);
+    convertSegments(t);
+    if (seg) seg = null;
+    refresh(sel); draw();
+  };
+  const convertSegments = (t) => {
     const P = paths[sel];
     t.forEach(([si, k]) => {
       const sp = P.subs[si], [a, b] = segEnds(sp, k), r = toCubics(a, sp.segs[k], b);
@@ -376,71 +411,120 @@
       sp.nodes.splice(k + 1, 0, ...r.mids);
       if (node && node.si === si && node.ni > k) node.ni += r.mids.length;
     });
-    if (seg) seg = null;
-    refresh(sel); draw();
   };
   const smooth = () => {
     const P = cur();
     if (!P || !node) return;
-    const sp = P.subs[node.si], [inK, outK] = around(sp, node.ni);
+    const sp = P.subs[node.si];
+    let [inK, outK] = around(sp, node.ni);
     if (inK < 0 || outK < 0) return;
     remember(sel);
+    if (sp.segs[inK].t === 'A' || sp.segs[outK].t === 'A') {
+      convertSegments([[node.si, inK], [node.si, outK]].filter(([, k]) => sp.segs[k].t === 'A').sort((a,b) => b[1]-a[1]));
+      [inK, outK] = around(sp, node.ni);
+    }
     const n = sp.nodes.length, p = sp.nodes[node.ni], prev = sp.nodes[inK], next = sp.nodes[(node.ni + 1) % n];
     let A = sp.segs[inK], B = sp.segs[outK];
     const tin = tangentAt(prev, A, p, 1), tout = tangentAt(p, B, next, 0);
     if (A.t !== 'C' && B.t !== 'C') {
-      if (A.t === 'A' || B.t === 'A') return;
       A = sp.segs[inK] = { t: 'C', c1: lerp(prev, p, 1 / 3), c2: lerp(prev, p, 2 / 3) };
       B = sp.segs[outK] = { t: 'C', c1: lerp(p, next, 1 / 3), c2: lerp(p, next, 2 / 3) };
     }
-    const d = A.t === 'C' && B.t === 'C' ? unit(add(tin, tout)) : A.t === 'C' ? tout : tin;
+    const mean = add(tin, tout);
+    const d = A.t === 'C' && B.t === 'C' ? (len(mean) > 1e-8 ? unit(mean) : tin) : A.t === 'C' ? tout : tin;
     if (A.t === 'C') A.c2 = sub(p, mul(d, len(sub(A.c2, p)) || len(sub(p, prev)) / 3));
     if (B.t === 'C') B.c1 = add(p, mul(d, len(sub(B.c1, p)) || len(sub(next, p)) / 3));
     refresh(sel); draw();
   };
-  const del = () => {
+  const del = (wholeShape = false) => {
     const P = cur();
-    if (!P) return;
+    if (!P || (!wholeShape && (!node || P.subs[node.si].nodes.length <= 2))) return;
+    const pi = sel;
     remember(sel);
-    if (!node) {
+    if (wholeShape) {
       P.removed = true;
-      sel = -1; seg = null;
+      sel = -1; node = seg = null;
     } else {
       const sp = P.subs[node.si], n = sp.nodes.length, i = node.ni;
-      if (n <= (sp.closed ? 3 : 2)) {
-        P.subs.splice(node.si, 1);
-      } else if (!sp.closed && (i === 0 || i === n - 1)) {
+      if (!sp.closed && (i === 0 || i === n - 1)) {
         if (i === 0) { sp.nodes.shift(); sp.segs.shift(); } else { sp.nodes.pop(); sp.segs.pop(); }
       } else {
         const [inK, outK] = around(sp, i), A = sp.segs[inK], B = sp.segs[outK];
         const prev = sp.nodes[inK], next = sp.nodes[(i + 1) % n];
-        const merged = A.t === 'C' || B.t === 'C'
-          ? { t: 'C', c1: A.t === 'C' ? A.c1 : lerp(prev, next, 1 / 3), c2: B.t === 'C' ? B.c2 : lerp(prev, next, 2 / 3) }
-          : { t: 'L' };
+        const length = (len(sub(sp.nodes[i], prev)) + len(sub(next, sp.nodes[i]))) / 3;
+        const merged = A.t === 'L' && B.t === 'L' ? { t: 'L' } : {
+          t: 'C', c1: add(prev, mul(tangentAt(prev, A, sp.nodes[i], 0), length)),
+          c2: sub(next, mul(tangentAt(sp.nodes[i], B, next, 1), length)),
+        };
         sp.segs[inK] = merged;
         sp.segs.splice(outK, 1);
         sp.nodes.splice(i, 1);
       }
       node = null; seg = null;
     }
-    refresh(sel === -1 ? undo[undo.length - 1].pi : sel);
+    refresh(pi);
     draw();
   };
-  const undoOne = () => {
-    const u = undo.pop();
+  const restore = (from, to) => {
+    const u = from.pop();
     if (!u) return;
+    to.push(snapshot(u.pi));
     const P = paths[u.pi];
     P.subs = u.subs; P.removed = u.removed;
     refresh(u.pi);
-    sel = P.removed ? -1 : u.pi; node = null; seg = null;
-    changed = undo.length > 0 || changed;
+    P.dirty = u.dirty;
+    sel = u.sel; node = u.node; seg = u.seg;
+    changed = paths.some(path => path.dirty);
     draw();
   };
-  $('ed-undo').addEventListener('click', undoOne);
-  $('ed-delete').addEventListener('click', del);
+  $('ed-undo').addEventListener('click', () => restore(undo, redo));
+  $('ed-redo').addEventListener('click', () => restore(redo, undo));
+  $('ed-delete').addEventListener('click', () => del());
+  $('ed-delete-shape').addEventListener('click', () => del(true));
   $('ed-straight').addEventListener('click', makeStraight);
   $('ed-curve').addEventListener('click', makeCurve);
   $('ed-smooth').addEventListener('click', smooth);
+
+  const winding = (sp) => {
+    let area = 0;
+    sp.segs.forEach((s, k) => {
+      const [a, b] = segEnds(sp, k);
+      let last = a;
+      for (let j = 1; j <= 12; j++) {
+        const pt = pointAt(a, s, b, j / 12);
+        area += last[0] * pt[1] - last[1] * pt[0];
+        last = pt;
+      }
+    });
+    return Math.sign(area);
+  };
+  $('ed-ai')?.addEventListener('click', () => {
+    const P = cur();
+    const si = node?.si ?? seg?.si ?? (P?.subs.length === 1 ? 0 : -1);
+    if (!P || si < 0) return;
+    const contour = P.subs[si], d = toD([contour]);
+    const outline = [{d, fill:'none'}], bounds = mk('path', {d});
+    gOver.append(bounds);
+    const b = bounds.getBBox(); bounds.remove();
+    const pad = Math.max(1, Math.max(b.width,b.height) * .12);
+    const box = [b.x-pad,b.y-pad,b.width+2*pad,b.height+2*pad];
+    let replacement;
+    window.svgTraceAI.review({ refine:true, before:window.svgTraceAI.vector(outline,box,true), box,
+      payload:{mode:'refine', width:Math.ceil(vb[2]), height:Math.ceil(vb[3]), closed:contour.closed, contour:d},
+      validate(paths) {
+        const proposals = parseD(paths[0].d);
+        replacement = proposals[0];
+        if (proposals.length !== 1 || replacement.closed !== contour.closed) return false;
+        if (contour.closed) return winding(replacement) === winding(contour);
+        return [0, -1].every(i => len(sub(replacement.nodes.at(i), contour.nodes.at(i))) < .01);
+      },
+      accept() {
+        if (cur() !== P || P.subs[si] !== contour || !replacement) return;
+        remember(sel); P.subs[si] = replacement;
+        node = {si,ni:0}; seg = null; refresh(sel); draw();
+      },
+    });
+  });
 
   const nearest = (P, q) => {
     let best = null;
@@ -526,7 +610,7 @@
       const pi = act.target.dataset ? act.target.dataset.pi : undefined;
       const P = cur();
       const hit = P ? nearest(P, act.q) : null;
-      if (P && hit && hit.d < 6 * pxUnit()) { seg = { si: hit.si, k: hit.k }; node = null; }
+      if (P && hit && hit.d < 6 * pxUnit()) { seg = { si: hit.si, k: hit.k, t: hit.t }; node = null; }
       else if (pi !== undefined && paths[+pi].editable) { sel = +pi; node = null; seg = null; }
       else if (pi === undefined && !(act.target.classList && act.target.classList.contains('ed-hl'))) { sel = -1; node = null; seg = null; }
       draw();
@@ -536,17 +620,20 @@
   };
   svg.addEventListener('pointerup', up);
   svg.addEventListener('pointercancel', up);
-  svg.addEventListener('dblclick', (e) => {
+  const insertPoint = (hit) => {
     const P = cur();
-    if (!P) return;
-    const q = toSvg(e), hit = nearest(P, q);
-    if (!hit || hit.d > 8 * pxUnit()) return;
+    if (!P || !hit) return;
     remember(sel);
     const sp = P.subs[hit.si], [a, b] = segEnds(sp, hit.k), [s1, mid, s2] = split(a, sp.segs[hit.k], b, Math.min(0.98, Math.max(0.02, hit.t)));
     sp.segs.splice(hit.k, 1, s1, s2);
     sp.nodes.splice(hit.k + 1, 0, mid);
     node = { si: hit.si, ni: hit.k + 1 }; seg = null;
     refresh(sel); draw();
+  };
+  $('ed-add').addEventListener('click', () => insertPoint(seg));
+  svg.addEventListener('dblclick', (e) => {
+    const hit = cur() && nearest(cur(), toSvg(e));
+    if (hit && hit.d <= 8 * pxUnit()) insertPoint(hit);
   });
   svg.addEventListener('wheel', (e) => {
     e.preventDefault();
@@ -566,12 +653,34 @@
   window.addEventListener('resize', () => { if (!ed.hidden) draw(); });
 
   document.addEventListener('keydown', (e) => {
-    if (ed.hidden) return;
-    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') { e.preventDefault(); undoOne(); return; }
-    if (e.key === 'Delete' || e.key === 'Backspace') { e.preventDefault(); del(); return; }
-    if (e.key === 'Escape') { if (node || seg) { node = seg = null; } else sel = -1; draw(); return; }
+    if (ed.hidden || $('trace-ai-dialog')?.open || e.isComposing || e.altKey || act) return;
+    if (e.target.matches?.('input:not([type=checkbox]), textarea, select, [contenteditable=true]')) return;
+    const key = e.key.toLowerCase(), mod = e.ctrlKey || e.metaKey;
+    const command = mod ? (key === 'z' ? (e.shiftKey ? 'redo' : 'undo') : key === 'y' ? 'redo' : null)
+      : ({s:'smooth', c:'curve', l:'straight', i:'add', f:'fit-shape', '0':'fit',
+          delete:e.shiftKey ? 'delete-shape' : 'delete', backspace:'delete'})[key];
+    if (command) { e.preventDefault(); if (!e.repeat) $('ed-' + command).click(); return; }
+    if (mod) return;
+    if (key === '?') { e.preventDefault(); $('ed-keys').open = !$('ed-keys').open; return; }
+    if (key === 'escape') {
+      if ($('ed-keys').open) $('ed-keys').open = false;
+      else if (node || seg) node = seg = null;
+      else sel = -1;
+      draw(); return;
+    }
     const arrows = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1] };
     const P = cur();
+    if (P && (key === '[' || key === ']')) {
+      e.preventDefault();
+      const direction = key === ']' ? 1 : -1;
+      let si = node?.si ?? seg?.si ?? 0;
+      let ni = node ? node.ni + direction : seg?.k ?? (direction > 0 ? 0 : P.subs[si].nodes.length - 1);
+      if (ni < 0 || ni >= P.subs[si].nodes.length) {
+        si = (si + direction + P.subs.length) % P.subs.length;
+        ni = direction > 0 ? 0 : P.subs[si].nodes.length - 1;
+      }
+      node = {si,ni}; seg = null; draw(); return;
+    }
     if (arrows[e.key] && P && node) {
       e.preventDefault();
       const d = mul(arrows[e.key], e.shiftKey ? 10 : 1), sp = P.subs[node.si], [inK, outK] = around(sp, node.ni);

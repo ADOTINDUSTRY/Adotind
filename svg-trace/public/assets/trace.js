@@ -41,6 +41,22 @@
   };
   const fmtBytes = (n) => n < 1024 ? n + ' B' : n < 1048576 ? (n / 1024).toFixed(1) + ' KB' : (n / 1048576).toFixed(2) + ' MB';
   const refreshGo = () => { go.disabled = busy || (!pendingFile && !sourceFileId); };
+  const aiTrace = $('ai-trace');
+  aiTrace?.addEventListener('click', async () => {
+    const file = pendingFile;
+    if (!file) return;
+    try {
+      await window.svgTraceAI.traceImage(file, (text, width, height) => {
+        if (pendingFile !== file) return;
+        revision++; again = false; clearTimeout(autoTimer);
+        clearVector();
+        const blob = new Blob([text], { type: 'image/svg+xml' });
+        const url = URL.createObjectURL(blob);
+        render({status:'completed', duration_ms:0, input:{width,height}, output:{text,view_url:url,download_url:url,name:'ai-traced.svg',size_bytes:blob.size}});
+        setStatus('AI drawing applied. Open Edit points to adjust its curves.', 'ok');
+      });
+    } catch (error) { setStatus(error.message || 'Could not open this image for AI tracing.', 'err'); }
+  });
 
   // ---- settings ----
   const fields = () => ws.querySelectorAll('input[name][type="range"], input[name][type="radio"]');
@@ -60,7 +76,8 @@
       const o = $('o-' + el.name);
       if (o) o.textContent = el.name === 'colors' && el.value === '0' ? 'Auto' : el.value;
     });
-    const show = { color: value('colormode') !== 'bw', bw: value('colormode') === 'bw', shapes: value('output') !== 'centerline' };
+    const show = { color: value('colormode') !== 'bw', bw: value('colormode') === 'bw', shapes: value('output') !== 'centerline',
+      font: presetSel.value === 'font' && value('colormode') === 'bw' };
     ws.querySelectorAll('[data-only]').forEach((el) => { el.hidden = !show[el.dataset.only]; });
   };
   const scheduleAuto = () => {
@@ -80,6 +97,7 @@
     if (exts.length && !exts.includes(ext)) { setStatus('This file type is not supported. You can upload: ' + ws.dataset.labels + '.', 'err'); return; }
     if (maxBytes && file.size > maxBytes) { setStatus('This file is too large (' + fmtSize(file.size) + '). The maximum is ' + fmtSize(maxBytes) + '.', 'err'); return; }
     pendingFile = file;
+    if (aiTrace) aiTrace.disabled = false;
     revision++;
     sourceFileId = null;
     clearVector();

@@ -56,33 +56,8 @@ function quote_assistant_cutting_name(mixed $id, array $catalog): string
     return isset($defaults[$id]) && ($defaults[$id]['workflow'] ?? '') === 'drawing' ? (string)$defaults[$id]['name'] : '';
 }
 
-function quote_assistant_handle(): never
+function quote_assistant_reserve_call(): void
 {
-    if (($_SERVER['REQUEST_METHOD'] ?? '') !== 'POST') quote_assistant_reply(405, ['error'=>'Please send a message from the quote page.']);
-    $raw = file_get_contents('php://input', false, null, 0, 16001);
-    if (!is_string($raw) || strlen($raw) > 16000) quote_assistant_reply(413, ['error'=>'Your message is too long.']);
-    $request = json_decode($raw, true);
-    if (!is_array($request) || !is_string($request['csrf'] ?? null) || !csrf_valid($request['csrf'])) quote_assistant_reply(403, ['error'=>'Please refresh the page and try again.']);
-    $message = is_string($request['message'] ?? null) ? trim($request['message']) : '';
-    if ($message === '' || strlen($message) > 2000) quote_assistant_reply(400, ['error'=>'Please enter a message of up to 2,000 bytes.']);
-    $key = getenv('GEMINI_API_KEY');
-    if (!is_string($key) || trim($key) === '') quote_assistant_reply(503, ['error'=>'The assistant is not connected yet. Please contact us for help.']);
-    $allowedStages = ['website', 'home', 'about', 'services', 'service-detail', 'service-landing', 'portfolio', 'project-detail', 'machinery', 'materials', 'industries', 'contact', 'quote_locked', 'start', 'guide', 'inquiry', 'neon', 'picture', 'printing', 'letters3d', 'frames', 'drawing', 'material', 'parts', 'result'];
-    $stage = is_string($request['stage'] ?? null) && in_array($request['stage'], $allowedStages, true) ? $request['stage'] : 'website';
-    $catalog = quote_project_catalog();
-    $serviceName = $stage === 'inquiry'
-        ? quote_assistant_inquiry_name($request['project'] ?? null, $catalog)
-        : (in_array($stage, ['printing','letters3d','frames'], true) && isset($catalog[$stage]) && ($catalog[$stage]['workflow'] ?? '') === $stage
-            ? ($stage === 'printing' ? 'Printing and graphics' : ($stage === 'frames' ? 'Rectangular display frames' : '3D and illuminated letters'))
-            : (in_array($stage, ['drawing','material','parts'], true)
-            ? quote_assistant_cutting_name($request['project'] ?? null, $catalog)
-            : quote_assistant_service_name($stage, $request['service'] ?? null)));
-    $history = [];
-    foreach (array_slice(is_array($request['history'] ?? null) ? $request['history'] : [], -8) as $turn) {
-        if (!is_array($turn) || !in_array($turn['role'] ?? '', ['user','model'], true) || !is_string($turn['text'] ?? null)) continue;
-        $text = trim($turn['text']);
-        if ($text !== '' && strlen($text) <= 2500) $history[] = ['role'=>$turn['role'], 'parts'=>[['text'=>$text]]];
-    }
     $recent = array_values(array_filter($_SESSION['quote_assistant_calls'] ?? [], static fn($t) => is_int($t) && $t > time()-3600));
     if (count($recent) >= 12) quote_assistant_reply(429, ['error'=>'You have reached the testing limit. Please try again later.']);
     // Reserve a bounded amount of Gemini usage across all sessions. No messages,
@@ -114,6 +89,36 @@ function quote_assistant_handle(): never
         quote_assistant_reply(503, ['error'=>'The assistant is temporarily unavailable.']);
     }
     $recent[] = time(); $_SESSION['quote_assistant_calls'] = $recent;
+}
+
+function quote_assistant_handle(): never
+{
+    if (($_SERVER['REQUEST_METHOD'] ?? '') !== 'POST') quote_assistant_reply(405, ['error'=>'Please send a message from the quote page.']);
+    $raw = file_get_contents('php://input', false, null, 0, 16001);
+    if (!is_string($raw) || strlen($raw) > 16000) quote_assistant_reply(413, ['error'=>'Your message is too long.']);
+    $request = json_decode($raw, true);
+    if (!is_array($request) || !is_string($request['csrf'] ?? null) || !csrf_valid($request['csrf'])) quote_assistant_reply(403, ['error'=>'Please refresh the page and try again.']);
+    $message = is_string($request['message'] ?? null) ? trim($request['message']) : '';
+    if ($message === '' || strlen($message) > 2000) quote_assistant_reply(400, ['error'=>'Please enter a message of up to 2,000 bytes.']);
+    $key = getenv('GEMINI_API_KEY');
+    if (!is_string($key) || trim($key) === '') quote_assistant_reply(503, ['error'=>'The assistant is not connected yet. Please contact us for help.']);
+    $allowedStages = ['website', 'home', 'about', 'services', 'service-detail', 'service-landing', 'portfolio', 'project-detail', 'machinery', 'materials', 'industries', 'contact', 'quote_locked', 'start', 'guide', 'inquiry', 'neon', 'picture', 'printing', 'letters3d', 'frames', 'drawing', 'material', 'parts', 'result'];
+    $stage = is_string($request['stage'] ?? null) && in_array($request['stage'], $allowedStages, true) ? $request['stage'] : 'website';
+    $catalog = quote_project_catalog();
+    $serviceName = $stage === 'inquiry'
+        ? quote_assistant_inquiry_name($request['project'] ?? null, $catalog)
+        : (in_array($stage, ['printing','letters3d','frames'], true) && isset($catalog[$stage]) && ($catalog[$stage]['workflow'] ?? '') === $stage
+            ? ($stage === 'printing' ? 'Printing and graphics' : ($stage === 'frames' ? 'Rectangular display frames' : '3D and illuminated letters'))
+            : (in_array($stage, ['drawing','material','parts'], true)
+            ? quote_assistant_cutting_name($request['project'] ?? null, $catalog)
+            : quote_assistant_service_name($stage, $request['service'] ?? null)));
+    $history = [];
+    foreach (array_slice(is_array($request['history'] ?? null) ? $request['history'] : [], -8) as $turn) {
+        if (!is_array($turn) || !in_array($turn['role'] ?? '', ['user','model'], true) || !is_string($turn['text'] ?? null)) continue;
+        $text = trim($turn['text']);
+        if ($text !== '' && strlen($text) <= 2500) $history[] = ['role'=>$turn['role'], 'parts'=>[['text'=>$text]]];
+    }
+    quote_assistant_reserve_call();
     // Conversation identity is generated on the server and never derived from
     // the browser-supplied history or the analytics identifier.
     $conversation = $_SESSION['assistant_conversation_id'] ?? '';

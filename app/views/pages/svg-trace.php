@@ -6,6 +6,7 @@
   <meta name="csrf-token" content="<?= e($csrf) ?>">
   <title>A Dot SVG Trace | A Dot Industry</title>
   <link rel="stylesheet" href="/online-quote/svg-trace/assets/app.css">
+  <script defer src="/online-quote/svg-trace/assets/ai.js"></script>
   <script defer src="/online-quote/svg-trace/assets/trace.js"></script>
   <script defer src="/online-quote/svg-trace/assets/editor.js"></script>
 </head>

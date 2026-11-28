@@ -24,6 +24,10 @@ final class StEngine
                    'output' => 'fill', 'colors' => 0, 'remove_bg' => 1, 'threshold' => 128,
                    'filter_speckle' => 4, 'color_precision' => 8, 'gradient_step' => 0,
                    'corner_threshold' => 60, 'segment_length' => 4.0, 'splice_threshold' => 45, 'path_precision' => 2],
+        'font' => ['label' => 'Font / lettering outlines', 'colormode' => 'bw', 'hierarchical' => 'cutout', 'mode' => 'precise',
+                   'output' => 'fill', 'ink' => 'auto', 'colors' => 0, 'remove_bg' => 2, 'threshold' => 128,
+                   'filter_speckle' => 1, 'color_precision' => 8, 'gradient_step' => 0,
+                   'corner_threshold' => 38, 'segment_length' => 3.5, 'splice_threshold' => 45, 'path_precision' => 3],
         'cutout' => ['label' => 'Vinyl / laser cut (no overlaps)', 'colormode' => 'color', 'hierarchical' => 'cutout', 'mode' => 'spline',
                    'output' => 'fill', 'colors' => 0, 'remove_bg' => 1, 'threshold' => 128,
                    'filter_speckle' => 6, 'color_precision' => 8, 'gradient_step' => 0,
@@ -92,6 +96,9 @@ final class StEngine
         $out = self::PRESETS[$presetName];
         unset($out['label']);
         $out['preset'] = $presetName;
+        if ($presetName === 'font' && in_array($input['ink'] ?? '', ['auto', 'dark', 'light'], true)) {
+            $out['ink'] = $input['ink'];
+        }
         foreach (self::ENUMS as $k => $allowed) {
             if (isset($input[$k]) && in_array($input[$k], $allowed, true)) {
                 $out[$k] = $input[$k];

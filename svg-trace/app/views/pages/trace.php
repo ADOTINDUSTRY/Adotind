@@ -72,6 +72,16 @@ $slider = static function (string $name, array $s): void { ?>
         </div>
       </div>
 
+      <div class="field" data-only="font" hidden>
+        <span>Letter colour in your image</span>
+        <div class="seg" role="group" aria-label="Letter colour">
+          <label><input type="radio" name="ink" value="auto" checked /> Auto</label>
+          <label><input type="radio" name="ink" value="dark" /> Dark letters</label>
+          <label><input type="radio" name="ink" value="light" /> Light letters</label>
+        </div>
+        <small class="muted">Trace the letter edges, dots and inner holes. Adjust the black / white cut-off to recover fine strokes.</small>
+      </div>
+
       <div class="field">
         <span>Background</span>
         <div class="seg" role="group" aria-label="Background">
@@ -105,6 +115,9 @@ $slider = static function (string $name, array $s): void { ?>
 
       <label class="check"><input type="checkbox" id="auto" checked /> Update automatically when I change a setting</label>
       <button class="btn btn-primary btn-lg ws-go" id="go" type="button" disabled>Convert to SVG</button>
+      <?php if (!empty($page['private_trace'])): ?>
+      <button class="btn ws-go" id="ai-trace" type="button" disabled>AI Trace</button>
+      <?php endif; ?>
       <p class="muted fine"><?= !empty($page['private_trace']) ? 'Download your SVG to keep your edits. Uploaded logos are removed after conversion.' : 'Files are private and deleted automatically after 30 days.' ?></p>
     </aside>
 
@@ -142,32 +155,71 @@ $slider = static function (string $name, array $s): void { ?>
       </div>
     </div>
   </div>
-  <div class="ed" id="ed" hidden role="dialog" aria-label="Edit points">
+  <div class="ed" id="ed" hidden role="dialog" aria-modal="true" aria-label="Edit points">
     <div class="ed-bar">
       <strong class="ed-title">Edit points</strong>
       <div class="ed-group">
-        <button type="button" class="btn btn-sm" id="ed-undo" title="Undo (Ctrl+Z)">Undo</button>
-        <button type="button" class="btn btn-sm" id="ed-straight" title="Make the selected segment, or both sides of the selected point, a straight line">Straight</button>
-        <button type="button" class="btn btn-sm" id="ed-curve" title="Turn the selected segment, or both sides of the selected point, into a curve with handles">Curve</button>
-        <button type="button" class="btn btn-sm" id="ed-smooth" title="Line up the handles so the selected point has no corner">Smooth point</button>
-        <button type="button" class="btn btn-sm" id="ed-delete" title="Delete the selected point, or the whole shape if no point is selected (Delete key)">Delete</button>
+        <button type="button" class="btn btn-sm" id="ed-undo" title="Undo (Ctrl / Cmd + Z)">Undo</button>
+        <button type="button" class="btn btn-sm" id="ed-redo" title="Redo (Ctrl / Cmd + Shift + Z)">Redo</button>
+        <button type="button" class="btn btn-sm" id="ed-add" title="Insert a point on the selected segment (I)">Add point</button>
+        <button type="button" class="btn btn-sm" id="ed-straight" title="Straighten the selected segment or point (L)">Straight</button>
+        <button type="button" class="btn btn-sm" id="ed-curve" title="Convert to a Bézier curve (C)">Curve</button>
+        <button type="button" class="btn btn-sm" id="ed-smooth" title="Smooth the selected point (S)">Smooth</button>
+        <button type="button" class="btn btn-sm" id="ed-delete" title="Remove the selected point (Delete or Backspace)">Delete point</button>
+        <button type="button" class="btn btn-sm" id="ed-delete-shape" title="Remove the selected shape and all its contours (Shift + Delete)">Delete shape</button>
       </div>
       <div class="ed-group">
         <button type="button" class="btn btn-sm" id="ed-out" title="Zoom out">−</button>
         <button type="button" class="btn btn-sm" id="ed-in" title="Zoom in">+</button>
         <button type="button" class="btn btn-sm" id="ed-fit">Fit</button>
+        <button type="button" class="btn btn-sm" id="ed-fit-shape" title="Fit the selected letter or shape (F)">Fit shape</button>
         <label class="check"><input type="checkbox" id="ed-orig" checked /> Show original</label>
       </div>
       <div class="ed-group ed-end">
+        <button type="button" class="btn btn-sm" id="ed-font" title="Trace this image again using the lettering preset">Trace lettering</button>
+        <?php if (!empty($page['private_trace'])): ?>
+        <button type="button" class="btn btn-sm" id="ed-ai">AI refine</button>
+        <?php endif; ?>
         <button type="button" class="btn btn-sm" id="ed-download">Download edited SVG</button>
         <button type="button" class="btn btn-sm btn-primary" id="ed-apply">Done</button>
         <button type="button" class="btn btn-sm" id="ed-cancel">Cancel</button>
       </div>
     </div>
-    <svg class="ed-svg" id="ed-svg" xmlns="http://www.w3.org/2000/svg"></svg>
+    <svg class="ed-svg" id="ed-svg" tabindex="0" aria-label="Curve editing canvas" xmlns="http://www.w3.org/2000/svg"></svg>
     <div class="ed-foot">
       <span id="ed-info"></span>
-      <span class="muted">Click a shape, then drag its points (squares) or handles (circles). Click a line to select that segment. Double-click a line to add a point. Arrow keys nudge a point (Shift = 10). Hold Alt while dragging a handle to make a sharp corner. Scroll to zoom, drag empty space to move.</span>
+      <span class="muted">Double-click a line to add a point. Drag a square to move it or a round handle to reshape the curve.</span>
+      <details class="ed-keys" id="ed-keys">
+        <summary>Keyboard shortcuts <kbd>?</kbd></summary>
+        <dl>
+          <dt>S / C / L</dt><dd>Smooth point / convert to curve / straighten</dd>
+          <dt>I</dt><dd>Insert a point where you selected a segment</dd>
+          <dt>Delete / Backspace</dt><dd>Remove one point</dd>
+          <dt>Shift + Delete</dt><dd>Remove the whole shape</dd>
+          <dt>[ / ]</dt><dd>Previous / next point, including inner contours</dd>
+          <dt>Arrow keys</dt><dd>Nudge a point. Hold Shift for ten steps</dd>
+          <dt>Alt + drag handle</dt><dd>Move one handle independently</dd>
+          <dt>F / 0</dt><dd>Fit selected shape / fit all artwork</dd>
+          <dt>Ctrl / Cmd + Z</dt><dd>Undo. Add Shift to redo</dd>
+          <dt>Ctrl + Y</dt><dd>Redo</dd>
+          <dt>Esc</dt><dd>Close shortcuts or clear selection</dd>
+        </dl>
+      </details>
     </div>
   </div>
+  <?php if (!empty($page['private_trace'])): ?>
+  <dialog id="trace-ai-dialog" class="trace-ai-dialog" aria-labelledby="trace-ai-title">
+    <form method="dialog" class="ai-heading"><h2 id="trace-ai-title">AI Trace</h2><button class="btn btn-sm" aria-label="Close">Close</button></form>
+    <label class="field"><span id="trace-ai-label">What would you like to trace?</span>
+      <textarea id="trace-ai-instruction" rows="2" maxlength="350"></textarea>
+    </label>
+    <div class="ai-compare">
+      <figure><figcaption id="trace-ai-before-label">Original</figcaption><div id="trace-ai-before"></div></figure>
+      <figure><figcaption>Proposed curves</figcaption><div id="trace-ai-after"></div></figure>
+    </div>
+    <p role="status" aria-live="polite" id="trace-ai-status"></p>
+    <div class="ws-actions"><button type="button" class="btn" id="trace-ai-generate">Generate preview</button>
+      <button type="button" class="btn btn-primary" id="trace-ai-apply" disabled>Use these curves</button></div>
+  </dialog>
+  <?php endif; ?>
 </section>
