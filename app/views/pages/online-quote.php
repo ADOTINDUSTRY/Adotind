@@ -88,7 +88,6 @@ $viberBase = (string)($siteConfig['viber'] ?? '');
           <button type="button" data-assistant-close aria-label="Close assistant">×</button>
         </div>
         <div class="quote-assistant-conversation" data-assistant-messages aria-live="polite"><p class="assistant-reply">Hi! What would you like to make? Tell me about your idea and I’ll help you find the next step.</p></div>
-        <p class="quote-assistant-disclosure">Messages go to Google Gemini. Please don’t share sensitive information. AI can make mistakes.</p>
         <form class="quote-assistant-form" data-assistant-form>
           <label class="quote-assistant-label" for="quote-assistant-input">Your message</label>
           <textarea id="quote-assistant-input" rows="2" maxlength="800" placeholder="Tell me about your project..." required data-private></textarea>
