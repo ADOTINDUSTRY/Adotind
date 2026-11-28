@@ -1,7 +1,7 @@
 (() => {
   const assistant = document.querySelector('[data-quote-assistant]');
   const workspace = document.querySelector('.quote-workspace');
-  if (!assistant || !workspace) return;
+  if (!assistant) return;
   const toggle = assistant.querySelector('[data-assistant-toggle]');
   const panel = assistant.querySelector('#quote-assistant-panel');
   const prompt = assistant.querySelector('.quote-assistant-prompt');
@@ -14,7 +14,9 @@
   const error = assistant.querySelector('[data-assistant-error]');
   const history = [];
   let suggested = false, timer, welcomeTimer, pending = false;
-  const labels = {neon:'Open neon designer',drawing:'Open CNC cutting',picture:'Open picture preview'};
+  const labels = workspace
+    ? {neon:'Open neon designer',drawing:'Open CNC cutting',picture:'Open picture preview'}
+    : {neon:'Go to neon designer',drawing:'Go to cutting quote',picture:'Go to picture preview'};
 
   function open() {
     prompt.hidden = true;
@@ -41,16 +43,18 @@
     clearTimeout(welcomeTimer);
     welcomeTimer = null;
   });
-  workspace.addEventListener('quote-assistant-request', open);
+  workspace?.addEventListener('quote-assistant-request', open);
 
   function welcome() {
     welcomeTimer = null;
     if (suggested || !panel.hidden || document.hidden) return;
+    try { if (sessionStorage.getItem('adot_assistant_welcomed') === '1') return; } catch (_) {}
     if (document.querySelector('dialog[open]')) { welcomeTimer = setTimeout(welcome, 1500); return; }
     prompt.dataset.mode = 'welcome';
     promptText.textContent = 'Hi! Welcome to A Dot Industry!';
     promptOpen.textContent = 'Chat with me';
     prompt.hidden = false;
+    try { sessionStorage.setItem('adot_assistant_welcomed', '1'); } catch (_) {}
     welcomeTimer = setTimeout(() => {
       if (prompt.dataset.mode === 'welcome') prompt.hidden = true;
       welcomeTimer = null;
@@ -81,9 +85,9 @@
     clearTimeout(timer);
     timer = setTimeout(maybeSuggest, 30000);
   }
-  workspace.addEventListener('pointerdown', schedule, {passive:true});
-  workspace.addEventListener('keydown', schedule);
-  workspace.addEventListener('invalid', () => { if (!suggested && panel.hidden) maybeSuggest(); }, true);
+  document.addEventListener('pointerdown', schedule, {passive:true});
+  document.addEventListener('keydown', schedule);
+  document.addEventListener('invalid', () => { if (!suggested && panel.hidden) maybeSuggest(); }, true);
   document.addEventListener('visibilitychange', () => {
     if (!document.hidden) {
       if (!prompt.dataset.mode && !welcomeTimer) welcomeTimer = setTimeout(welcome, 500);
@@ -94,6 +98,10 @@
   schedule();
 
   function stage() {
+    if (!workspace) {
+      const pages = ['home','about','services','service-detail','portfolio','project-detail','machinery','materials','industries','contact'];
+      return assistant.dataset.page === 'online-quote' ? 'quote_locked' : pages.includes(assistant.dataset.page) ? assistant.dataset.page : 'website';
+    }
     if (!workspace.querySelector('.quote-start')?.hidden) return 'start';
     const visible = [...workspace.querySelectorAll('[data-project-panel],[data-stage]')].find(el => !el.hidden && el.getClientRects().length);
     if (visible) return visible.dataset.projectPanel || visible.dataset.stage;
@@ -118,7 +126,7 @@
     try {
       const response = await fetch('/online-quote/assistant', {
         method:'POST', credentials:'same-origin', headers:{'Content-Type':'application/json'},
-        body:JSON.stringify({csrf:assistant.dataset.csrf, message, stage:stage(), history:history.slice(-8)})
+        body:JSON.stringify({csrf:assistant.dataset.csrf, message, stage:stage(), service:assistant.dataset.service, history:history.slice(-8)})
       });
       const data = await response.json();
       if (!response.ok || typeof data.answer !== 'string') throw new Error(typeof data.error === 'string' ? data.error : 'Unable to get a response.');
@@ -129,8 +137,12 @@
         button.type = 'button'; button.className = 'quote-assistant-suggestion';
         button.textContent = labels[data.suggestion];
         button.addEventListener('click', () => {
-          workspace.dispatchEvent(new CustomEvent('quote-assistant-navigate', {detail:{target:data.suggestion}}));
-          close();
+          if (workspace) {
+            workspace.dispatchEvent(new CustomEvent('quote-assistant-navigate', {detail:{target:data.suggestion}}));
+            close();
+          } else {
+            location.assign('/online-quote?project=' + encodeURIComponent(data.suggestion));
+          }
         });
         messages.append(button); messages.scrollTop = messages.scrollHeight;
       }

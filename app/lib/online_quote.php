@@ -8,7 +8,8 @@ function online_quote_unlocked(): bool
 
 function handle_online_quote_pin_submit(): never
 {
-    $destination = ($_POST['project'] ?? '') === 'neon' ? '/online-quote?project=neon' : '/online-quote';
+    $project = $_POST['project'] ?? '';
+    $destination = in_array($project, ['neon','drawing','picture'], true) ? '/online-quote?project=' . $project : '/online-quote';
     if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
         redirect('/online-quote', 303);
     }

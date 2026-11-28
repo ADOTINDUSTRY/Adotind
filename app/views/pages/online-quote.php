@@ -47,7 +47,7 @@ $viberBase = (string)($siteConfig['viber'] ?? '');
       <?php if (is_string($pinSuccess)): ?><p class="quote-access-notice" role="status"><?= e($pinSuccess) ?></p><?php endif; ?>
       <?php if (is_string($pinError)): ?><p class="alert alert-error"><?= e($pinError) ?></p><?php endif; ?>
       <form action="/online-quote/pin" method="post" class="quote-form quote-pin-form" novalidate>
-        <?php if (($_GET['project'] ?? '') === 'neon'): ?><input type="hidden" name="project" value="neon"><?php endif; ?>
+        <?php if (in_array(($_GET['project'] ?? ''), ['neon','drawing','picture'], true)): ?><input type="hidden" name="project" value="<?= e($_GET['project']) ?>"><?php endif; ?>
         <input type="hidden" name="csrf_token" value="<?= e(csrf_token()) ?>" />
         <label>Enter PIN
           <input type="password" name="pin" inputmode="numeric" maxlength="12" placeholder="PIN" required data-private />
@@ -79,29 +79,6 @@ $viberBase = (string)($siteConfig['viber'] ?? '');
 <?php else: ?>
 <section class="section section-light quote-page">
   <div class="container quote-workspace" data-tracking-section="quote-workspace">
-    <aside class="quote-assistant" data-quote-assistant data-csrf="<?= e(csrf_token()) ?>" aria-label="Project assistant">
-      <div class="quote-assistant-prompt" hidden role="status"><span data-assistant-prompt-text></span><button type="button" data-assistant-prompt-open>Chat with me</button><button type="button" data-assistant-dismiss aria-label="Dismiss message">×</button></div>
-      <div class="quote-assistant-panel" id="quote-assistant-panel" hidden>
-        <div class="quote-assistant-header">
-          <span class="quote-assistant-avatar" aria-hidden="true"><img src="/public/assets/images/quote-assistant-mascot.webp" alt="" width="450" height="550" /></span>
-          <div class="quote-assistant-header-title"><strong>A Dot Assistant</strong><small>Here to help with your project</small></div>
-          <button type="button" data-assistant-close aria-label="Close assistant">×</button>
-        </div>
-        <div class="quote-assistant-conversation" data-assistant-messages aria-live="polite"><p class="assistant-reply">Hi! What would you like to make? Tell me about your idea and I’ll help you find the next step.</p></div>
-        <form class="quote-assistant-form" data-assistant-form>
-          <label class="quote-assistant-label" for="quote-assistant-input">Your message</label>
-          <textarea id="quote-assistant-input" rows="2" maxlength="800" placeholder="Tell me about your project..." required data-private></textarea>
-          <button type="submit" class="quote-assistant-send" data-assistant-send aria-label="Send message">↑</button>
-        </form>
-        <p class="quote-assistant-error" data-assistant-error role="status" hidden></p>
-      </div>
-      <button class="quote-assistant-toggle" type="button" data-assistant-toggle aria-expanded="false" aria-controls="quote-assistant-panel" aria-label="Open project assistant">
-        <span class="quote-assistant-mascot" aria-hidden="true">
-          <img class="mascot-body" src="/public/assets/images/quote-assistant-mascot.webp" alt="" width="450" height="550" />
-          <img class="mascot-wave" src="/public/assets/images/quote-assistant-mascot.webp" alt="" width="450" height="550" />
-        </span>
-      </button>
-    </aside>
     <?php if (is_string($pinSuccess)): ?><p class="quote-access-notice" role="status"><?= e($pinSuccess) ?></p><?php endif; ?>
     <?php if (is_string($quoteSuccess)): ?><p class="alert alert-success"><?= e($quoteSuccess) ?></p><?php endif; ?>
     <?php if (is_string($quoteError)): ?><p class="alert alert-error"><?= e($quoteError) ?></p><?php endif; ?>

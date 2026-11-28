@@ -185,5 +185,12 @@
     else if (active === 'neon') show(trail.pop() || 'start');
   });
   if (neonUrl()) restoreNeonTrail();
-  show(neonUrl() ? 'neon' : workspace.querySelector('.alert-error') ? 'drawing' : results.length ? 'result' : 'start', neonUrl());
+  const requestedProject = new URLSearchParams(location.search).get('project');
+  const initialProject = ['drawing','picture'].includes(requestedProject) ? requestedProject : null;
+  show(neonUrl() ? 'neon' : initialProject || (workspace.querySelector('.alert-error') ? 'drawing' : results.length ? 'result' : 'start'), neonUrl() || !!initialProject);
+  if (initialProject) {
+    const url = new URL(location.href);
+    url.searchParams.delete('project');
+    window.history.replaceState(window.history.state, '', url);
+  }
 })();
