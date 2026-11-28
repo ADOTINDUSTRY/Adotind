@@ -73,15 +73,15 @@
     try { sessionStorage.setItem('adot_assistant_sitting', '1'); } catch (_) {}
     const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
     if (!reduced) {
-      turnTimer = setTimeout(() => { assistant.dataset.mascotState = 'leaving'; }, 700);
-      chairTurnTimer = setTimeout(() => { assistant.dataset.mascotState = 'turn-to-sit'; }, 3900);
-      lowerTimer = setTimeout(() => { assistant.dataset.mascotState = 'sitting-down'; }, 5300);
-      settleTimer = setTimeout(() => { assistant.dataset.mascotState = 'settling'; }, 6000);
+      turnTimer = setTimeout(() => { assistant.dataset.mascotState = 'leaving'; }, 100);
+      chairTurnTimer = setTimeout(() => { assistant.dataset.mascotState = 'turn-to-sit'; }, 3300);
+      lowerTimer = setTimeout(() => { assistant.dataset.mascotState = 'sitting-down'; }, 3400);
+      settleTimer = setTimeout(() => { assistant.dataset.mascotState = 'settling'; }, 4100);
     }
     sitTimer = setTimeout(() => {
       assistant.dataset.mascotState = 'sitting';
-    }, reduced ? 0 : 6900);
-    farewellTimer = setTimeout(() => { if (prompt.dataset.mode === 'farewell') prompt.hidden = true; }, reduced ? 2500 : 7800);
+    }, reduced ? 0 : 5000);
+    farewellTimer = setTimeout(() => { if (prompt.dataset.mode === 'farewell') prompt.hidden = true; }, reduced ? 2500 : 5900);
   });
   assistant.querySelector('[data-assistant-close]').addEventListener('click', close);
   promptOpen.addEventListener('click', open);

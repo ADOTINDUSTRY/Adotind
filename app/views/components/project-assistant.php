@@ -27,9 +27,9 @@
         <img class="mascot-turn-view mascot-turn-rear-quarter" src="/public/assets/images/quote-assistant-turn-rear.webp" alt="" width="450" height="550" />
         <img class="mascot-turn-back" src="/public/assets/images/quote-assistant-back.webp" alt="" width="450" height="550" />
         <span class="mascot-walking">
-          <img class="mascot-walk-body" src="/public/assets/images/quote-assistant-back.webp" alt="" width="450" height="550" />
-          <img class="mascot-walk-left-leg" src="/public/assets/images/quote-assistant-back.webp" alt="" width="450" height="550" />
-          <img class="mascot-walk-right-leg" src="/public/assets/images/quote-assistant-back.webp" alt="" width="450" height="550" />
+          <img class="mascot-walk-body" src="/public/assets/images/quote-assistant-turn-rear.webp" alt="" width="450" height="550" />
+          <img class="mascot-walk-left-leg" src="/public/assets/images/quote-assistant-turn-rear.webp" alt="" width="450" height="550" />
+          <img class="mascot-walk-right-leg" src="/public/assets/images/quote-assistant-turn-rear.webp" alt="" width="450" height="550" />
         </span>
         <img class="mascot-sitting-down" src="/public/assets/images/quote-assistant-sitting-down.webp" alt="" width="360" height="440" />
         <img class="mascot-settling" src="/public/assets/images/quote-assistant-seated.webp" alt="" width="360" height="440" />
@@ -37,7 +37,7 @@
     </button>
     <button class="quote-assistant-bye" type="button" data-assistant-bye aria-label="Ask the assistant to sit down">Bye</button>
     <button class="quote-assistant-chair" type="button" data-assistant-chair aria-label="Call the project assistant">
-      <span class="assistant-empty-chair" aria-hidden="true"></span>
+      <img class="assistant-empty-chair" src="/public/assets/images/quote-assistant-empty-chair.webp" alt="" width="360" height="440" />
       <img class="assistant-seated" src="/public/assets/images/quote-assistant-seated.webp" alt="" width="360" height="440" />
     </button>
   </div>
