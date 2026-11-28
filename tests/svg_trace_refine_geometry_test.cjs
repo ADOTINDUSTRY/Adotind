@@ -1,5 +1,5 @@
 const assert = require('node:assert/strict');
-const { apply, candidates, createReviewer, defaultTolerance } = require('../svg-trace/public/assets/refine-geometry.js');
+const { apply, candidates, createReviewer, defaultTolerance, createRasterGuide } = require('../svg-trace/public/assets/refine-geometry.js');
 
 function lines(nodes, closed = false) {
   return { closed, nodes, segs: Array.from({length:nodes.length - (closed ? 0 : 1)}, () => ({t:'L'})) };
@@ -83,3 +83,56 @@ assert(many.length>1000 && batch.applied.length>800);
 assert.deepEqual(batch.contour.nodes[0],long.nodes[0]);
 assert.deepEqual(batch.contour.nodes.at(-1),long.nodes.at(-1));
 console.log('Local node edits, guarded batch refinement, counters and arc clearance passed.');
+
+function raster(w,h,rgba,box=[0,0,w,h]) {
+  const data=new Uint8ClampedArray(w*h*4);
+  for (let y=0;y<h;y++) for (let x=0;x<w;x++) data.set(rgba(x,y),(y*w+x)*4);
+  return createRasterGuide({width:w,height:h,data},box);
+}
+// The real Font trace uses four SVG units per bitmap pixel. A hand-moved
+// corner remains two straight segments meeting at the original image corner.
+const black=[0,0,0,255], white=[255,255,255,255];
+const ref=raster(256,144,(x,y)=>x>=24 && x<136 && y>=30 && y<110 ? black : white,[0,0,1024,576]);
+const displaced=lines([[111,131],[95,438],[542,438],[542,119]],true);
+const fix=createReviewer(displaced,{guide:ref}).candidates();
+assert.deepEqual(fix.map(({action,index})=>[action,index]),[['align',0]]);
+assert(fix[0].improvement>2 && Math.hypot(fix[0].geometry.to[0]-96,fix[0].geometry.to[1]-120)<.3);
+const repaired=apply(displaced,fix,{guide:ref});
+assert.deepEqual(repaired.contour.segs,displaced.segs);
+assert.deepEqual(repaired.contour.nodes.slice(1),displaced.nodes.slice(1));
+assert.deepEqual(apply(displaced,JSON.parse(JSON.stringify(fix))).contour,repaired.contour,
+  'A saved review can be applied after restoring the tab');
+assert.equal(createReviewer(repaired.contour,{guide:ref}).preview(edit('align',0)),null);
+const nearbyHole=lines([[97,122],[100,122],[100,132],[97,132]],true);
+assert.equal(apply(displaced,fix,{guide:ref,obstacles:[nearbyHole]}).applied.length,0);
+assert.equal(apply(displaced,[{action:'align',index:0,geometry:{to:[408,400]}}]).applied.length,0);
+assert.equal(apply(displaced,[{action:'fit',index:0,geometry:{c1:[NaN,100],c2:[100,300]}}]).applied.length,0);
+assert.equal(createReviewer({...displaced,closed:false,segs:displaced.segs.slice(1)},{guide:ref}).preview(edit('align',1)),null);
+
+// A bowed solid edge is visibly different from the straight segment of
+// its trace. Fitting its handles preserves the endpoints and the three
+// other segments, and reproduces the measured bend within half a pixel.
+const bowed=raster(160,128,(x,y)=>{
+  const t=(x+.5-20)/100, top=20+14*t*(1-t);
+  const coverage=t<0 || t>1 || y>=92 ? 0 : Math.min(1,Math.max(0,y+1-top));
+  const v=Math.round(255*(1-coverage)); return [v,v,v,255];
+});
+const rectangle=lines([[20,20],[120,20],[120,92],[20,92]],true);
+const fitted=createReviewer(rectangle,{guide:bowed}).preview(edit('fit',0));
+assert(fitted && fitted.improvement>2);
+const {c1,c2}=fitted.geometry;
+assert(Math.abs(.125*20+.375*(c1[1]+c2[1])+.125*20-23.5)<.5);
+const shaped=apply(rectangle,[fitted],{guide:bowed}).contour;
+assert.deepEqual(shaped.nodes,rectangle.nodes);
+assert.deepEqual(shaped.segs.slice(1),rectangle.segs.slice(1));
+assert.equal(createReviewer(shaped,{guide:bowed}).preview(edit('fit',0)),null);
+assert.equal(createReviewer({...rectangle,segs:[{t:'A',rx:60,ry:40,rot:0,large:0,sweep:0},...rectangle.segs.slice(1)]},
+  {guide:bowed}).preview(edit('fit',0)),null);
+
+const lowContrast=raster(160,128,(x,y)=>y<23?[240,240,240,255]:[245,245,245,255]);
+assert.equal(createReviewer(rectangle,{guide:lowContrast}).candidates().length,0);
+const stripe=raster(60,60,(x,y)=>y>=27&&y<33?black:white);
+assert.equal(stripe.match([28,30],[1,0],5),null,'Do not choose arbitrarily between two equally likely edges');
+const transparent=raster(30,40,(_x,y)=>[255,255,255,y>=20?255:0]);
+assert(Math.abs(transparent.match([15,18],[1,0]).point[1]-20)<.2);
+console.log('Raster-matched corners, editable cubic fitting, dimensions, transparency, weak and ambiguous edges passed.');

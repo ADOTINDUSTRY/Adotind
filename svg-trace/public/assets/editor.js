@@ -695,6 +695,7 @@
     pointReview = window.createTracePointReview({
       overlay: reviewOverlay, make: mk, pathData: toD, unit: pxUnit, checkpoint:scheduleEditorDraft,
       drawing: () => ({paths, vb, original:origUrl}),
+      boxPoints: () => boxMode ? boxPoints : [],
       selection: () => ({pi:sel, si:node?.si ?? seg?.si ?? (paths[sel]?.subs.length === 1 ? 0 : -1),
         focus:node ? {type:'node', index:node.ni} : seg ? {type:'segment', index:seg.k} : null}),
       selectTarget(pi, si, index, segment) {

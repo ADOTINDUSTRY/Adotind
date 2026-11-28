@@ -40,7 +40,7 @@ async function exercise() {
   $('ws').addEventListener('st:edited', e => { saved = e.detail.text; });
   $('edit').click();
   await wait(() => !$('ed').hidden && !$('ed-refine-panel').hidden, 'Edit points did not open its review dock');
-  expect($('ed-refine-scope').value === 'drawing', 'Whole drawing should be the initial scope');
+  expect($('ed-refine-scope').value === 'auto', 'With no points selected, automatic scope reviews the whole drawing');
   expect(editorCount() === 2, 'Both synthetic paths must start with a redundant midpoint');
   const pick = element => {
     const box = element.getBoundingClientRect();

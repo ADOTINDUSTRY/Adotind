@@ -43,4 +43,49 @@ $single = svg_trace_ai_review_contours([array_replace($loop,['focus'=>['type'=>'
 review_check(svg_trace_ai_review_proposals($reply,$single) === [['id'=>'p4s2','edits'=>[$edit('straighten',1)]]], 'Focus must restrict edits.');
 review_check(svg_trace_ai_review_proposals(['proposals'=>[]],$review) === [], 'An empty review is a valid result.');
 review_check(svg_trace_ai_review_proposals(['paths'=>[]],$review) === null, 'Replacement SVG paths cannot be applied as review actions.');
-echo "Node review geometry, focus, bounds and proposal filtering passed.\n";
+
+$rasterEdits = [$edit('fit',0),$edit('align',1),$edit('fit',4)];
+$withRaster = svg_trace_ai_review_contours([array_replace($loop,['candidates'=>$rasterEdits])]);
+review_check($withRaster[0]['candidates'] === [['action'=>'fit','index'=>0],['action'=>'align','index'=>1]],
+    'The model should see raster fitting candidates for nodes and for straight segments, excluding exact arcs.');
+$model = ['proposals'=>[['id'=>$loop['id'],'edits'=>$rasterEdits]]];
+review_check(svg_trace_ai_review_proposals($model,$withRaster)[0]['edits'] === array_slice($rasterEdits,0,2),
+    'The client should receive compatible indexed edits for aligning an anchor and fitting a curve.');
+$oneSegment = svg_trace_ai_review_contours([array_replace($loop,['focus'=>['type'=>'segment','index'=>0]])]);
+review_check(svg_trace_ai_review_proposals($model,$oneSegment)[0]['edits'] === [$edit('fit',0)], 'A focused segment must accept only its fit.');
+review_check(svg_trace_ai_edit_target($open,'align',0) === null && svg_trace_ai_edit_target($open,'align',2) === null,
+    'Image alignment must preserve open endpoints.');
+$boxSegments = $loop['segments'];
+$boxSegments[4] = ['C',0,35,0,18];
+$selected = svg_trace_ai_review_contours([array_replace($loop,['selected'=>[0,1,4], 'segments'=>$boxSegments])]);
+review_check($selected[0]['selected'] === [0,1,4] && $selected[0]['candidates'][0] === ['action'=>'remove','index'=>1],
+    'Keep the selected nodes and filter suggested candidates against that selection.');
+$box = ['proposals'=>[['id'=>$loop['id'],'edits'=>[$edit('fit',0),$edit('align',2),$edit('straighten',1),$edit('straighten',4)]]]];
+review_check(svg_trace_ai_review_proposals($box,$selected)[0]['edits'] === [$edit('fit',0),$edit('straighten',4)],
+    'A selected region must exclude other nodes and segments, including an edge with only one selected endpoint.');
+foreach ([[],[-1,2],[1,1],[2,8],['1']] as $invalid) {
+    review_check(svg_trace_ai_review_contours([array_replace($loop,['selected'=>$invalid])]) === null, 'Invalid selected node list.');
+}
+$position = ['viewBox'=>[-50,20,220,90], 'imageViewBox'=>[-10,42.5,30,20]];
+$frame = svg_trace_ai_review_reference($position,220,90);
+review_check($frame['frames'] === $position && $frame['parts'] === [], 'Nonzero origins and fractional crops should be carried through exactly.');
+review_check(svg_trace_ai_review_reference([],220,90)['frames']['imageViewBox'] === [0,0,220,90], 'Older clients default to the full drawing.');
+review_check(svg_trace_ai_review_reference(['imageViewBox'=>[0,0,0,20]],220,90) === null, 'Invalid crop dimensions.');
+review_check(svg_trace_ai_review_reference(['overlay'=>'missing source'],220,90) === null, 'An overlay needs a clean original for comparison.');
+review_check(svg_trace_ai_review_reference(['image'=>'broken'],220,90) === null, 'Invalid JPEG.');
+if (function_exists('imagejpeg')) {
+    $jpeg = static function (int $w, int $h): string {
+        ob_start();
+        imagejpeg(imagecreatetruecolor($w,$h));
+        return base64_encode(ob_get_clean());
+    };
+    $referenceImage = $jpeg(240,160);
+    $paired = svg_trace_ai_review_reference($position+['image'=>$referenceImage,'overlay'=>$referenceImage],220,90);
+    review_check($paired['frames']['imagePixels'] === [240,160] && array_keys($paired['parts'][0]) === ['text'] &&
+        $paired['parts'][1]['inlineData']['data'] === $referenceImage && isset($paired['parts'][2]['text'],$paired['parts'][3]['inlineData']),
+        'Clean and annotated images should be labelled in order with their shared pixel dimensions.');
+    review_check(svg_trace_ai_review_reference(['image'=>$referenceImage,'overlay'=>$jpeg(120,90)],220,90) === null,
+        'Different-sized images cannot be treated as the same view.');
+    review_check(svg_trace_ai_review_reference(['image'=>$jpeg(1025,32)],220,90) === null, 'Cap review image size before calling Gemini.');
+}
+echo "Node review geometry, focus, raster edit targets and aligned image inputs passed.\n";

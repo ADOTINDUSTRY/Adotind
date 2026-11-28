@@ -51,7 +51,8 @@ function quote_svg_trace_dispatch(string $path): never
         quote_svg_trace_json(405, ['error'=>'Open the editor to continue.']);
     }
     $assets = ['app.css'=>'text/css', 'trace.js'=>'application/javascript', 'editor.js'=>'application/javascript', 'ai.js'=>'application/javascript',
-        'refine-geometry.js'=>'application/javascript', 'point-review.js'=>'application/javascript', 'tab-draft.js'=>'application/javascript'];
+        'refine-geometry.js'=>'application/javascript', 'review-reference.js'=>'application/javascript',
+        'point-review.js'=>'application/javascript', 'tab-draft.js'=>'application/javascript'];
     foreach ($assets as $name => $type) {
         if ($path === QUOTE_TRACE_URL . '/assets/' . $name) {
             session_write_close();

@@ -106,8 +106,208 @@
     if (Math.min(first,second)<0 || Math.max(first,second)>total) return null;
     return [a,offset(a,u,first),offset(b,v,-second),b];
   }
-  function edit(sp,i,action,source,ids,tolerance) {
+  // Compare premultiplied colour and alpha. This detects pale artwork on a
+  // transparent background as well as boundaries between two opaque colours.
+  function createRasterGuide(image, viewBox) {
+    const {width,height,data} = image || {};
+    if (!Number.isInteger(width) || !Number.isInteger(height) || width<3 || height<3 ||
+        !data || data.length!==width*height*4 || !Array.isArray(viewBox) ||
+        viewBox.length!==4 || !viewBox.every(Number.isFinite) || viewBox[2]<=0 || viewBox[3]<=0) return null;
+    const [left,top,w,h]=viewBox, sx=width/w,sy=height/h;
+    const pixelSize=Math.max(1/sx,1/sy);
+    // All probes stay on this small cross-section of the edge. Two equally
+    // plausible boundaries on either side (such as a thin stroke) are ambiguous.
+    function sample(x,y,out) {
+      const px=x-.5, py=y-.5, ix=Math.floor(px), iy=Math.floor(py);
+      if (ix<0 || iy<0 || ix+1>=width || iy+1>=height) return false;
+      const dx=px-ix,dy=py-iy, row=width*4, base=(iy*width+ix)*4;
+      const a00=(1-dx)*(1-dy), a10=dx*(1-dy), a01=(1-dx)*dy, a11=dx*dy;
+      const v0=a00*data[base+3]/255, v1=a10*data[base+7]/255;
+      const v2=a01*data[base+row+3]/255, v3=a11*data[base+row+7]/255;
+      for (let c=0;c<3;c++) out[c]=v0*data[base+c]+v1*data[base+4+c]+v2*data[base+row+c]+v3*data[base+row+4+c];
+      out[3]=(v0+v1+v2+v3)*255;
+      return true;
+    }
+    const first=[0,0,0,0], second=[0,0,0,0];
+    function match(point,tangent,radius=5) {
+      const x=(point[0]-left)*sx,y=(point[1]-top)*sy;
+      const t=unit([tangent[0]*sx,tangent[1]*sy]), nx=-t[1],ny=t[0];
+      if (Math.abs(nx)+Math.abs(ny)<.9 || x<1 || y<1 || x>=width-1 || y>=height-1) return null;
+      const steps=Math.min(12,Math.floor(radius*2));
+      if (steps<2) return null;
+      const values=[];
+      for (let k=-steps-1;k<=steps+1;k++) {
+        const p=k*.5;
+        if (!sample(x+(p-.65)*nx,y+(p-.65)*ny,first) ||
+            !sample(x+(p+.65)*nx,y+(p+.65)*ny,second)) { values.push(0); continue; }
+        values.push(Math.hypot(first[0]-second[0],first[1]-second[1],first[2]-second[2],first[3]-second[3]));
+      }
+      const peaks=[];
+      let best=null;
+      for (let k=1;k<values.length-1;k++) {
+        const v=values[k],a=values[k-1],b=values[k+1];
+        if (v<28 || v<a || v<b || (a===v && b===v)) continue;
+        const bend=2*v-a-b;
+        const d=(k-steps-1 + (bend>1e-5 ? .5*(b-a)/bend : 0))*.5;
+        const score=v/(1+.06*d*d);
+        const hit={d,score};
+        peaks.push(hit);
+        if (!best || score>best.score) best=hit;
+      }
+      if (!best || Math.abs(best.d)>radius-.1 ||
+          peaks.some(other=>Math.abs(other.d-best.d)>1.4 && other.score>best.score*.72)) return null;
+      const d=best.d;
+      return {point:[point[0]+nx*d/sx,point[1]+ny*d/sy],normal:[nx,ny],distance:d};
+    }
+    return {match,pixelSize,
+      pixels: (a,b) => [(a[0]-b[0])*sx,(a[1]-b[1])*sy]};
+  }
+  const pair = p => Array.isArray(p) && p.length===2 && p.every(Number.isFinite);
+  const tangentAt = (c,t) => {
+    const sub=split(c,t);
+    return t===1 ? direction(sub[0],true) : direction(sub[1],false);
+  };
+  function matchedSamples(curves,samples,guide,radius) {
+    const matches=[];
+    for (const [k,t] of samples) {
+      const c=curves[k], p=at(c,t), hit=guide.match(p,tangentAt(c,t),radius);
+      if (hit) matches.push({...hit,k,t});
+    }
+    return matches;
+  }
+  function improvement(matches,curves,guide) {
+    let before=0,after=0;
+    for (const m of matches) {
+      before+=m.distance*m.distance;
+      const residual=dot(guide.pixels(at(curves[m.k],m.t),m.point),m.normal);
+      after+=residual*residual;
+    }
+    if (!matches.length) return 0;
+    before=Math.sqrt(before/matches.length); after=Math.sqrt(after/matches.length);
+    return before>.55 && after<before*.72 ? before-after : 0;
+  }
+  const moveHandle = (g,which,d) => g.t!=='C'?g:{...g,[which]:offset(g[which],d,1)};
+  function cornerEvidence(c,side,guide,radius,k) {
+    const line=minus(c[3],c[0]), extent=length(guide.pixels(c[3],c[0]));
+    if (extent<9) return null;
+    const probeLength=Math.min(36,extent*.72);
+    const samples=[];
+    for (const fraction of [.18,.36,.56,.78,1]) {
+      const t=side==='end'?1-fraction*probeLength/extent:fraction*probeLength/extent;
+      if (dot(unit(line),tangentAt(c,t))<.976) return null;
+      const hit=guide.match(at(c,t),tangentAt(c,t),radius);
+      if (hit) samples.push({...hit,k,t});
+    }
+    if (samples.length<4) return null;
+    const center=samples.reduce((mean,m)=>offset(mean,m.point,1/samples.length),[0,0]);
+    let xx=0,xy=0,yy=0;
+    for (const {point} of samples) {
+      const [x,y]=minus(point,center); xx+=x*x; xy+=x*y; yy+=y*y;
+    }
+    const angle=.5*Math.atan2(2*xy,xx-yy);
+    let v=[Math.cos(angle),Math.sin(angle)];
+    if (dot(v,line)<0) v=[-v[0],-v[1]];
+    if (dot(v,unit(line))<.95 || samples.some(m=>Math.abs(cross(v,minus(m.point,center)))>.55*guide.pixelSize)) return null;
+    return {center,v,samples};
+  }
+  // Generate geometric edits only for closed outlines with a recognisable
+  // image boundary. An open centreline deliberately sits between two edges.
+  function rasterEdit(sp,i,action,source,ids,options) {
+    const {guide,geometry}=options;
+    if (!sp.closed || (!guide && !geometry)) return null;
+    const n=sp.nodes.length, j=next(sp,i), left=(i+n-1)%n;
+    const p=sp.nodes[i], b=sp.nodes[j];
+    if (!p || next(source,ids[i])!==ids[j] || sp.segs[i]?.t==='A') return null;
+    const c=curve(sp,i), chord=dist(p,b);
+    if (chord<1e-6) return null;
+    if (geometry?.from && (!pair(geometry.from) || dist(geometry.from,p)>1e-6)) return null;
+    if (geometry?.end && (!pair(geometry.end) || dist(geometry.end,b)>1e-6)) return null;
+    // Stored previews are validated again when accepted, including when the
+    // raster is being decoded after a tab reload. Local scale bounds protect
+    // tiny detail independently of the overall dimensions of the artwork.
+    const maxWorld=guide ? 5*guide.pixelSize : Infinity;
+    if (action==='align') {
+      if (next(source,ids[left])!==ids[i] || sp.segs[left].t==='A') return null;
+      const A=sp.segs[left], B=sp.segs[i], a=sp.nodes[left], incoming=curve(sp,left);
+      const sharp=dot(direction(incoming,true),direction(c,false))<Math.cos(Math.PI*.24);
+      const bound=Math.min(.23*Math.min(dist(a,p),chord),maxWorld);
+      const before=region([a,p,b],[A,B]); let to=geometry?.to, matches;
+      if (!geometry) {
+        const r=Math.min(5,bound/guide.pixelSize);
+        if (r<1) return null;
+        if (sharp) {
+          // The gradient AT a corner mixes both sides. Measure away from
+          // its tip and intersect two independently supported straight edges.
+          if (A.t!=='L' || B.t!=='L') return null;
+          const first=cornerEvidence(incoming,'end',guide,r,0),second=cornerEvidence(c,'start',guide,r,1);
+          if (!first || !second) return null;
+          const det=cross(first.v,second.v);
+          if (Math.abs(det)<.45) return null;
+          to=offset(first.center,first.v,cross(minus(second.center,first.center),second.v)/det);
+          if (length(guide.pixels(to,p))<.72) return null;
+          matches=first.samples.concat(second.samples);
+        } else {
+          matches=matchedSamples([incoming,c],[[0,.5],[0,.78],[0,1],[1,.22],[1,.5]],guide,r);
+          const anchor=matches.find(m=>m.k===0 && m.t===1);
+          if (!anchor || Math.abs(anchor.distance)<.72 || matches.length<4 ||
+              !matches.some(m=>m.k===1) || !matches.some(m=>m.k===0 && m.t<1)) return null;
+          to=anchor.point;
+        }
+      }
+      if (!pair(to) || dist(to,p)<1e-6 || dist(to,p)>bound || dist(to,source.nodes[ids[i]])>bound) return null;
+      if (sharp && (A.t!=='L' || B.t!=='L' ||
+          Math.sign(cross(minus(p,a),minus(b,p)))!==Math.sign(cross(minus(to,a),minus(b,to))) ||
+          dot(unit(minus(p,a)),unit(minus(to,a)))<.96 || dot(unit(minus(b,p)),unit(minus(b,to)))<.96)) return null;
+      const d=minus(to,p),after=region([a,to,b],[moveHandle(A,'c2',d),moveHandle(B,'c1',d)]);
+      const gain=matches?improvement(matches,[curve(after,0),curve(after,1)],guide):0;
+      if (matches && gain<.28) return null;
+      return {point:p,before,after,start:left,tol:dist(to,p),geometry:{to,from:p},improvement:gain};
+    }
+    if (action!=='fit') return null;
+    const axis=unit(minus(b,p)),bound=Math.min(.25*chord,1.8*maxWorld);
+    let c1=geometry?.c1,c2=geometry?.c2,matches;
+    if (!geometry) {
+      const radius=Math.min(5,.22*chord/guide.pixelSize);
+      if (radius<1.5) return null;
+      matches=matchedSamples([c],[[0,0],[0,.125],[0,.25],[0,.375],[0,.5],[0,.625],[0,.75],[0,.875],[0,1]],guide,radius);
+      const ends=matches.filter(m=>m.t===0 || m.t===1);
+      if (ends.length!==2 || ends.some(m=>Math.abs(m.distance)>1.2) || matches.length<8) return null;
+      let h11=.015,h12=0,h22=.015;
+      const v1=[0,0],v2=[0,0];
+      for (const {t,point} of matches) {
+        const u=1-t,h1=3*u*u*t,h2=3*u*t*t,delta=minus(point,at(c,t));
+        h11+=h1*h1; h12+=h1*h2; h22+=h2*h2;
+        for (let dim=0;dim<2;dim++) { v1[dim]+=h1*delta[dim]; v2[dim]+=h2*delta[dim]; }
+      }
+      const det=h11*h22-h12*h12;
+      c1=c[1].map((v,k)=>v+(h22*v1[k]-h12*v2[k])/det);
+      c2=c[2].map((v,k)=>v+(h11*v2[k]-h12*v1[k])/det);
+      // Keep a tangent shared with an existing smooth cubic neighbour.
+      const nextSeg=sp.segs[j],prevSeg=sp.segs[left];
+      if (prevSeg.t==='C' && dot(direction(curve(sp,left),true),direction(c,false))>.996) {
+        const u=direction(c,false); c1=offset(p,u,dot(minus(c1,p),u));
+      }
+      if (nextSeg.t==='C' && dot(direction(curve(sp,j),false),direction(c,true))>.996) {
+        const v=direction(c,true); c2=offset(b,v,dot(minus(c2,b),v));
+      }
+    }
+    if (!pair(c1) || !pair(c2)) return null;
+    const delta=Math.max(dist(c1,c[1]),dist(c2,c[2]));
+    if (delta>bound || delta<1e-6) return null;
+    const cp=[p,c1,c2,b];
+    // Monotone projection rules out loops/backtracking; endpoint tangent
+    // limits preserve deliberate corners and the way adjacent edges join.
+    if (cp.slice(1).some((q,k)=>dot(minus(q,cp[k]),axis)<-1e-8) ||
+        dot(direction(cp,false),direction(c,false))<.75 || dot(direction(cp,true),direction(c,true))<.75) return null;
+    const gain=matches?improvement(matches,[cp],guide):0;
+    if (matches && gain<.30) return null;
+    const tol=Math.max(delta*.75,1e-6);
+    return {point:at(c,.5),before:region([p,b],[sp.segs[i]]),after:region([p,b],[cubic(cp)]),
+      start:i,tol,geometry:{c1,c2,from:p,end:b},improvement:gain};
+  }
+  function edit(sp,i,action,source,ids,tolerance,options={}) {
     const n=sp.nodes.length, p=sp.nodes[i];
+    if (action==='align' || action==='fit') return rasterEdit(sp,i,action,source,ids,options);
     if (!p || !['remove','smooth','straighten'].includes(action)) return null;
     if (action==='straighten') {
       const s=sp.segs[i], j=next(sp,i);
@@ -276,9 +476,9 @@
     const allows=clearance(source,options.obstacles||[]);
     const origin=source.nodes[0], originalArea=source.closed ? area2(source,origin) : 0;
     let currentArea=originalArea;
-    for (const {action,index} of actions) {
+    for (const {action,index,geometry} of actions) {
       const i=ids.indexOf(index), key=action+'#'+index;
-      const e=i<0 || seen.has(key) ? null : edit(contour,i,action,source,ids,tol);
+      const e=i<0 || seen.has(key) ? null : edit(contour,i,action,source,ids,tol,{guide:options.guide,geometry});
       if (!e) { skipped.push({action,index,reason:'The original corner, arc, endpoint or outline would change too much, or the target was already edited.'}); continue; }
       if (!allows(e,ids)) { skipped.push({action,index,reason:'The proposed edit is too close to another edge.'}); continue; }
       const {before,after,point,start}=e;
@@ -293,9 +493,12 @@
       contour.segs[start]=after.segs[0];
       if (action==='remove') {
         contour.nodes.splice(i,1); contour.segs.splice(i,1); ids.splice(i,1);
-      } else if (action==='smooth') contour.segs[i]=after.segs[1];
+      } else if (action==='smooth' || action==='align') {
+        contour.segs[i]=after.segs[1];
+        if (action==='align') contour.nodes[i]=after.nodes[1];
+      }
       seen.add(key);
-      applied.push({action,index,point,before,after});
+      applied.push({action,index,point,before,after,...(e.geometry?{geometry:e.geometry,improvement:e.improvement}:{})});
     }
     return {contour,applied,skipped};
   }
@@ -304,17 +507,24 @@
     const tol=Number.isFinite(options.tolerance)?options.tolerance:defaultTolerance(sp);
     const allows=clearance(sp,options.obstacles||[]);
     const origin=sp.nodes[0], areaLimit=sp.closed ? Math.abs(area2(sp,origin))*.08+1e-10 : Infinity;
-    function preview({action,index}) {
+    function preview({action,index,geometry}) {
       if (!Number.isInteger(index) || index<0 || index>=ids.length) return null;
-      const change=edit(sp,index,action,sp,ids,tol);
+      const change=edit(sp,index,action,sp,ids,tol,{guide:options.guide,geometry});
       if (!change || !allows(change,ids) ||
           (sp.closed && Math.abs(area2(change.after,origin)-area2(change.before,origin))>areaLimit)) return null;
-      return {action,index,point:change.point,before:change.before,after:change.after};
+      return {action,index,point:change.point,before:change.before,after:change.after,
+        ...(change.geometry?{geometry:change.geometry,improvement:change.improvement}:{})};
     }
-    function candidates() {
+    function candidates(start=0,end=ids.length) {
       const result=[];
-      for (let index=0;index<ids.length;index++) {
-        if (result.length >= (options.limit ?? Infinity)) break;
+      for (let index=start;index<Math.min(end,ids.length);index++) {
+        if (!options.guide && result.length >= (options.limit ?? Infinity)) break;
+        if (options.guide) {
+          for (const action of ['align','fit']) {
+            const change=preview({action,index});
+            if (change) result.push({action,index,point:change.point,geometry:change.geometry,improvement:change.improvement});
+          }
+        }
         for (const action of ['remove','smooth','straighten']) {
           const change=preview({action,index});
           if (change) {
@@ -323,12 +533,13 @@
           }
         }
       }
-      return result;
+      if (!options.guide) return result;
+      return result.sort((a,b)=>(b.improvement||0)-(a.improvement||0)).slice(0,options.limit ?? result.length);
     }
     return {preview,candidates};
   }
   const candidates=(sp,options)=>createReviewer(sp,options).candidates();
-  const api={apply,candidates,createReviewer,defaultTolerance};
+  const api={apply,candidates,createReviewer,defaultTolerance,createRasterGuide};
   if (typeof module!=='undefined' && module.exports) module.exports=api;
   else root.SvgTraceRefine=api;
 })(typeof window==='undefined'?globalThis:window);

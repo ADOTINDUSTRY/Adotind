@@ -203,6 +203,14 @@ $slider = static function (string $name, array $s): void { ?>
             <button class="btn btn-sm" type="button" id="ed-refine-next" aria-label="Next suggestion" title="Next suggestion">→</button>
           </div>
           <p id="ed-refine-reason"></p>
+          <div class="ed-refine-detail">
+            <svg id="ed-refine-detail" role="img" aria-label="Close-up of the proposed correction on the original artwork"></svg>
+            <div class="ed-refine-switch" role="group" aria-label="Compare this correction">
+              <button type="button" data-detail="original" aria-pressed="false">Original</button>
+              <button type="button" data-detail="before" aria-pressed="false">Current</button>
+              <button type="button" data-detail="after" aria-pressed="true">Proposed</button>
+            </div>
+          </div>
           <div class="ed-refine-legend" aria-label="Canvas line styles">
             <span><i aria-hidden="true"></i>Current</span>
             <span><i aria-hidden="true"></i>Proposed</span>
@@ -214,8 +222,15 @@ $slider = static function (string $name, array $s): void { ?>
           </div>
         </section>
         <div class="ed-refine-fields">
+          <label for="ed-refine-goal">Goal</label>
+          <select id="ed-refine-goal">
+            <option value="match">Match original artwork</option>
+            <option value="smooth">Smooth uneven curves</option>
+            <option value="reduce">Use fewer points</option>
+          </select>
           <label for="ed-refine-scope">Review</label>
           <select id="ed-refine-scope">
+            <option value="auto">Use current selection</option>
             <option value="drawing">Whole drawing</option>
             <option value="contour">Selected contour</option>
             <option value="point">Selected point or segment</option>

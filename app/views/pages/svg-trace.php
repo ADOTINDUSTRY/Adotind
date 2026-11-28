@@ -10,6 +10,7 @@
   <script defer src="/online-quote/svg-trace/assets/tab-draft.js"></script>
   <script defer src="/online-quote/svg-trace/assets/trace.js"></script>
   <script defer src="/online-quote/svg-trace/assets/refine-geometry.js"></script>
+  <script defer src="/online-quote/svg-trace/assets/review-reference.js"></script>
   <script defer src="/online-quote/svg-trace/assets/point-review.js"></script>
   <script defer src="/online-quote/svg-trace/assets/editor.js"></script>
 </head>
