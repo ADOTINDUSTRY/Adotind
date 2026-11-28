@@ -136,7 +136,7 @@ $trackingEnabled = is_writable('/var/www/site-tracking') && $isPublicPage;
         <h2 id="tracking-consent-title" tabindex="-1" autofocus>Allow website analytics?</h2>
         <p id="tracking-consent-description">Help us see where people get stuck when designing a sign or asking for a quote. You can use the whole site with either choice.</p>
         <details><summary>What gets recorded?</summary>
-          <p>A Dot Industry records pages, clicks and taps, errors, approximate country and a shortened IP address. A daily browser identifier helps us count visits. What you type and the names and contents of your files stay out of analytics. We also count privacy choices separately. You can change your choice in Privacy preferences.</p>
+          <p>A Dot Industry records pages, clicks and taps, errors, approximate country and a shortened IP address. A daily browser identifier helps us count visits. What you type and the names and contents of your files stay out of analytics. If you use the project assistant, its messages are saved separately for our team to review. We also count privacy choices separately. You can change your choice in Privacy preferences.</p>
         </details>
         <p class="tracking-consent-status" role="status"></p>
       </div>

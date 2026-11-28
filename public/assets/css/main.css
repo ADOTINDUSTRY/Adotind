@@ -602,6 +602,7 @@ img {
 .quote-assistant-conversation .assistant-user { margin-left:auto; border-color:#1b3c79; border-radius:17px 5px 17px 17px; background:#1b3c79; color:#fff; }
 .quote-assistant-suggestion { margin:0 0 12px; border:1px solid #c5d7f4; border-radius:11px; padding:10px 14px; color:#173b80; background:#fff; cursor:pointer; font-weight:700; }
 .quote-assistant-suggestion:hover { border-color:#2850a2; background:#edf3ff; }
+.quote-assistant-privacy { flex:none; margin:0 18px 8px; color:#52637c; font-size:11px; line-height:1.4; }
 .quote-assistant-form { display:flex; gap:8px; align-items:end; flex:none; margin:0 14px 14px; padding:6px; border:1px solid #d1dced; border-radius:17px; background:#fff; box-shadow:0 5px 20px #172b4d0d; }
 .quote-assistant-form:focus-within { border-color:#527ac2; box-shadow:0 0 0 3px #4777c821; }
 .quote-assistant-form textarea { width:100%; min-width:0; min-height:46px; max-height:96px; resize:vertical; border:0; border-radius:10px; padding:11px 9px; color:#18233a; background:transparent; font:inherit; line-height:1.35; }
