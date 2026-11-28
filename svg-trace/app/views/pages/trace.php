@@ -58,11 +58,12 @@ $slider = static function (string $name, array $s): void { ?>
         <span>Style</span>
         <select id="preset">
           <?php foreach ($presets as $key => $p): ?>
-            <option value="<?= StSecurity::e($key) ?>"><?= StSecurity::e($p['label']) ?></option>
+            <option value="<?= StSecurity::e($key) ?>"<?= !empty($page['private_trace']) && $key === 'solid' ? ' selected' : '' ?>><?= StSecurity::e($p['label']) ?></option>
           <?php endforeach; ?>
         </select>
       </label>
 
+      <small class="muted" data-only="solid" hidden>Creates one solid ink colour from the image. Use Logo / flat colours to keep separate colours.</small>
       <div class="field">
         <span>Output</span>
         <div class="seg seg-out" role="group" aria-label="Output">

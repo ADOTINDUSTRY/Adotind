@@ -78,6 +78,15 @@ final class StShapes
             // Upscaled pixel steps are `scale` px tall; smooth enough to hide them (sigma ~ scale).
             'smooth' => max(2, (int)ceil(2 * max(1.0, $scale) ** 2)),
         ];
+        if (($s['preset'] ?? '') === 'solid' && $bw) {
+            // The coverage mask already locates the edge between source pixels.
+            // Keep small terminals and counters within a fraction of an input pixel.
+            $p['corner'] = max(48.0, $p['corner']);
+            $p['reach'] = max(2.0, 1.2*$scale);
+            $p['snap'] = .45;
+            $p['ctol'] = max(.60, .29*$scale)*max(1.0, $s['segment_length']/3.5);
+            $p['smooth'] = max(2,(int)round($scale*$scale));
+        }
         $prec = max(0, min(3, (int)($s['path_precision'] ?? 2)));
 
         // Outer boundaries run one way, holes the other (negative area = outer).

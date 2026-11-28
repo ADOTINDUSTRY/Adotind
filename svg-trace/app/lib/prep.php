@@ -50,8 +50,13 @@ final class StPrep
         $h = imagesy($img);
         $bw = ($s['colormode'] ?? 'color') === 'bw';
         $pixelMode = ($s['mode'] ?? '') === 'pixel';
+        $solid = $bw && ($s['preset'] ?? '') === 'solid';
+        if ($solid) {
+            $cutoff = self::solidCoverage($img);
+            $s['threshold'] = max(1, min(254, $cutoff + ($s['threshold'] ?? 128) - 128));
+        }
 
-        $sample = self::sample($img);
+        $sample = $solid ? ['alpha'=>false,'pixels'=>[]] : self::sample($img);
         $hasAlpha = $sample['alpha'];
         $lightInk = $bw && ($s['preset'] ?? '') === 'font'
             && self::lightLettering($img, $sample['pixels'], $s['ink'] ?? 'auto');
@@ -73,18 +78,37 @@ final class StPrep
         // Working resolution. Centre-line tracing runs in PHP, so it works smaller.
         $scale = 1.0;
         $lines = ($s['output'] ?? 'fill') === 'centerline';
-        $target = $lines ? StLines::WORK_SIDE : self::TARGET_SIDE;
+        $target = $lines ? StLines::WORK_SIDE : ($solid ? 3000 : self::TARGET_SIDE);
         $maxPx = $lines ? StLines::MAX_WORK_PIXELS : self::MAX_WORK_PIXELS;
         if (!$pixelMode) {
             $up = min(self::MAX_UPSCALE, $target / max($w, $h));
+            if ($solid) $up = min($up,sqrt($maxPx / ($w*$h)));
             if ($up >= 1.25) {
                 $scale = $up;
             } elseif ($w * $h > $maxPx) {
                 $scale = sqrt($maxPx / ($w * $h));
             }
         }
-        if ($scale !== 1.0) {
-            $scaled = imagescale($img, max(1, (int)round($w * $scale)), max(1, (int)round($h * $scale)), IMG_BICUBIC);
+        if ($solid) {
+            // GD's enlargement can replicate source pixels. Interpolate ink
+            // coverage at pixel centres before thresholding the smooth edge.
+            $sw = max(1,(int)round($w*$scale)); $sh = max(1,(int)round($h*$scale));
+            if ($scale < 1) {
+                $smaller = imagecreatetruecolor($sw,$sh);
+                imagecopyresampled($smaller,$img,0,0,0,0,$sw,$sh,$w,$h);
+                $img = $smaller;
+            }
+            $mask = self::solidMask($img,$sw,$sh,$s['threshold']);
+            if (!imagepng($mask,$dest,1)) {
+                self::$lastError = 'Could not write the prepared silhouette.';
+                return null;
+            }
+            return ['width'=>$sw,'height'=>$sh,'source_width'=>$w,'source_height'=>$h,
+                'scale'=>$scale,'key'=>null,'cutout'=>false,'colors'=>2];
+        } elseif ($scale !== 1.0) {
+            $sw = max(1, (int)round($w * $scale));
+            $sh = max(1, (int)round($h * $scale));
+            $scaled = imagescale($img, $sw, $sh, IMG_BICUBIC);
             if ($scaled === false) {
                 self::$lastError = sprintf('imagescale %dx%d x%.2f failed', $w, $h, $scale);
                 return null;
@@ -181,6 +205,82 @@ final class StPrep
             'cutout' => ($hasAlpha || (int)($s['remove_bg'] ?? 0) === 2) && !$bw && $key !== null,
             'colors' => count($palette),
         ];
+    }
+
+    /** Interpolate fractional coverage and return a black-on-white tracing mask. */
+    private static function solidMask(\GdImage $src,int $sw,int $sh,int $threshold): \GdImage
+    {
+        $w=imagesx($src); $h=imagesy($src);
+        $mask=imagecreatetruecolor($sw,$sh);
+        $left=[]; $right=[]; $frac=[];
+        for ($x=0;$x<$sw;$x++) {
+            $at=max(0,min($w-1,($x+.5)*$w/$sw-.5));
+            $left[$x]=(int)$at; $right[$x]=min($w-1,$left[$x]+1); $frac[$x]=$at-$left[$x];
+        }
+        $rows=[];
+        for ($y=0;$y<$sh;$y++) {
+            $at=max(0,min($h-1,($y+.5)*$h/$sh-.5)); $top=(int)$at; $bottom=min($h-1,$top+1);
+            foreach ([$top,$bottom] as $iy) if (!isset($rows[$iy])) {
+                $row=[];
+                for ($x=0;$x<$w;$x++) $row[]=imagecolorat($src,$x,$iy)&255;
+                $rows[$iy]=$row;
+            }
+            $u=$rows[$top]; $v=$rows[$bottom]; $wy=$at-$top;
+            for ($x=0;$x<$sw;$x++) {
+                $l=$left[$x]; $r=$right[$x]; $wx=$frac[$x];
+                $a=$u[$l]+($u[$r]-$u[$l])*$wx; $b=$v[$l]+($v[$r]-$v[$l])*$wx;
+                imagesetpixel($mask,$x,$y,$a+($b-$a)*$wy < $threshold ? 0 : 0xffffff);
+            }
+            unset($rows[$top-1]);
+        }
+        return $mask;
+    }
+
+    /** Estimate paper colour and return the midpoint between paper and ink. */
+    private static function solidCoverage(\GdImage $img): int
+    {
+        $w = imagesx($img); $h = imagesy($img);
+        $bins = []; $transparent = 0;
+        for ($i = 0; $i < 64; $i++) {
+            $x = (int)round(($w-1)*$i/63); $y = (int)round(($h-1)*$i/63);
+            foreach ([[$x,0],[$x,$h-1],[0,$y],[$w-1,$y]] as [$bx,$by]) {
+                $p = imagecolorat($img,$bx,$by);
+                if ((($p >> 24) & 127) >= 96) { $transparent++; continue; }
+                $r = ($p >> 16) & 255; $g = ($p >> 8) & 255; $b = $p & 255;
+                $key = ($r >> 4)*256 + ($g >> 4)*16 + ($b >> 4);
+                $bin = $bins[$key] ?? [0,0,0,0];
+                $bins[$key] = [$bin[0]+1,$bin[1]+$r,$bin[2]+$g,$bin[3]+$b];
+            }
+        }
+        $paper = [1,255,255,255];
+        foreach ($bins as $bin) if ($bin[0] >= $paper[0]) $paper = $bin;
+        $r = (int)round($paper[1]/$paper[0]);
+        $g = (int)round($paper[2]/$paper[0]);
+        $b = (int)round($paper[3]/$paper[0]);
+        $alphaMask = $transparent > 128;
+        $hist = array_fill(0,256,0);
+        imagealphablending($img,false);
+        for ($y=0;$y<$h;$y++) for ($x=0;$x<$w;$x++) {
+            $p = imagecolorat($img,$x,$y);
+            $opacity = 127-(($p >> 24) & 127);
+            $distance = $alphaMask ? 255 : max(abs((($p>>16)&255)-$r),abs((($p>>8)&255)-$g),abs(($p&255)-$b));
+            $v = 255-(int)round($opacity*$distance/127);
+            $hist[$v]++;
+            imagesetpixel($img,$x,$y,$v*65793);
+        }
+        // Otsu separates the two populations. Use their midtone for a stable
+        // antialiased boundary even when a flat image has a wide empty histogram valley.
+        $total = $w*$h; $sum = 0;
+        foreach ($hist as $v=>$n) $sum += $v*$n;
+        $count = 0; $partial = 0; $best = -1; $threshold = 128;
+        foreach ($hist as $v=>$n) {
+            $count += $n; $partial += $v*$n;
+            if (!$n || !$count || $count === $total) continue;
+            $a = $partial/$count; $b = ($sum-$partial)/($total-$count);
+            $score = $count*($total-$count)*($a-$b)**2;
+            if ($score > $best) { $best = $score; $threshold = (int)round(($a+$b)/2); }
+        }
+        return $threshold;
     }
 
     /** For opaque artwork the outer edge votes for the background. On a transparent

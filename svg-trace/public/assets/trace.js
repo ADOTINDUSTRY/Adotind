@@ -89,7 +89,9 @@
       if (o) o.textContent = el.name === 'colors' && el.value === '0' ? 'Auto' : el.value;
     });
     const show = { color: value('colormode') !== 'bw', bw: value('colormode') === 'bw', shapes: value('output') !== 'centerline',
-      font: presetSel.value === 'font' && value('colormode') === 'bw' };
+      font: presetSel.value === 'font' && value('colormode') === 'bw',
+      solid: presetSel.value === 'solid' && value('colormode') === 'bw' };
+    go.textContent = show.solid ? 'Trace solid logo' : 'Convert to SVG';
     ws.querySelectorAll('[data-only]').forEach((el) => { el.hidden = !show[el.dataset.only]; });
   };
   const scheduleAuto = () => {

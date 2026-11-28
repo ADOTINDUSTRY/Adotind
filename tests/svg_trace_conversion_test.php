@@ -38,17 +38,33 @@ try {
         imagefilledellipse($image,50,60,28,40,$bg);
         imagefilledellipse($image,50,16,6,6,$fg);
         imagepng($image,$source);
-        $settings = StEngine::normaliseSettings(['preset'=>'font']);
-        $prep = StPrep::prepare($source,$png,$settings);
-        $run = StConversion::tracePrepared($png,$svg,$prep,$settings,30,768,StConfig::load());
-        $doc = new DOMDocument();
-        if (!$run['ok'] || !$doc->loadXML(StConversion::readSvg($svg,$prep,$settings))) throw new RuntimeException('Font trace failed.');
-        $paths = $doc->getElementsByTagName('path');
-        $loops = 0;
-        foreach ($paths as $p) $loops += substr_count($p->getAttribute('d'),'M');
-        if ($paths->length !== 2 || $loops !== 3) throw new RuntimeException('Font trace lost an accent or letter counter.');
+        foreach (['font','solid'] as $preset) {
+            $settings = StEngine::normaliseSettings(['preset'=>$preset]);
+            $prep = StPrep::prepare($source,$png,$settings);
+            $run = StConversion::tracePrepared($png,$svg,$prep,$settings,30,768,StConfig::load());
+            $doc = new DOMDocument();
+            if (!$run['ok'] || !$doc->loadXML(StConversion::readSvg($svg,$prep,$settings))) throw new RuntimeException('Font trace failed.');
+            $paths = $doc->getElementsByTagName('path');
+            $loops = 0;
+            foreach ($paths as $p) $loops += substr_count($p->getAttribute('d'),'M');
+            if ($paths->length !== 2 || $loops !== 3) throw new RuntimeException("$preset trace lost an accent or letter counter.");
+        }
     }
-    echo "Logo, centreline and four lettering polarity cases passed.\n";
+    // Yellow has strong contrast with white in the blue channel, even though both are bright.
+    $image = imagecreatetruecolor(60,48);
+    imagefill($image,0,0,0xffffff);
+    imagefilledrectangle($image,10,8,49,39,0xffff00);
+    imagefilledrectangle($image,22,18,37,29,0xffffff);
+    imagepng($image,$source);
+    $settings = StEngine::normaliseSettings(['preset'=>'solid']);
+    $prep = StPrep::prepare($source,$png,$settings);
+    $mask = imagecreatefrompng($png);
+    foreach ([[5,5,0xffffff],[15,15,0],[27,24,0xffffff]] as [$x,$y,$want]) {
+        if ((imagecolorat($mask,(int)($x*$prep['scale']),(int)($y*$prep['scale'])) & 0xffffff) !== $want) {
+            throw new RuntimeException('Solid trace lost light-coloured ink or its opening.');
+        }
+    }
+    echo "Logo, centreline, font and solid silhouettes, transparency, pale ink and counters passed.\n";
 } finally {
     foreach ([$source, $png, $svg] as $path) if (is_file($path)) unlink($path);
     rmdir($dir);
