@@ -1,5 +1,6 @@
 <?php
 declare(strict_types=1);
+require_once __DIR__ . '/quote_dxf_bounds.php';
 
 function quote_db_path(array $siteConfig): string
 {
@@ -903,8 +904,24 @@ function quote_require_reviewed_capacity(array $machine, array $material, array 
     }
 }
 
+/** Match a single-part drawing to the requested dimensions without underpricing. */
+function quote_verified_dxf_size(array $bounds, float $width, float $height): array
+{
+    $drawingW = (float)($bounds['width_mm'] ?? 0); $drawingH = (float)($bounds['height_mm'] ?? 0);
+    if (!is_finite($drawingW) || !is_finite($drawingH) || $drawingW <= 0 || $drawingH <= 0 || !is_finite($width) || !is_finite($height) || $width <= 0 || $height <= 0) {
+        throw new DomainException('The drawing dimensions need shop review. Please upload the drawing again.');
+    }
+    // The form is entered to 0.1 mm; rotate the part if the submitted axes are swapped.
+    $near = static fn(float $a, float $b): bool => abs($a-$b) <= 0.10002;
+    if ($near($drawingW,$width) && $near($drawingH,$height)) return [max($drawingW,$width), max($drawingH,$height)];
+    if ($near($drawingH,$width) && $near($drawingW,$height)) return [max($drawingH,$width), max($drawingW,$height)];
+    throw new DomainException('The entered part size does not match the drawing. Check the DXF units and dimensions, or contact us for a review.');
+}
+
 function quote_current_pricing(array $siteConfig, array $input): array
 {
+    if (($input['ext'] ?? '') !== 'dxf' || !is_array($input['verified_dxf_bounds'] ?? null)) throw new DomainException('Please upload the DXF drawing again so its dimensions can be checked.');
+    [$input['part_width_mm'], $input['part_height_mm']] = quote_verified_dxf_size($input['verified_dxf_bounds'], (float)($input['part_width_mm'] ?? 0), (float)($input['part_height_mm'] ?? 0));
     $db = quote_db($siteConfig);
     $machine = $db->prepare('SELECT * FROM quote_machines WHERE id=? AND active=1');
     $machine->execute([$input['machine_id']]);
@@ -930,6 +947,8 @@ function quote_refresh_preview(array $siteConfig, array $result): array
         throw new DomainException('Your temporary drawing has expired. Upload it again to get today’s price.');
     }
     $input = $result['input'];
+    if (($input['ext'] ?? '') !== 'dxf' || !is_array($input['verified_dxf_bounds'] ?? null)) throw new DomainException('Please upload the DXF drawing again so its dimensions can be checked.');
+    [$input['part_width_mm'], $input['part_height_mm']] = quote_verified_dxf_size($input['verified_dxf_bounds'], (float)($input['part_width_mm'] ?? 0), (float)($input['part_height_mm'] ?? 0));
     if (!isset($input['vector_length_mm'])) {
         // Pre-update sessions only kept the rounded length. Recover the exact measurement.
         $warnings = [];
@@ -1019,6 +1038,7 @@ function handle_online_quote_calculate(array $siteConfig): never
 
     $warnings = [];
     try {
+        $verifiedBounds = quote_dxf_bounds_mm((string)$file['tmp_name']);
         $vectorLength = quote_measure_vector_mm((string)$file['tmp_name'], $ext, $warnings);
     } catch (Throwable $e) {
         online_quote_fail('We could not read vector geometry from this file: ' . $e->getMessage(), 'drawing_unreadable');
@@ -1028,7 +1048,13 @@ function handle_online_quote_calculate(array $siteConfig): never
         online_quote_fail('No supported cutting geometry was found in this DXF drawing.', 'drawing_unreadable');
     }
 
+    try {
+        [$partW, $partH] = quote_verified_dxf_size($verifiedBounds, $partW, $partH);
+    } catch (DomainException $e) {
+        online_quote_fail($e->getMessage(), 'invalid_dimensions');
+    }
     $input = ['machine_id'=>$machineId, 'material_id'=>$materialId, 'part_width_mm'=>$partW, 'part_height_mm'=>$partH,
+        'verified_dxf_bounds'=>$verifiedBounds,
         'vector_length_mm'=>$vectorLength, 'quantity'=>$qty, 'note'=>$note, 'ext'=>$ext];
     try {
         $pricing = quote_current_pricing($siteConfig, $input);

@@ -191,7 +191,7 @@ $knownProjects = require __DIR__ . '/../../data/quote-projects.php';
           <label>DXF drawing
             <input type="file" name="vector_file" accept=".dxf" aria-describedby="quote-file-help" required data-tracking-control="dxf-upload" />
           </label>
-          <p id="quote-file-help">Upload one part as a DXF, up to 50 MB. Drawings without units are priced in millimetres. For text, blocks or splines, export the cutting outlines or <a href="/contact">ask us to review the drawing</a>.</p>
+          <p id="quote-file-help">Upload one part as a DXF, up to 50 MB. Export it with explicit drawing units, preferably millimetres. For text, blocks or splines, export the cutting outlines or <a href="/contact">ask us to review the drawing</a>.</p>
           <div class="quote-file-preview" hidden aria-live="polite" data-tracking-section="drawing-preview">
             <div class="quote-preview-image" hidden>
               <div class="quote-preview-render" hidden aria-label="Drawing preview"></div>
@@ -290,7 +290,7 @@ $knownProjects = require __DIR__ . '/../../data/quote-projects.php';
         <?php if (isset($result['previous_price'])): ?>
           <p class="quote-access-notice" role="status">The price changed from <?= e($result['previous_price']) ?> to <?= e($currency . number_format((float)$est['total_cost'], 2)) ?>. Review this amount before sending your order request.</p>
         <?php elseif ($reviewNotice): ?><p role="status"><?= e($reviewNotice) ?></p><?php endif; ?>
-        <p>File: <strong><?= e((string)($result['original_file'] ?? '')) ?></strong> · Part size: <?= e((string)($result['input']['part_width_mm'] ?? '')) ?> × <?= e((string)($result['input']['part_height_mm'] ?? '')) ?> mm</p>
+        <p>File: <strong><?= e((string)($result['original_file'] ?? '')) ?></strong> · Part size: <?= e(number_format((float)($result['input']['part_width_mm'] ?? 0), 1)) ?> × <?= e(number_format((float)($result['input']['part_height_mm'] ?? 0), 1)) ?> mm</p>
         <?php if (!empty($result['warnings']) && is_array($result['warnings'])): ?>
           <p class="alert alert-error"><?= e((string)implode(' ', $result['warnings'])) ?></p>
         <?php endif; ?>
