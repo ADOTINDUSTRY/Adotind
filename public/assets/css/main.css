@@ -2075,15 +2075,16 @@ html:has(.tracking-consent-banner[open]) { overflow: hidden; }
 .quote-page .project-list-heading p { margin: 0; color: #64748b; font-size: .82rem; }
 /* Let the page scroll naturally; the project list must not trap its own scroll. */
 .project-options { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .7rem; }
-.project-options button {
+.project-options [data-quote-path] {
+  text-decoration: none;
   position: relative; display: grid; grid-template-columns: 2.65rem minmax(0, 1fr); align-items: start; gap: .85rem;
   min-width: 0; min-height: 8.1rem; padding: 1rem 2.3rem 1rem 1rem; border: 1px solid #d4ddea;
   border-radius: 12px; background: #fff; color: #152746; text-align: left; font: inherit; cursor: pointer;
   transition: border-color .15s, box-shadow .15s, background-color .15s;
 }
-.project-options button::after { content: '→'; position: absolute; top: 1rem; right: 1rem; color: #55729b; font-size: 1.1rem; line-height: 1; }
-.project-options button:hover { background: #f6f9ff; border-color: #8ba4c7; box-shadow: 0 5px 16px #23395d12; }
-.project-options button:focus-visible, .project-clear:focus-visible, .project-help:focus-visible { outline: 3px solid #4779c6; outline-offset: 3px; }
+.project-options [data-quote-path]::after { content: '→'; position: absolute; top: 1rem; right: 1rem; color: #55729b; font-size: 1.1rem; line-height: 1; }
+.project-options [data-quote-path]:hover { background: #f6f9ff; border-color: #8ba4c7; box-shadow: 0 5px 16px #23395d12; }
+.project-options [data-quote-path]:focus-visible, .project-clear:focus-visible, .project-help:focus-visible { outline: 3px solid #4779c6; outline-offset: 3px; }
 .project-icon { width: 2.65rem; height: 2.65rem; padding: .58rem; box-sizing: border-box; border: 1px solid #dce6f4; border-radius: 10px; background: #edf3fc; fill: none; stroke: #244e85; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
 .project-card-content { display: grid; align-content: start; gap: .3rem; min-width: 0; }
 .project-options strong { display: block; color: #172b49; font-size: .98rem; line-height: 1.3; }
@@ -2100,7 +2101,7 @@ html:has(.tracking-consent-banner[open]) { overflow: hidden; }
 .project-help:hover { border-color: #90a9ca; background: #edf4fe; }
 @media (max-width: 620px) {
   .project-options { grid-template-columns: 1fr; gap: .6rem; }
-  .project-options button { min-height: 0; padding: .85rem 2.2rem .85rem .85rem; }
+  .project-options [data-quote-path] { min-height: 0; padding: .85rem 2.2rem .85rem .85rem; }
   .project-list-heading { margin-top: .8rem; }
   .project-help { align-items: flex-start; flex-direction: column; }
 }

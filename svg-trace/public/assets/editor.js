@@ -275,6 +275,7 @@
     }));
     const what = node ? 'point selected' : seg ? 'segment ' + ({ L: 'straight', C: 'curve', A: 'arc' })[P.subs[seg.si].segs[seg.k].t] : 'shape selected';
     info.textContent = `${total.toLocaleString()} points · this shape ${mine} · ${what}`;
+    if ($('ed-ai') && !node && !seg && P.subs.length > 1) info.textContent += ' · Select a point or edge to refine one contour with AI.';
   };
 
   // ---------- open / close ----------

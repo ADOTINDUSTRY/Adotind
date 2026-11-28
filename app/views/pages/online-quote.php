@@ -112,10 +112,11 @@ $knownProjects = require __DIR__ . '/../../data/quote-projects.php';
           ];
           foreach ($projectCatalog as $id => $project): ?>
           <?php [$projectType, $projectIcon] = $projectTypes[$project['workflow']] ?? ['Explore project', 'M4 4h16v16H4z']; ?>
-          <button type="button" data-quote-path="<?= e($id) ?>" data-quote-workflow="<?= e($project['workflow']) ?>" data-keywords="<?= e($project['keywords']) ?>">
+          <?php $traceLink = $project['workflow'] === 'svgtrace'; ?>
+          <<?= $traceLink ? 'a href="/online-quote/svg-trace"' : 'button type="button"' ?> data-quote-path="<?= e($id) ?>" data-quote-workflow="<?= e($project['workflow']) ?>" data-keywords="<?= e($project['keywords']) ?>">
             <svg class="project-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="<?= e($projectIcon) ?>"/></svg>
             <div class="project-card-content"><strong><?= e($project['name']) ?></strong><span><?= e($project['description']) ?></span><small><?= e($projectType) ?></small></div>
-          </button>
+          </<?= $traceLink ? 'a' : 'button' ?>>
           <?php endforeach; ?>
         </div>
         <p id="project-empty" role="status" <?= $projectCatalog ? 'hidden' : '' ?>>No matching projects. Try another word or use the project guide below.</p>

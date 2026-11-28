@@ -182,6 +182,7 @@
     if (navigate) go(workflow); else show(workflow);
   }
   start.querySelectorAll('[data-quote-path]').forEach(button => {
+    if (button.matches('a[href]')) return;
     button.addEventListener('click', () => {
       if (button.dataset.quotePath === 'guide') {
         workspace.dispatchEvent(new CustomEvent('quote-assistant-request'));
