@@ -20,7 +20,12 @@ export async function pdfCuttingDxf(bytes) {
     if((await page.getAnnotations()).length) fail();
     const list=await page.getOperatorList();
     const view=page.getViewport({scale:25.4/72,dontFlip:true});
-    let state={matrix:new DOMMatrix(view.transform), layer:'PDF_OUTLINE',clip:[0,0,view.width,view.height]};
+    // Aspire 10's ODA exporter rounds the page box to whole PDF points
+    // but retains finer coordinates for the vectors and its explicit job clip.
+    const {info}=await doc.getMetadata();
+    const roundedPage=/^ODA PDF Export\b/i.test(info?.Producer || '') && page.view.every(Number.isInteger);
+    const margin=roundedPage ? .5*25.4/72*(page.userUnit||1) : 0;
+    let state={matrix:new DOMMatrix(view.transform), layer:'PDF_OUTLINE',clip:[-margin,-margin,view.width+margin,view.height+margin]};
     const stack=[], contours=[], names=new Map(Object.entries(OPS).map(([k,v])=>[v,k]));
     let pending=[], path=null, pen=null, count=0, clipNext=false;
     const point=(x,y)=>state.matrix.transformPoint({x,y});
