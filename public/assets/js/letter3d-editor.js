@@ -442,7 +442,14 @@
   }
   function setZoom(value) { zoom = Math.max(.5, Math.min(3, value)); paintScale(); if (threeRenderer) threeRenderer.setZoom(zoom); saveDesign(); }
   lights?.addEventListener('change', () => {
-    lightsOn = !!lights.checked; paintScene(); threeRenderer?.setLights?.(lightsOn); paint(); saveDesign();
+    lightsOn = !!lights.checked;
+    paintScene();
+    if (threeRenderer && viewport.dataset?.render === 'three') {
+      threeRenderer.setLights(lightsOn);
+    } else {
+      paint();
+    }
+    saveDesign();
   });
   back?.addEventListener('change',()=>{backVisible=!!back.checked;threeRenderer?.setBackVisible?.(backVisible);saveDesign();});
   Object.values(optionFields).forEach(el=>el.addEventListener('input',()=>{syncBoardControls();changed();}));
