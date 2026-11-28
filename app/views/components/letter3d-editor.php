@@ -51,7 +51,7 @@ try {
           <svg data-letter-cutting-svg role="img" aria-label="Acrylic cut and groove reference. Drag to move the drawing." hidden></svg>
           <div class="letter3d-cutting-zoom" role="group" aria-label="Cutting preview zoom"><button type="button" data-letter-cutting-zoom="out" aria-label="Zoom cutting preview out">−</button><output data-letter-cutting-zoom-level>100%</output><button type="button" data-letter-cutting-zoom="in" aria-label="Zoom cutting preview in">+</button><button type="button" data-letter-cutting-zoom="fit">Fit</button><small>Drag drawing to move</small></div>
           <p data-letter-cutting-dimensions></p>
-          <p data-letter-cutting-status role="status">Enter a finished width to prepare the cutting preview.</p>
+          <p data-letter-cutting-status role="status">Enter a finished width or height to prepare the cutting preview.</p>
           <p data-letter-cutting-instructions></p>
           <button type="button" class="btn" data-letter-tech-view aria-pressed="false" disabled>Inspect grooved acrylic in 3D</button>
           <small>The 3D inspection hides the aluminium and PVC so you can turn the acrylic over and see the rear groove. Cyan marks the cutter centre. Check the toolpath in Aspire.</small>
@@ -125,8 +125,8 @@ try {
         <p>The lighting preview is illustrative. We confirm film coverage, light transmission and construction with you before production.</p>
       </div></details>
       <details class="letter3d-group" open><summary>Size &amp; quantity</summary><div class="letter3d-group-body">
-        <div class="letter3d-size-grid"><label>Overall width (mm) <input type="number" data-letter-width min="1" step="0.1" value="500" placeholder="e.g. 1000"></label><label>Finished height (mm) <input type="number" data-letter-height min="1" step="any" placeholder="Calculated from width" readonly aria-describedby="letter3d-height-help"></label></div>
-        <small id="letter3d-height-help">Calculated from the lettering and width, keeping the font proportions.</small>
+        <div class="letter3d-size-grid"><label>Finished width (mm) <input type="number" data-letter-width min="1" step="any" value="500" aria-describedby="letter3d-size-help"></label><label>Finished height (mm) <input type="number" data-letter-height min="1" step="any" aria-describedby="letter3d-size-help"></label></div>
+        <small id="letter3d-size-help">Set either dimension. The other follows the proportions of your lettering.</small>
         <label>Number of identical signs <input type="number" data-letter-quantity min="1" step="1" value="1"></label>
         <p class="letter3d-limits" data-letter-limits></p>
       </div></details>

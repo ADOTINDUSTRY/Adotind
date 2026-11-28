@@ -11,7 +11,7 @@ const fixture=`<!doctype html><html><head><meta name="viewport" content="width=d
 <div data-letter-stage><div class="letter3d-preview"><span data-letter-preview></span><div data-letter-three></div></div></div><span data-letter-render-status></span>
 <details data-letter-cutting open><svg data-letter-cutting-svg hidden></svg><span data-letter-cutting-status></span><span data-letter-cutting-dimensions></span><span data-letter-cutting-instructions></span><select data-letter-export-format><option value="dxf">DXF</option><option value="pdf">PDF</option></select><button data-letter-export-dxf disabled>Export</button><button data-letter-tech-view disabled aria-pressed="false">Inspect</button></details>
 <select data-letter-product><option value="1" data-min-width="1" data-max-width="10000" data-min-height="1" data-max-height="10000" data-max-chars="100" data-max-quantity="10">Fixture</option></select>
-<textarea data-letter-text>O</textarea><select data-letter-font><option value="sans">Sans</option></select><input type="color" data-letter-colour value="#ffffff"><input data-letter-width type="number" value=""><input data-letter-height type="number" readonly><input data-letter-quantity type="number" value="1">
+<textarea data-letter-text>O</textarea><select data-letter-font><option value="sans">Sans</option></select><input type="color" data-letter-colour value="#ffffff"><input data-letter-width type="number" value=""><input data-letter-height type="number"><input data-letter-quantity type="number" value="1">
 <div data-letter-line="0"><input data-letter-line-text value="O"><select data-letter-line-font><option value="sans">Sans</option></select><input type="color" data-letter-line-colour value="#ffffff"><input type="color" data-letter-line-side-colour value="#777777"><input data-letter-line-x value="0"><input data-letter-line-y value="0"><input data-letter-line-rotation value="0"><button data-letter-remove-line>Remove</button></div>
 <p data-letter-limits></p><span data-letter-price></span><span data-letter-tax></span><button data-letter-send disabled>Send</button><span data-letter-status></span><input data-letter-name><input data-letter-email><input data-letter-phone>
 </section></div><script>window.exported=null;window.downloadName='';const create=URL.createObjectURL.bind(URL);URL.createObjectURL=blob=>{window.exported=blob;return create(blob)};HTMLAnchorElement.prototype.click=function(){window.downloadName=this.download}</script><script defer src="/public/assets/js/letter3d-editor.js"></script></body></html>`;
@@ -52,5 +52,20 @@ server.listen(0,'127.0.0.1',async()=>{try{
  await evalJs(`(async()=>{window.exported=null;await fetch('/__change',{method:'POST'});document.querySelector('[data-letter-export-dxf]').click()})()`);await waitFor(`document.querySelector('[data-letter-cutting-dimensions]').textContent.includes('Groove reference: 2 mm') && !document.querySelector('[data-letter-export-dxf]').disabled`,'recomputed revised construction');assert.equal(await evalJs('window.exported'),null,'Changed settings must not export the stale DXF');
  view=await evalJs(`(()=>{let p=document.querySelector('[data-letter-cutting-svg]').querySelectorAll('path');return {face:p[0].getBBox().x,groove:p[1].getBBox().x,hidden:document.querySelector('[data-letter-cutting-svg]').hasAttribute('hidden')}})()`);assert.equal(view.hidden,false);assert.ok(Math.abs((view.groove-view.face)-2)<.03,'The 2 mm reference offset must remain fixed for this method');
  await evalJs(`document.querySelector('[data-letter-export-dxf]').click()`);await waitFor('!!window.exported','updated DXF export');const second=await evalJs(`window.exported.text()`);assert.match(second,/GROOVE_REFERENCE/);assert.ok(fetchCount>=3,'Construction must be rechecked before export');for(let i=0;i<40&&!estimatePayloads.some(x=>x.construction_revision===2);i++)await pause(100);assert.ok(estimatePayloads.some(x=>x.construction_revision===2),'Revised settings must reprice using the new revision');
- console.log('3D cutting editor browser integration passed: visible SVG, 2 mm groove reference, automatic height, technical view, DXF export and revised settings.');
+ const setDimension=(key,value)=>evalJs(`(()=>{const input=document.querySelector('[data-letter-'+${JSON.stringify(key)}+']');input.value=${JSON.stringify(value)};input.dispatchEvent(new Event('input',{bubbles:true}));})()`);
+ await setDimension('height','178.6');
+ await waitFor("!document.querySelector('[data-letter-export-dxf]').disabled",'height-driven geometry');
+ const computedWidth=Number(await evalJs("document.querySelector('[data-letter-width]').value"));
+ assert.ok(computedWidth>0 && computedWidth!==500);
+ await evalJs("window.exported=null;document.querySelector('[data-letter-export-dxf]').click()");
+ await waitFor('!!window.exported','height-driven DXF');
+ const fitted=await evalJs('window.exported.text()');
+ for (const [code,dimension] of [['10',computedWidth],['20',178.6]]) {
+   const vertices=coords(fitted,code);assert.ok(Math.abs(Math.max(...vertices)-Math.min(...vertices)-dimension)<.02);
+ }
+ for(let i=0;i<40&&!estimatePayloads.some(p=>Number(p.height_mm)===178.6 && Number(p.width_mm)===computedWidth);i++)await pause(100);
+ assert.ok(estimatePayloads.some(p=>Number(p.height_mm)===178.6 && Number(p.width_mm)===computedWidth),'Estimate uses both linked dimensions');
+ await setDimension('width','600');await setDimension('height','');
+ assert.ok(await evalJs("document.querySelector('[data-letter-width]').value==='' && document.querySelector('[data-letter-export-dxf]').disabled"),'Clearing the active dimension invalidates the previous cut');
+ console.log('3D cutting editor passed width- and height-driven quoting and exports.');
  }catch(e){console.error(e);process.exitCode=1}finally{if(ws)ws.close();if(proc)proc.kill();server.close();if(tempDir){try{const base=fs.realpathSync(os.tmpdir()),target=fs.realpathSync(tempDir);if(target.startsWith(base+path.sep)&&path.basename(target).startsWith('adotind-cutting-browser-'))fs.rmSync(target,{recursive:true,force:true})}catch(_){}}}});

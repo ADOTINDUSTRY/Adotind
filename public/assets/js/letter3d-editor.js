@@ -55,6 +55,7 @@
   const addLine = find('add-line');
   const hasLines = lineControls.length > 0 && lineControls.every(line => requiredLineFields.every(key => line.inputs[key]));
   let lineCount = 1;
+  let sizeAxis = 'width';
   const fields = {product, text, font, colour, width, height, quantity};
   const defaults = Object.fromEntries(Object.entries(fields).map(([key, element]) => [key, element.value]));
   const optionFields=Object.fromEntries(Object.entries({depth,boardShape,boardColour,boardCustom,boardMargin,boardWidth,boardHeight,boardDepth}).filter(([,element])=>!!element));
@@ -152,7 +153,7 @@
   function saveDesign() {
     try {
       if (typeof sessionStorage !== 'undefined') sessionStorage.setItem(storageKey, JSON.stringify({
-        version:1, fields:Object.fromEntries(Object.entries(fields).map(([key, element]) => [key, element.value])), lines:hasLines ? readLines() : undefined, options:Object.fromEntries(Object.entries(optionFields).map(([key,element])=>[key,element.value])), scene, zoom, lightsOn, backVisible
+        version:1, sizeAxis, fields:Object.fromEntries(Object.entries(fields).map(([key, element]) => [key, element.value])), lines:hasLines ? readLines() : undefined, options:Object.fromEntries(Object.entries(optionFields).map(([key,element])=>[key,element.value])), scene, zoom, lightsOn, backVisible
       }));
     } catch (_) { /* The designer still works when storage is unavailable. */ }
   }
@@ -161,6 +162,7 @@
       if (typeof sessionStorage === 'undefined') return false;
       const stored = JSON.parse(sessionStorage.getItem(storageKey) || 'null');
       if (!stored || stored.version !== 1 || !stored.fields || typeof stored.fields !== 'object') return false;
+      sizeAxis=stored.sizeAxis==='height' ? 'height' : 'width';
       for (const [key, element] of Object.entries(fields)) {
         if (typeof stored.fields[key] === 'string' && stored.fields[key].length <= 1000) element.value = stored.fields[key];
       }
@@ -243,14 +245,14 @@
     if(cuttingDimensions)cuttingDimensions.textContent='';
     if(cuttingInstructions)cuttingInstructions.textContent='';
     if(cuttingStatus)cuttingStatus.textContent=message;
-    height.value='';
+    fields[sizeAxis==='width' ? 'height' : 'width'].value='';
   }
   function scheduleCutting() {
     if(!cuttingEnabled) return;
     cuttingStarted=true;
     invalidateCutting('Preparing cutting preview…');
     const current=manufacturingSequence;
-    if(!width.value || !text.value.trim()) { cuttingStatus.textContent='Enter a finished width and lettering to prepare the cutting preview.'; return; }
+    if(!fields[sizeAxis].value || !text.value.trim()) { cuttingStatus.textContent='Enter lettering and a finished width or height to prepare the cutting preview.'; return; }
     manufacturingTimer=setTimeout(async()=>{
       try {
         const updated=await readConstruction();
@@ -262,10 +264,11 @@
         const settings={overhang_reference:construction.front.overhang_reference,overhang_mm:construction.front.offset_outside_mm,
           side_thickness_mm:construction.side.thickness_mm,groove_width_mm:construction.side.groove_width_mm,
           groove_depth_mm:construction.side.acrylic_groove_depth_mm,face_thickness_mm:construction.front.thickness_mm};
-        const plan=geometryModule.buildLetter3DManufacturing({lines,width_mm:width.value,settings,fonts,clipper});
+        const plan=geometryModule.buildLetter3DManufacturing({lines,[sizeAxis+'_mm']:fields[sizeAxis].value,settings,fonts,clipper});
         if(current!==manufacturingSequence)return;
         manufacturing={plan,revision:construction.version,clipper};
-        height.value=String(Number(plan.bounds_mm.height.toFixed(3)));
+        const otherAxis=sizeAxis==='width' ? 'height' : 'width';
+        fields[otherAxis].value=String(Number(plan.bounds_mm[otherAxis].toFixed(3)));
         drawCutting(plan);
         if(cuttingDimensions) {
           cuttingDimensions.textContent='Finished face: '+plan.bounds_mm.width.toFixed(1)+' × '+plan.bounds_mm.height.toFixed(1)+' mm. Groove reference: 2 mm from acrylic edge; outside cut leaves 0.8 mm.';
@@ -295,7 +298,7 @@
         }
         return true;
       } catch (_) {
-        if(manufacturing===selected){invalidateCutting('Could not verify current shop settings. Re-enter the width or refresh to try again.');price.textContent='Cutting preview needs review';tax.textContent='';send.disabled=true;}
+        if(manufacturing===selected){invalidateCutting('Could not verify current shop settings. Re-enter a dimension or refresh to try again.');price.textContent='Cutting preview needs review';tax.textContent='';send.disabled=true;}
         return false;
       }
     }
@@ -443,7 +446,7 @@
     }
     requestAnimationFrame(paintScale);
     schedule3D();
-    if(cuttingEnabled && !root.hidden && !cuttingStarted && width.value && text.value.trim()) scheduleCutting();
+    if(cuttingEnabled && !root.hidden && !cuttingStarted && fields[sizeAxis].value && text.value.trim()) scheduleCutting();
     const selected = product.selectedOptions[0];
     limits.textContent = product.value && selected ? `Allowed size: ${selected.dataset.minWidth}–${selected.dataset.maxWidth} mm wide × ${selected.dataset.minHeight}–${selected.dataset.maxHeight} mm high. Up to ${selected.dataset.maxChars} characters and ${selected.dataset.maxQuantity} signs.` : '';
   }
@@ -570,12 +573,16 @@
   viewport.addEventListener?.('touchcancel', () => { pinch = null; touchPointers.clear(); stopOrbit(); }, {passive:true});
   reset?.addEventListener('click', () => {
     if (sending) return;
+    sizeAxis='width';
     for (const [key, element] of Object.entries(fields)) element.value = defaults[key];
     for (const [key, element] of Object.entries(optionFields)) element.value=optionDefaults[key];
     backVisible=true;if(back)back.checked=true;syncBoardControls();
     fromLegacy(); scene = 'studio'; zoom = 1; threeRenderer?.resetOrbit?.(); lightsOn = true; threeRenderer?.setLights?.(lightsOn); paintScene(); changed();
   });
-  Object.values(fields).forEach(el => el.addEventListener('input', changed));
+  for (const [key,element] of Object.entries(fields)) element.addEventListener('input', () => {
+    if (key==='width' || key==='height') sizeAxis=key;
+    changed();
+  });
   if (hasLines) {
     lineControls.forEach((line,index) => {
       for (const key of lineFields) line.inputs[key]?.addEventListener('input', () => {

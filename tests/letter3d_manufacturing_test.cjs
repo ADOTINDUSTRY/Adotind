@@ -10,6 +10,9 @@ const settings={overhang_reference:'outside',overhang_mm:1,side_thickness_mm:.6,
 const input={lines:[{text:'O8B',font:'sans',x:0,y:0,rotation:0}],width_mm:500,settings,fonts,clipper};
 const g=build(input), near=(a,b,eps=.015)=>assert.ok(Math.abs(a-b)<eps,`${a} differs from ${b}`);
 near(g.bounds_mm.width,500);assert.ok(g.bounds_mm.height>0);assert.equal(g.settings.groove_width_mm,1.2);assert.equal(g.settings.groove_depth_mm,1.2);assert.equal(g.curve_tolerance_mm,.01);
+const byHeight=build({...input,width_mm:undefined,height_mm:g.bounds_mm.height});
+near(byHeight.bounds_mm.width,500);near(byHeight.bounds_mm.height,g.bounds_mm.height);
+assert.throws(()=>build({...input,width_mm:undefined,height_mm:2}),/height is too small/);
 assert.equal(g.face.length,g.groove.length,'Offset must keep all letter counters');
 const pts=paths=>paths.flat(), minX=paths=>Math.min(...pts(paths).map(p=>p.x));
 near(minX(g.face),0,.0002);near(minX(g.groove),2,.015);

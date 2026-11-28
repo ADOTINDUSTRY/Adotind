@@ -153,21 +153,23 @@ function toContours(paths,origin) {
 
 /**
  * Create reviewable millimetre paths from the same outlines and transforms as
- * the preview. Width is the finished acrylic face width; height is measured,
- * not independently stretched. Clipper and parsed OpenType fonts are injected.
+ * the preview. Scale uniformly to the requested finished face width or height.
+ * Clipper and parsed OpenType fonts are injected.
  * No toolpath, machine settings, cut-side compensation or production approval
  * are implied by these contours.
  */
-export function buildLetter3DManufacturing({lines,width_mm,settings,fonts,clipper}) {
+export function buildLetter3DManufacturing({lines,width_mm,height_mm,settings,fonts,clipper}) {
   if(!clipper?.Clipper || !clipper?.ClipperOffset) fail('The geometry engine is unavailable.');
   if(!Array.isArray(lines)||!lines.length||lines.length>8) fail('Enter between one and eight text lines.');
-  const width=finite(width_mm,1,10000,'finished face width'),{s,faceOffset}=checkedSettings(settings);
-  if(width<=faceOffset*2) fail('The face width is too small for this overhang.');
+  const axis=width_mm==null && height_mm!=null ? 'height' : 'width';
+  const size=finite(axis==='width' ? width_mm : height_mm,1,10000,'finished face '+axis);
+  const {s,faceOffset}=checkedSettings(settings);
+  if(size<=faceOffset*2) fail('The face '+axis+' is too small for this overhang.');
   // A coarse pass supplies a scale, then the final pass flattens at <=0.01 mm.
   const first=makeGlyphGroups(lines,fonts,.02), firstBounds=bounds(first);
-  let scale=(width-faceOffset*2)/firstBounds.width;
+  let scale=(size-faceOffset*2)/firstBounds[axis];
   const groups=makeGlyphGroups(lines,fonts,Math.min(.02,TOLERANCE_MM/(2*scale)));
-  const measured=bounds(groups);scale=(width-faceOffset*2)/measured.width;
+  const measured=bounds(groups);scale=(size-faceOffset*2)/measured[axis];
   if(!Number.isFinite(scale)||scale<=0) fail('The finished dimensions are not valid.');
   const intersectionBudget={comparisons:0};
   const perGlyph=groups.map(group=>{
@@ -201,7 +203,7 @@ export function buildLetter3DManufacturing({lines,width_mm,settings,fonts,clippe
   for(const p of face.flat()){minX=Math.min(minX,p.X);minY=Math.min(minY,p.Y);maxX=Math.max(maxX,p.X);maxY=Math.max(maxY,p.Y);}
   const finalWidth=(maxX-minX)/CLIP_SCALE, finalHeight=(maxY-minY)/CLIP_SCALE;
   // A software complexity limit, not a claim about any machine's cutting bed.
-  if(finalWidth>10000.01||finalHeight>10000) fail('This design is too large for automatic geometry; please request shop review.');
+  if(finalWidth>10000.01||finalHeight>10000.01) fail('This design is too large for automatic geometry; please request shop review.');
   const grouped=[];
   for(const glyph of perGlyph) {
     let piece=grouped.find(item=>item.line===glyph.line);
