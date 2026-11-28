@@ -1,9 +1,9 @@
 import * as THREE from './quote-vendor/three-0.160.1.module.min.js';
 import {fontPathToShapes} from './letter3d-geometry.js';
 import {prepareLetter3DAcrylicLayers} from './letter3d-technical.js?v=outside-groove-1';
-import {prepareLetter3DSignLayers} from './letter3d-sign.js?v=outside-groove-1';
+import {prepareLetter3DSignLayers} from './letter3d-sign.js?v=acrylic-lip-2';
 
-const FACE_LIGHT_INTENSITY = 2.1;
+const FACE_LIGHT_INTENSITY = 2.6;
 const FONT_URLS = Object.freeze({
   sans:'/public/assets/fonts/letter3d/AlegreyaSans-Regular.ttf',
   serif:'/public/assets/fonts/letter3d/LibertinusSerif-Regular.ttf',
@@ -105,7 +105,7 @@ function buildLine(font,line,index,lightsOn) {
     // by the shop and do not assert that any particular film transmits light.
     const front=new THREE.MeshPhongMaterial({color:line.colour,...finish(line.front_finish,28),emissive:line.colour,emissiveIntensity:lightsOn ? FACE_LIGHT_INTENSITY : 0});
     const side=new THREE.MeshPhongMaterial({color:line.side_colour === null ? new THREE.Color(line.colour).multiplyScalar(.55) : new THREE.Color(line.side_colour),...finish(line.side_finish,22)});
-    const back=new THREE.MeshPhongMaterial({color:0xeeeeee,shininess:8,specular:0x080808});
+    const back=new THREE.MeshPhongMaterial({color:0xffffff,emissive:0x888888,emissiveIntensity:.55,shininess:8,specular:0x080808});
     group.add(new THREE.Mesh(geometry,[front,side,back]));
     const outlines=shapes.flatMap(shape=>{
       const {shape:outer,holes}=shape.extractPoints(10);
@@ -149,11 +149,11 @@ function technicalPiece(piece, line, settings, lightsOn, showGrooveMarker=true) 
   const finish=(value,fallback)=>value==='matt'?{shininess:5,specular:0x080808}:
     value==='gloss'?{shininess:90,specular:0x555555}:{shininess:fallback,specular:0x111111};
   const front=new THREE.MeshPhongMaterial({color:line.colour,...finish(line.front_finish,28),emissive:line.colour,emissiveIntensity:lightsOn?FACE_LIGHT_INTENSITY:0});
-  const opal=new THREE.MeshPhongMaterial({color:0xeeeeee,shininess:8,specular:0x080808});
+  const opal=new THREE.MeshPhongMaterial({color:0xffffff,emissive:0x888888,emissiveIntensity:.55,shininess:8,specular:0x080808});
   // Neutral shading on the recessed floor makes the cut visible on the back.
   const floor=new THREE.MeshPhongMaterial({color:0xaab4bc,shininess:8,specular:0x080808});
   const lower=new THREE.ExtrudeGeometry(back,{depth,bevelEnabled:false,steps:1});
-  const lowerOpal=new THREE.MeshPhongMaterial({color:0xeeeeee,shininess:8,specular:0x080808});
+  const lowerOpal=new THREE.MeshPhongMaterial({color:0xffffff,emissive:0x888888,emissiveIntensity:.55,shininess:8,specular:0x080808});
   const group=new THREE.Group();group.add(new THREE.Mesh(upper,[front,opal,floor]));group.add(new THREE.Mesh(lower,lowerOpal));
   // Cyan is a technical centreline marker, not a physical face colour.
   for(const contour of (showGrooveMarker ? piece.groove || [] : [])){
@@ -190,7 +190,7 @@ function faceGlow(contours, colour, z, wallSpill = false) {
   for(const contour of contours){contour.forEach((p,i)=>{const x=pad+(p.x-left)*scale,y=pad+(top-p.y)*scale;if(i)ctx.lineTo(x,y);else ctx.moveTo(x,y)});ctx.closePath();}
   ctx.fill('evenodd');
   const texture=new THREE.CanvasTexture(canvas);texture.colorSpace=THREE.SRGBColorSpace;
-  const material=new THREE.MeshBasicMaterial({map:texture,transparent:true,opacity:wallSpill ? .52 : .80,depthWrite:false,depthTest:true,side:wallSpill ? THREE.FrontSide : THREE.DoubleSide});
+  const material=new THREE.MeshBasicMaterial({map:texture,transparent:true,opacity:wallSpill ? .65 : .80,depthWrite:false,depthTest:true,side:THREE.FrontSide});
   const mesh=new THREE.Mesh(new THREE.PlaneGeometry(canvas.width/scale,canvas.height/scale),material);
   mesh.position.set((left+right)/2,(bottom+top)/2,z);mesh.renderOrder=10;mesh.userData.letterGlow=true;return mesh;
 }
@@ -244,7 +244,7 @@ export async function createLetter3DRenderer(container, {onUnavailable} = {}) {
   const scene=new THREE.Scene();
   // A modest environment keeps an unlit white opal face distinguishable from
   // an illuminated face while keeping the painted sides visible.
-  scene.add(new THREE.AmbientLight(0xffffff,.35));
+  scene.add(new THREE.AmbientLight(0xffffff,.65));
   const key=new THREE.DirectionalLight(0xffffff,.55); key.position.set(-2,4,8); scene.add(key);
   const fill=new THREE.DirectionalLight(0xbad4ff,.20); fill.position.set(5,-1,4); scene.add(fill);
   const camera=new THREE.OrthographicCamera(-1,1,1,-1,.1,10000);

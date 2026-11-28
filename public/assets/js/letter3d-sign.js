@@ -29,7 +29,15 @@ export function prepareLetter3DSignLayers(plan,C,{totalDepthMm,backThicknessMm,b
   if(backboard.shape==='rectangle'&&(!Number.isFinite(margin)||margin<0||margin>500))err('Invalid backboard margin.');
   const pieces=plan.pieces.map(piece=>{
     if(!piece||!Number.isInteger(piece.line)||piece.line<0||piece.line>7)err('Invalid line.');
-    const centre=paths(piece.groove_center);
+    // Seat the return within the routed slot at the ERP face overhang.
+    const settings=plan.settings;
+    const desiredCentre=settings.overhang_mm+(settings.overhang_reference==='outside'?side/2:0);
+    const slotCentre=settings.edge_remaining_mm+settings.groove_width_mm/2;
+    const play=(settings.groove_width_mm-side)/2;
+    const shift=Number.isFinite(desiredCentre)&&Number.isFinite(slotCentre)
+      ? Math.max(-play,Math.min(play,slotCentre-desiredCentre)) : 0;
+    const slot=paths(piece.groove_center);
+    const centre=Math.abs(shift)>.0001 ? offset(C,slot,shift,C.EndType.etClosedPolygon) : slot;
     const wall=offset(C,centre,side/2,C.EndType.etClosedLine);
     const back=offset(C,centre,-side/2,C.EndType.etClosedPolygon);
     return {line:piece.line,wall:contours(wall),back:contours(back)};
