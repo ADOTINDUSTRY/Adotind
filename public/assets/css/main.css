@@ -508,7 +508,7 @@ img {
 }
 
 .home-concept { margin: 0; }
-.home-concept figcaption, .home-manufacturing-concept figcaption {
+.home-manufacturing-concept figcaption {
   margin-top: .5rem;
   font-size: .75rem;
   opacity: .75;
