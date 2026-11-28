@@ -18,7 +18,7 @@ async function exercise() {
   await wait(() => $('ws').dataset.draftReady === '1', 'Draft was not ready');
   const stage = sessionStorage.getItem(stageKey);
   if (!stage) {
-    $('auto').click();
+    if ($('auto').checked) $('auto').click();
     const canvas = document.createElement('canvas');
     canvas.width = 220; canvas.height = 90;
     const ctx = canvas.getContext('2d');

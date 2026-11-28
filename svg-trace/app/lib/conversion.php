@@ -48,6 +48,10 @@ final class StConversion
     {
         $output = $settings['output'] ?? 'fill';
         $raw = (string)file_get_contents($tmpSvg);
+        if (($settings['preset'] ?? '')==='solid' && ($settings['colormode'] ?? '')==='bw'
+            && isset($settings['ink_color'])) {
+            $raw=preg_replace('/(fill|stroke)="(?:#000000|#000|black)"/i','$1="'.$settings['ink_color'].'"',$raw);
+        }
         if ($prep['key'] !== null && $output !== 'centerline' && ($settings['mode'] ?? '') !== 'precise') {
             $raw = StPrep::removeKey($raw, $prep['key']);
         }

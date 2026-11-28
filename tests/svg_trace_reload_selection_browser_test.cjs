@@ -29,7 +29,7 @@ async function exercise() {
   }
   const countMidpoints = paths => paths.filter(d => /L\s*60[ ,]+(?:12|76)(?=\s*[A-Z])/.test(d)).length;
   if (!stage) {
-    $('auto').click();
+    if ($('auto').checked) $('auto').click();
     $('preset').value = 'font'; $('preset').dispatchEvent(new Event('change'));
     const threshold = document.querySelector('[name=threshold]');
     threshold.value = '151'; threshold.dispatchEvent(new Event('input'));

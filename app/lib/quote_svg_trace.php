@@ -109,6 +109,9 @@ function quote_svg_trace_upload(): never
         $settings = StEngine::normaliseSettings($_POST);
         $prep = StPrep::prepare($source, $png, $settings);
         if (!$prep) quote_svg_trace_json(422, ['error'=>'Could not read the artwork. Try exporting it as PNG.']);
+        if (($_POST['intent'] ?? '')==='bitmap') {
+            quote_svg_trace_bitmap($png,$settings,$prep);
+        }
         $result = StConversion::tracePrepared($png, $svg, $prep, $settings, 35, 768, StConfig::load());
         if (!$result['ok']) {
             error_log('SVG trace engine: ' . substr($result['log'], 0, 400));
@@ -122,4 +125,27 @@ function quote_svg_trace_upload(): never
         error_log('SVG trace failed: ' . $error->getMessage());
         quote_svg_trace_json(500, ['error'=>'The tracer could not finish. Please retry with a smaller logo.']);
     }
+}
+
+/** Display the same prepared pixels that feed the tracer, including ink and transparency. */
+function quote_svg_trace_bitmap(string $png,array $settings,array $prep): never
+{
+    $image=imagecreatefrompng($png);
+    if (!$image) quote_svg_trace_json(422,['error'=>'Could not open the prepared bitmap.']);
+    if ($settings['colormode']==='bw') {
+        $ink=$settings['preset']==='solid' ? hexdec(substr($settings['ink_color'] ?? '#000000',1)) : 0;
+        $palette=imagecreate(imagesx($image),imagesy($image));
+        for ($i=0;$i<256;$i++) imagecolorallocate($palette,$i,$i,$i);
+        imagecopy($palette,$image,0,0,0,0,imagesx($image),imagesy($image));
+        for ($i=0;$i<256;$i++) {
+            imagecolorset($palette,$i,($ink>>16)&255,($ink>>8)&255,$ink&255,(int)round($i*127/255));
+        }
+        $image=$palette;
+    } elseif ($prep['key']!==null) {
+        imagecolortransparent($image,hexdec(substr($prep['key'],1)));
+    }
+    header('Content-Type: image/png');
+    header('X-Trace-Palette: '.implode(',',$prep['palette'] ?? []));
+    imagepng($image,null,3);
+    exit;
 }

@@ -62,7 +62,9 @@ final class StPrep
             && self::lightLettering($img, $sample['pixels'], $s['ink'] ?? 'auto');
         $palette = $bw ? [[0, 0, 0], [255, 255, 255]] : self::palette($sample['pixels'], (int)($s['colors'] ?? 0));
         $wantKey = $hasAlpha || (!$bw && (int)($s['remove_bg'] ?? 0) > 0);
-        $key = $wantKey ? self::pickKey($palette) : null;
+        $replacement = !$bw && isset($s['replace_from'],$s['replace_to'])
+            ? array_values(unpack('Cred/Cgreen/Cblue',hex2bin(substr($s['replace_to'],1)))) : null;
+        $key = $wantKey ? self::pickKey($replacement ? [...$palette,$replacement] : $palette) : null;
 
         // Flatten transparency (onto white for B&W, onto the key colour otherwise).
         if ($hasAlpha) {
@@ -75,6 +77,10 @@ final class StPrep
             $img = $flat;
         }
 
+        $strength=($s['sharpen'] ?? 0)/100;
+        if ($strength>0 && !$pixelMode) {
+            imageconvolution($img,[[0,-$strength,0],[-$strength,1+4*$strength,-$strength],[0,-$strength,0]],1,0);
+        }
         // Working resolution. Centre-line tracing runs in PHP, so it works smaller.
         $scale = 1.0;
         $lines = ($s['output'] ?? 'fill') === 'centerline';
@@ -190,6 +196,10 @@ final class StPrep
             self::keyBackground($pal, count($entries) - 1, (int)$s['remove_bg'] === 2);
         }
 
+        $paletteHex=array_map(static fn(array $rgb):string => sprintf('#%02x%02x%02x',...$rgb),$palette);
+        if ($replacement && ($index=array_search($s['replace_from'],$paletteHex,true))!==false) {
+            imagecolorset($pal,$index,...$replacement);
+        }
         imagepalettetotruecolor($pal);
         error_clear_last();
         if (!@imagepng($pal, $dest, 1)) {
@@ -206,6 +216,7 @@ final class StPrep
             // Stacked tracing paints shapes under transparent areas; cut-out does not.
             'cutout' => ($hasAlpha || (int)($s['remove_bg'] ?? 0) === 2) && !$bw && $key !== null,
             'colors' => count($palette),
+            'palette' => $paletteHex,
         ];
     }
 

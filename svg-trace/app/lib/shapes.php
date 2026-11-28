@@ -322,6 +322,9 @@ final class StShapes
             return '';
         }
         $segs = self::tidy(self::snap(self::tidy($segs, $p['lmin']), $p['snap']), $p['lmin']);
+        if (!empty($p['compact']) && count($segs) > 3) {
+            $segs = self::mergeSmoothCubics($segs, 1.5 * $p['ctol']);
+        }
 
         $f = static fn(float $v): string => self::num($v, $prec);
         $d = 'M' . $f($segs[0][1][0]) . ' ' . $f($segs[0][1][1]);
@@ -498,6 +501,103 @@ final class StShapes
             }
         }
         return $segs;
+    }
+
+    /** Combine smooth spans while measuring every candidate against the original spans. */
+    private static function mergeSmoothCubics(array $segments, float $tolerance): array
+    {
+        $runs = [];
+        foreach ($segments as $segment) {
+            [$kind,$a,$b,$c,$d] = $segment;
+            $samples = [];
+            if ($kind === 'C' || $kind === 'L') {
+                $length = hypot($d[0]-$a[0],$d[1]-$a[1]);
+                if ($kind === 'L' && $length>12*$tolerance) {
+                    $runs[]=[$segment,[]];
+                    continue;
+                }
+                if ($kind === 'C') {
+                    $length = hypot($b[0]-$a[0],$b[1]-$a[1]) + hypot($c[0]-$b[0],$c[1]-$b[1]) + hypot($d[0]-$c[0],$d[1]-$c[1]);
+                }
+                $n = max(4,min(128,(int)ceil($length/2)));
+                for ($i=0;$i<=$n;$i++) {
+                    $t = $i/$n;
+                    $samples[] = $kind === 'C' ? self::bez([$a,$b,$c,$d],$t) : [$a[0]+$t*($d[0]-$a[0]),$a[1]+$t*($d[1]-$a[1])];
+                }
+            }
+            $runs[] = [$segment,$samples];
+        }
+        do {
+            $before = count($runs);
+            $next = [];
+            for ($i=0;$i<$before;$i++) {
+                [$left,$points] = $runs[$i];
+                if ($i+1<$before && $points && $runs[$i+1][1] && count($next)+$before-$i>3) {
+                    [$right,$other] = $runs[$i+1];
+                    $out = self::unit([$left[4][0]-$left[3][0],$left[4][1]-$left[3][1]]);
+                    $in = self::unit([$right[2][0]-$right[1][0],$right[2][1]-$right[1][1]]);
+                    if ($left[0]==='L') $out=self::unit([$left[4][0]-$left[1][0],$left[4][1]-$left[1][1]]);
+                    if ($right[0]==='L') $in=self::unit([$right[4][0]-$right[1][0],$right[4][1]-$right[1][1]]);
+                    if ($out[0]*$in[0]+$out[1]*$in[1] > .97 && count($points)+count($other)<=512) {
+                        $start=$left[0]==='L' ? $out : self::unit([$left[2][0]-$left[1][0],$left[2][1]-$left[1][1]]);
+                        $end=$right[0]==='L' ? self::neg($in) : self::unit([$right[3][0]-$right[4][0],$right[3][1]-$right[4][1]]);
+                        $joined=array_merge($points,array_slice($other,1));
+                        $curve=self::fitMerged($joined,$start,$end,$tolerance);
+                        if ($curve!==null) {
+                            $next[]=[['C',...$curve],$joined];
+                            $i++;
+                            continue;
+                        }
+                    }
+                }
+                $next[]=[$left,$points];
+            }
+            $runs=$next;
+        } while (count($runs)<$before && count($runs)>3);
+        return array_column($runs,0);
+    }
+
+    /** Fit handle lengths against normal distance rather than distance along the curve. */
+    private static function fitMerged(array $pts,array $start,array $end,float $tol): ?array
+    {
+        $last=count($pts)-1;
+        $u=self::chordParams($pts,0,$last);
+        $curve=self::generate($pts,0,$last,$u,$start,$end);
+        $best=null; $bestError=$tol*$tol;
+        $chord=hypot($curve[3][0]-$curve[0][0],$curve[3][1]-$curve[0][1]);
+        for ($iteration=0;$iteration<8;$iteration++) {
+            $u=self::reparam($pts,0,$last,$u,$curve);
+            $u=self::reparam($pts,0,$last,$u,$curve);
+            $aa=$ab=$bb=$ar=$br=0.0;
+            $max=0.0;
+            for ($i=1;$i<$last;$i++) {
+                $t=$u[$i]; $s=1-$t;
+                if ($t<=$u[$i-1] || $t>=1) return $best;
+                $at=self::bez($curve,$t);
+                $dx=$pts[$i][0]-$at[0]; $dy=$pts[$i][1]-$at[1];
+                $max=max($max,$dx*$dx+$dy*$dy);
+                $tx=$s*$s*($curve[1][0]-$curve[0][0])+2*$s*$t*($curve[2][0]-$curve[1][0])+$t*$t*($curve[3][0]-$curve[2][0]);
+                $ty=$s*$s*($curve[1][1]-$curve[0][1])+2*$s*$t*($curve[2][1]-$curve[1][1])+$t*$t*($curve[3][1]-$curve[2][1]);
+                $len=hypot($tx,$ty);
+                if ($len<1e-8) return $best;
+                $nx=-$ty/$len; $ny=$tx/$len;
+                $a=3*$s*$s*$t*($nx*$start[0]+$ny*$start[1]);
+                $b=3*$s*$t*$t*($nx*$end[0]+$ny*$end[1]);
+                $r=$nx*$dx+$ny*$dy;
+                $aa+=$a*$a; $ab+=$a*$b; $bb+=$b*$b; $ar+=$a*$r; $br+=$b*$r;
+            }
+            if ($max<$bestError) { $best=$curve; $bestError=$max; }
+            $det=$aa*$bb-$ab*$ab;
+            if ($det<1e-9) break;
+            $dl=($ar*$bb-$br*$ab)/$det; $dr=($br*$aa-$ar*$ab)/$det;
+            if (max(abs($dl),abs($dr))<.002) break;
+            $l=hypot($curve[1][0]-$curve[0][0],$curve[1][1]-$curve[0][1])+$dl;
+            $r=hypot($curve[2][0]-$curve[3][0],$curve[2][1]-$curve[3][1])+$dr;
+            if (min($l,$r)<=0 || max($l,$r)>1.5*$chord) break;
+            $curve[1]=self::add($curve[0],$start,$l);
+            $curve[2]=self::add($curve[3],$end,$r);
+        }
+        return $best;
     }
 
     /** Last index $j such that $run[$i..$j] is a straight line, or null. */
@@ -682,7 +782,13 @@ final class StShapes
                 $w = max(1, min(4, $j, $last - $j));
                 return self::unit([$d[$j - $w][0] - $d[$j + $w][0], $d[$j - $w][1] - $d[$j + $w][1]]);
             };
-            $try = static fn(int $j): ?array => self::fitOne($d, $i, $j, $tin, $tanAt($j), $err2);
+            $try = static function (int $j) use ($d,$i,$tin,$tanAt,$err2,$refineHandles,$tol): ?array {
+                if ($refineHandles && $j-$i>=4 && $j-$i<=512) {
+                    $fit=self::fitMerged(array_slice($d,$i,$j-$i+1),$tin,$tanAt($j),$tol);
+                    if ($fit!==null) return $fit;
+                }
+                return self::fitOne($d,$i,$j,$tin,$tanAt($j),$err2);
+            };
             $best = null;
             $bestJ = $i + 1;
             if (($b = $try($last)) !== null) {

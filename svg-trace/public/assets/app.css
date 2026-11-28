@@ -143,6 +143,13 @@ a { color: var(--brand); }
 .seg-out label { white-space: normal; }
 .ws-canvas { display: grid; gap: 12px; }
 .ws-canvas.split { grid-template-columns: 1fr 1fr; }
+.ws-canvas.bitmap { grid-template-columns: 1fr 1fr; }
+.ws-view:has(.ws-canvas.bitmap) :is(.ws-actions,.ws-stats,#wire,.ws-bar label:has(#wire)) { display:none; }
+.ws-canvas:not(.bitmap) #img-bitmap, .ws-canvas.bitmap #img-vector { display:none; }
+.bitmap-tools { border:1px solid var(--line); border-radius:var(--radius); padding:10px 12px; margin:0; }
+.bitmap-tools legend { padding:0 5px; font-weight:650; }
+.bitmap-tools .bitmap-ink { display:flex; align-items:center; justify-content:space-between; }
+.bitmap-tools input[type=color] { width:44px; height:32px; cursor:pointer; }
 .ws-canvas.vector figure:first-of-type, .ws-canvas.original figure:last-of-type { display: none; }
 .ws-canvas figure { margin: 0; border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden;
   background-color: #fff; background-image: linear-gradient(45deg, #eef1f6 25%, transparent 25%),
@@ -169,7 +176,7 @@ a { color: var(--brand); }
 @media (max-width: 860px) {
   .ws-grid { grid-template-columns: 1fr; }
   .ws-panel { position: static; }
-  .ws-canvas.split { grid-template-columns: 1fr; }
+  .ws-canvas.split, .ws-canvas.bitmap { grid-template-columns: 1fr; }
   .ws-canvas .vp { height: 46vh; }
   .ws-stats { grid-template-columns: repeat(2, 1fr); }
 }

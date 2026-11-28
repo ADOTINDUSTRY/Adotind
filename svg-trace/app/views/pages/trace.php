@@ -64,6 +64,24 @@ $slider = static function (string $name, array $s): void { ?>
       </label>
 
       <small class="muted" data-only="solid" hidden>Tracing automatically cleans the bitmap edges before fitting the curves. Use Logo / flat colours to keep separate colours.</small>
+      <?php if (!empty($page['private_trace'])): ?>
+      <fieldset class="bitmap-tools">
+        <legend>Bitmap adjustments</legend>
+        <label class="field bitmap-ink" data-only="solid"><span>Ink colour</span>
+          <input type="color" name="ink_color" value="#000000" />
+        </label>
+        <div data-only="color">
+          <label class="field"><span>Replace a bitmap colour</span><select name="replace_from">
+            <option value="">Keep original colours</option>
+          </select></label>
+          <label class="field bitmap-ink"><span>Replacement colour</span><input type="color" name="replace_to" value="#1465ba" /></label>
+        </div>
+        <label class="field range"><span>Edge sharpening <output id="o-sharpen">0</output></span>
+          <input type="range" name="sharpen" min="0" max="100" value="0" />
+        </label>
+        <button type="button" id="edit-bitmap" class="btn btn-sm">Edit bitmap before tracing</button>
+      </fieldset>
+      <?php endif; ?>
       <div class="field">
         <span>Output</span>
         <div class="seg seg-out" role="group" aria-label="Output">
@@ -114,7 +132,7 @@ $slider = static function (string $name, array $s): void { ?>
         <?php foreach ($advanced as $name => $s) { $slider($name, $s); } ?>
       </details>
 
-      <label class="check"><input type="checkbox" id="auto" checked /> Update automatically when I change a setting</label>
+      <label class="check"><input type="checkbox" id="auto"<?= empty($page['private_trace']) ? ' checked' : '' ?> /> Trace automatically when I change a setting</label>
       <button class="btn btn-primary btn-lg ws-go" id="go" type="button" disabled>Convert to SVG</button>
       <?php if (!empty($page['private_trace'])): ?>
       <button class="btn btn-primary ws-go" id="review-traced-points" type="button" hidden>Review traced points with AI</button>
@@ -128,6 +146,7 @@ $slider = static function (string $name, array $s): void { ?>
       <div class="ws-view" id="view" hidden>
         <div class="ws-bar">
           <div class="ws-tabs" role="tablist">
+            <?php if (!empty($page['private_trace'])): ?><button type="button" data-show="bitmap">Bitmap preview</button><?php endif; ?>
             <button type="button" class="on" data-show="split">Side by side</button>
             <button type="button" data-show="overlay">Compare</button>
             <button type="button" data-show="vector">Vector</button>
@@ -144,7 +163,7 @@ $slider = static function (string $name, array $s): void { ?>
         </div>
         <div class="ws-canvas split" id="canvas">
           <figure><div class="vp"><img id="img-original" alt="Original image" draggable="false" /></div><figcaption>Original</figcaption></figure>
-          <figure><div class="vp"><img id="img-vector" alt="Traced SVG" draggable="false" /></div><figcaption>Vector (SVG)</figcaption></figure>
+          <figure><div class="vp"><img id="img-vector" alt="Traced SVG" draggable="false" /><?php if (!empty($page['private_trace'])): ?><img id="img-bitmap" alt="Prepared bitmap" draggable="false" /><?php endif; ?></div><figcaption id="result-caption">Vector (SVG)</figcaption></figure>
           <input type="range" id="swipe" min="0" max="100" value="50" aria-label="Compare position" />
         </div>
         <p class="muted fine ws-help">Scroll to zoom, drag to move. In Compare, slide to reveal the original under the vector.</p>

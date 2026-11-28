@@ -42,6 +42,11 @@ async function runTraceBrowser(exercise, handlePost) {
         for await (const chunk of req) chunks.push(chunk);
         const body = Buffer.concat(chunks);
         if (req.url === '/result') { res.end('OK'); finish(body.toString()); return; }
+        if (req.url.endsWith('/convert') && body.includes(Buffer.from('name="intent"\r\n\r\nbitmap\r\n'))) {
+          res.writeHead(200, {'Content-Type':'image/png'});
+          res.end(Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+j01sAAAAASUVORK5CYII=','base64'));
+          return;
+        }
         const data = await handlePost(req, body);
         res.writeHead(200, {'Content-Type':'application/json'}); res.end(JSON.stringify(data)); return;
       }

@@ -83,6 +83,7 @@ final class StEngine
         'path_precision' => [0, 8, false],
         'colors' => [0, 32, false],        // 0 = automatic
         'threshold' => [1, 254, false],    // black & white cut-off
+        'sharpen' => [0, 100, false],
         'remove_bg' => [0, 2, false],     // 0 off, 1 outside only, 2 everywhere
     ];
 
@@ -100,6 +101,11 @@ final class StEngine
         $out = self::PRESETS[$presetName];
         unset($out['label']);
         $out['preset'] = $presetName;
+        foreach (['ink_color','replace_from','replace_to'] as $field) {
+            if (is_string($input[$field] ?? null) && preg_match('/^#[0-9a-f]{6}$/iD',$input[$field])) {
+                $out[$field]=strtolower($input[$field]);
+            }
+        }
         if ($presetName === 'font' && in_array($input['ink'] ?? '', ['auto', 'dark', 'light'], true)) {
             $out['ink'] = $input['ink'];
         }

@@ -110,6 +110,21 @@ try {
     if (count(array_unique([$red,$blue,$paper]))!==3 || $sample(32,12)!==$red || $sample(32,37)!==$paper) {
         throw new RuntimeException('Colour logo lost an ink, corner or opening.');
     }
+    $settings = StEngine::normaliseSettings(['preset'=>'logo','remove_bg'=>0,'replace_from'=>sprintf('#%06x',$red),'replace_to'=>'#117744']);
+    $prep = StPrep::prepare($source,$png,$settings);
+    $recoloured = imagecreatefrompng($png);
+    if ((imagecolorat($recoloured,(int)(30*$prep['scale']),(int)(55*$prep['scale']))&0xffffff)!==0x117744 ||
+        (imagecolorat($recoloured,(int)(70*$prep['scale']),(int)(30*$prep['scale']))&0xffffff)!==$blue) {
+        throw new RuntimeException('Bitmap recolour must replace just the selected ink.');
+    }
+    foreach (['fill','outline','centerline'] as $output) {
+        $settings=StEngine::normaliseSettings(['preset'=>'solid','output'=>$output,'sharpen'=>45,'ink_color'=>'#336699']);
+        $prep=StPrep::prepare($source,$png,$settings);
+        $result=StConversion::tracePrepared($png,$svg,$prep,$settings,30,768,StConfig::load());
+        if (!$result['ok'] || !str_contains(StConversion::readSvg($svg,$prep,$settings),'="#336699"')) {
+            throw new RuntimeException("Selected ink missing from $output SVG.");
+        }
+    }
     echo "Logo, centreline, fractional edges, tone cleanup, separate inks, corners and counters passed.\n";
 } finally {
     foreach ([$source, $png, $svg] as $path) if (is_file($path)) unlink($path);

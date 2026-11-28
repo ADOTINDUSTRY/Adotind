@@ -12,6 +12,10 @@
   const presetSel = $('preset'), view = $('view'), canvas = $('canvas'), auto = $('auto'), wire = $('wire');
   const imgO = $('img-original'), imgV = $('img-vector'), stats = $('stats'), dl = $('download');
   const figV = imgV.closest('figure');
+  const imgBitmap = $('img-bitmap');
+  const bitmapTab = ws.querySelector('[data-show="bitmap"]');
+  const editingBitmap = () => canvas.classList.contains('bitmap');
+  let bitmapUrl = '', bitmapRevision = -1;
   const exts = JSON.parse(ws.dataset.exts || '[]');
   const previewable = JSON.parse(ws.dataset.preview || '[]');
   const progress = $('progress');
@@ -21,6 +25,7 @@
   let pendingFile = null;   // chosen but not uploaded yet
   let sourceFileId = null;  // uploaded original, reused for re-traces
   let busy = false;
+  let preparingBitmap = false;
   let again = false;        // settings changed while a trace was running
   let pollTimer = null, autoTimer = null;
   let svgUrl = '', wireUrl = '', sourceUrl = '';
@@ -51,7 +56,7 @@
     statusEl.className = 'ws-status' + (kind ? ' ' + kind : '');
   };
   const fmtBytes = (n) => n < 1024 ? n + ' B' : n < 1048576 ? (n / 1024).toFixed(1) + ' KB' : (n / 1048576).toFixed(2) + ' MB';
-  const refreshGo = () => { go.disabled = busy || (!pendingFile && !sourceFileId); };
+  const refreshGo = () => { go.disabled = (busy && !preparingBitmap) || (!pendingFile && !sourceFileId); };
   const aiTrace = $('ai-trace');
   async function openAiTrace(saved) {
     const file = pendingFile;
@@ -71,7 +76,7 @@
   aiTrace?.addEventListener('click', () => openAiTrace());
 
   // ---- settings ----
-  const fields = () => ws.querySelectorAll('input[name][type="range"], input[name][type="radio"]');
+  const fields = () => ws.querySelectorAll('input[name][type="range"], input[name][type="radio"], input[name][type="color"],select[name="replace_from"]');
   const value = (name) => ws.querySelector(`input[name="${name}"]:checked`)?.value;
   const applyPreset = (name) => {
     const p = presets[name];
@@ -96,14 +101,21 @@
   };
   const scheduleAuto = () => {
     if (convertUrl) revision++;
-    resumeTrace = !!pendingFile && auto.checked;
+    resumeTrace = !!pendingFile && auto.checked && !editingBitmap();
     saveSettings();
-    if (!auto.checked || !(sourceFileId || pendingFile)) return;
     clearTimeout(autoTimer);
-    autoTimer = setTimeout(convert, 650);
+    if (!(sourceFileId || pendingFile)) return;
+    if (editingBitmap()) autoTimer = setTimeout(() => convert('bitmap'),350);
+    else if (auto.checked) autoTimer = setTimeout(convert,650);
   };
   presetSel.addEventListener('change', () => { applyPreset(presetSel.value); scheduleAuto(); });
-  fields().forEach((el) => el.addEventListener('input', () => { syncOutputs(); scheduleAuto(); }));
+  fields().forEach((el) => el.addEventListener('input', () => {
+    syncOutputs();
+    if (pendingFile && el.closest('.bitmap-tools') && !editingBitmap()) {
+      revision++;
+      bitmapTab.click();
+    } else scheduleAuto();
+  }));
   applyPreset(presetSel.value);
 
   // ---- file selection ----
@@ -113,6 +125,9 @@
     if (exts.length && !exts.includes(ext)) { setStatus('This file type is not supported. You can upload: ' + ws.dataset.labels + '.', 'err'); return; }
     if (maxBytes && file.size > maxBytes) { setStatus('This file is too large (' + fmtSize(file.size) + '). The maximum is ' + fmtSize(maxBytes) + '.', 'err'); return; }
     pendingFile = file; vectorData = null;
+    release(bitmapUrl); bitmapUrl = ''; bitmapRevision = -1;
+    imgBitmap?.removeAttribute('src');
+    ws.querySelector('select[name="replace_from"]')?.replaceChildren(new Option('Keep original colours',''));
     if (aiTrace) aiTrace.disabled = false;
     revision++;
     sourceFileId = null;
@@ -132,7 +147,8 @@
       lastSettings = JSON.stringify(settings);
       save({source:{id:crypto.randomUUID(),name:file.name,file}, vector:null, editor:null, ai:null, settings});
     }
-    if (auto.checked) convert();
+    if (bitmapTab && (!auto.checked || editingBitmap())) bitmapTab.click();
+    else if (auto.checked) convert();
   };
   fileInput.addEventListener('change', () => choose(fileInput.files[0]));
   function keepCurrentDrawing() {
@@ -152,9 +168,15 @@
   ws.querySelectorAll('.ws-tabs button').forEach((b) => b.addEventListener('click', () => {
     ws.querySelectorAll('.ws-tabs button').forEach((x) => x.classList.toggle('on', x === b));
     canvas.className = 'ws-canvas ' + b.dataset.show;
+    if ($('result-caption')) $('result-caption').textContent = editingBitmap() ? 'Prepared bitmap' : 'Vector (SVG)';
+    if (editingBitmap() && pendingFile && bitmapRevision !== revision && !restoring) convert('bitmap');
     zoom.layout();
     saveSettings();
   }));
+  $('edit-bitmap')?.addEventListener('click', () => {
+    bitmapTab.click();
+    if (!pendingFile) fileInput.click();
+  });
   $('swipe').addEventListener('input', (e) => {
     canvas.style.setProperty('--swipe', e.target.value + '%'); saveSettings();
   });
@@ -176,8 +198,8 @@
     };
     const layout = () => {
       vps.forEach((vp) => {
-        const img = vp.querySelector('img'), b = box(vp);
-        Object.assign(img.style, { width: b.W + 'px', height: b.H + 'px', left: b.left + 'px', top: b.top + 'px' });
+        const b = box(vp);
+        vp.querySelectorAll('img').forEach(img => Object.assign(img.style, { width: b.W + 'px', height: b.H + 'px', left: b.left + 'px', top: b.top + 'px' }));
       });
       const vp = vps.find((v) => v.clientWidth) || vps[0];
       $('zoom-level').textContent = z === 1 && !ox && !oy ? 'Fit' : Math.round(fitScale(vp) * z * 100) + '%';
@@ -272,10 +294,12 @@
   });
 
   // ---- convert ----
-  const convert = async () => {
+  const convert = async (intent = 'trace') => {
+    const bitmap = intent === 'bitmap';
     clearTimeout(autoTimer);
-    if (busy) { again = true; return; }
+    if (busy) { again = bitmap ? 'bitmap' : 'trace'; return; }
     const fd = new FormData();
+    if (bitmap) fd.append('intent','bitmap');
     fd.append('preset', presetSel.value);
     fields().forEach((el) => {
       if (el.type === 'radio' && !el.checked) return;
@@ -285,17 +309,33 @@
     else if (sourceFileId) fd.append('source_file_id', String(sourceFileId));
     else return;
 
-    busy = true; again = false; refreshGo();
-    resumeTrace = true; saveSettings();
+    busy = true; preparingBitmap = bitmap; again = false; refreshGo();
+    resumeTrace = !bitmap; saveSettings();
     const submittedRevision = revision;
     figV.classList.add('updating');
     setStatus(pendingFile ? 'Uploading…' : 'Starting…');
     try {
-      const res = await send(fd, !!pendingFile);
+      const res = await send(fd, !!pendingFile, bitmap);
       const data = res.data;
       if (convertUrl && submittedRevision !== revision) { finish(); return; }
+      if (bitmap && res.ok) {
+        release(bitmapUrl);
+        imgBitmap.src = bitmapUrl = URL.createObjectURL(data);
+        bitmapRevision = revision;
+        const colours=ws.querySelector('select[name="replace_from"]');
+        if (colours && value('colormode')==='color') {
+          const selected=colours.value;
+          colours.replaceChildren(new Option('Keep original colours',''),...res.palette.map(hex=>new Option(hex.toUpperCase(),hex)));
+          if (res.palette.includes(selected)) colours.value=selected;
+        }
+        if (editingBitmap()) setStatus('Bitmap ready. Adjust the image or trace it to SVG.','ok');
+        zoom.layout();
+        finish();
+        return;
+      }
       if (!res.ok || !(convertUrl ? data.svg : data.job)) throw new Error(data.error || (res.status === 413 ? 'This file is too large for the server.' : 'Upload failed (' + res.status + ').'));
       if (convertUrl) {
+        if (editingBitmap() && again!=='bitmap') ws.querySelector('[data-show="split"]').click();
         clearVector();
         const blob = new Blob([data.svg], { type: 'image/svg+xml' });
         const url = URL.createObjectURL(blob);
@@ -318,10 +358,11 @@
   go.addEventListener('click', convert);
 
   // XMLHttpRequest instead of fetch so large uploads can show progress.
-  const send = (fd, withProgress) => new Promise((resolve, reject) => {
+  const send = (fd, withProgress, bitmap) => new Promise((resolve, reject) => {
     const xhr = new XMLHttpRequest();
     xhr.open('POST', convertUrl || base + '/api/jobs');
     xhr.withCredentials = true;
+    if (bitmap) xhr.responseType = 'blob';
     xhr.setRequestHeader('X-CSRF-Token', csrf);
     const bar = progress.firstElementChild;
     if (withProgress) {
@@ -333,20 +374,25 @@
         setStatus(pc < 100 ? `Uploading… ${pc}% of ${fmtSize(e.total)}` : 'Opening your file…');
       };
     }
-    xhr.onload = () => {
+    xhr.onload = async () => {
       progress.hidden = true;
+      if (bitmap && xhr.status === 200 && xhr.response.type === 'image/png') {
+        const palette=(xhr.getResponseHeader('X-Trace-Palette') || '').split(',').filter(hex=>/^#[0-9a-f]{6}$/i.test(hex));
+        resolve({ok:true, status:200, data:xhr.response, palette});
+        return;
+      }
       let data = {};
-      try { data = JSON.parse(xhr.responseText); } catch (_) { /* not JSON */ }
-      resolve({ ok: xhr.status >= 200 && xhr.status < 300, status: xhr.status, data });
+      try { data = JSON.parse(bitmap ? await xhr.response.text() : xhr.responseText); } catch (_) { /* not JSON */ }
+      resolve({ ok: !bitmap && xhr.status >= 200 && xhr.status < 300, status: xhr.status, data });
     };
     xhr.onerror = () => { progress.hidden = true; reject(new Error('The upload failed. Check your connection and try again.')); };
     xhr.send(fd);
   });
 
   const finish = () => {
-    busy = false; startedAt.t = 0; refreshGo();
+    busy = false; preparingBitmap = false; startedAt.t = 0; refreshGo();
     figV.classList.remove('updating');
-    if (again) { again = false; convert(); }
+    if (again) { const intent = again; again = false; convert(intent); }
   };
 
   const startedAt = { t: 0 };
@@ -438,7 +484,12 @@
     fields().forEach(el => {
       if (!(el.name in (s.inputs || {}))) return;
       if (el.type === 'radio') el.checked = s.inputs[el.name] === el.value;
-      else el.value = s.inputs[el.name];
+      else {
+        if (el.name==='replace_from' && /^#[0-9a-f]{6}$/i.test(s.inputs[el.name])) {
+          el.add(new Option(s.inputs[el.name],s.inputs[el.name]));
+        }
+        el.value = s.inputs[el.name];
+      }
     });
     syncOutputs();
     auto.checked = !!s.auto; wire.checked = !!s.wire;
@@ -491,7 +542,8 @@
       ws.dataset.draftReady = '1';
       ws.dispatchEvent(new Event('st:draft-ready'));
     }
-    if (resume) convert();
+    if (editingBitmap() && pendingFile) convert('bitmap');
+    else if (resume) convert();
   }
   if (draft) {
     function flush() {
