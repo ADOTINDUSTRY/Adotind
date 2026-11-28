@@ -169,6 +169,11 @@
         }
       });
     }
+    if (navigate && workflow === 'letters3d') {
+      const url = new URL(location.href);
+      url.searchParams.set('project', button.dataset.quotePath);
+      window.history.replaceState(window.history.state, '', url);
+    }
     if (navigate) go(workflow); else show(workflow);
   }
   start.querySelectorAll('[data-quote-path]').forEach(button => {
@@ -186,6 +191,11 @@
     if (button) selectProject(button);
   });
   back.addEventListener('click', () => {
+    if (active === 'letters3d') {
+      const url = new URL(location.href);
+      url.searchParams.delete('project');
+      window.history.replaceState(window.history.state, '', url);
+    }
     if (active === 'neon') {
       if (Array.isArray(window.history.state?.neonTrail)) { window.history.back(); return; }
       const url = new URL(location.href);
@@ -285,7 +295,7 @@
   const initialProject = projects.find(button => button.dataset.quotePath === requestedProject && requestedProject !== 'neon');
   if (initialProject) selectProject(initialProject, false);
   else show(neonUrl() ? 'neon' : (workspace.querySelector('.alert-error') && projects.some(button => button.dataset.quotePath === 'drawing') ? 'drawing' : results.length ? 'result' : 'start'), neonUrl());
-  if (requestedProject && requestedProject !== 'neon') {
+  if (requestedProject && requestedProject !== 'neon' && initialProject?.dataset.quoteWorkflow !== 'letters3d') {
     const url = new URL(location.href);
     url.searchParams.delete('project');
     window.history.replaceState(window.history.state, '', url);
