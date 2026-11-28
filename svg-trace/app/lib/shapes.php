@@ -56,6 +56,7 @@ final class StShapes
             $rows[] = $row . "\0";
         }
         $rows[] = $pad;
+        $coverage = ($s['preset'] ?? '') === 'solid' && $bw ? $img : null;
         unset($img);
 
         $loops = self::boundaries($rows, $W);
@@ -84,8 +85,9 @@ final class StShapes
             $p['corner'] = max(48.0, $p['corner']);
             $p['reach'] = max(2.0, 1.2*$scale);
             $p['snap'] = .45;
-            $p['ctol'] = max(.60, .29*$scale)*max(1.0, $s['segment_length']/3.5);
-            $p['smooth'] = max(2,(int)round($scale*$scale));
+            $p['ctol'] = max(.45, .24*$scale)*max(1.0, $s['segment_length']/3.5);
+            $p['smooth'] = max(1,(int)round($scale*.7));
+            $p['compact'] = true;
         }
         $prec = max(0, min(3, (int)($s['path_precision'] ?? 2)));
 
@@ -97,7 +99,7 @@ final class StShapes
             if (abs($area) < $minArea) {
                 continue;
             }
-            $item = ['v' => $loop, 'area' => abs($area), 'box' => self::box($loop), 'd' => self::fitLoop($loop, $p, $prec)];
+            $item = ['v' => $loop, 'area' => abs($area), 'box' => self::box($loop), 'd' => self::fitLoop($loop, $p, $prec, $coverage)];
             if ($item['d'] === '') {
                 continue;
             }
@@ -227,7 +229,7 @@ final class StShapes
     // 2-4. Corners, lines and curves
 
     /** @param list<array{0:int,1:int}> $loop */
-    private static function fitLoop(array $loop, array $p, int $prec): string
+    private static function fitLoop(array $loop, array $p, int $prec, ?\GdImage $coverage): string
     {
         // Dense outline through the middle of every pixel edge, lightly smoothed.
         $n = count($loop);
@@ -235,7 +237,22 @@ final class StShapes
         for ($i = 0; $i < $n; $i++) {
             $a = $loop[$i];
             $b = $loop[($i + 1) % $n];
-            $pts[] = [($a[0] + $b[0]) / 2, ($a[1] + $b[1]) / 2];
+            $x = ($a[0]+$b[0])/2; $y = ($a[1]+$b[1])/2;
+            if ($coverage !== null) {
+                // Interpolate the silhouette crossing between adjacent sample centres.
+                // The loop's winding and connectivity still come from the binary mask.
+                $dx = (int)($a[0] === $b[0]); $dy = 1-$dx;
+                $ix=(int)$x; $iy=(int)$y;
+                if ($ix >= $dx && $ix < imagesx($coverage) && $iy >= $dy && $iy < imagesy($coverage)) {
+                    $lo=imagecolorat($coverage,$ix-$dx,$iy-$dy)&255;
+                    $hi=imagecolorat($coverage,$ix,$iy)&255;
+                    if ($lo !== $hi) {
+                        $shift=max(0,min(1,(127.5-$lo)/($hi-$lo)))-.5;
+                        $x += $dx*$shift; $y += $dy*$shift;
+                    }
+                }
+            }
+            $pts[] = [$x,$y];
         }
         $pts = self::smoothClosed($pts);
         $k = $p['k'];
@@ -597,6 +614,7 @@ final class StShapes
             return;
         }
         $cuts = self::extrema($pts, max(6.0, $p['lmin'] * 0.5));
+        $firstSegment = count($segs);
         $bounds = array_merge([[0, null]], $cuts, [[$last, null]]);
         $m = count($bounds);
         for ($j = 0; $j < $m - 1; $j++) {
@@ -620,6 +638,16 @@ final class StShapes
                 continue;
             }
             self::fitGreedy($sub, $ta, $tb, $tol, $segs);
+        }
+        // On script lettering a horizontal or vertical extremum often lies inside
+        // a perfectly good cubic. Try fitting across it at the same edge tolerance.
+        if ($cuts && !empty($p['compact']) && count($segs)-$firstSegment > 1) {
+            $alternative = [];
+            self::fitGreedy($pts,$t1,$t2,$tol,$alternative);
+            if (count($alternative) < count($segs)-$firstSegment &&
+                $alternative && end($alternative)[4] === $pts[$last]) {
+                array_splice($segs,$firstSegment,null,$alternative);
+            }
         }
     }
 

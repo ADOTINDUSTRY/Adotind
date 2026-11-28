@@ -98,7 +98,8 @@ final class StPrep
                 imagecopyresampled($smaller,$img,0,0,0,0,$sw,$sh,$w,$h);
                 $img = $smaller;
             }
-            $mask = self::solidMask($img,$sw,$sh,$s['threshold']);
+            $keepEdge = !$lines && ($s['mode'] ?? '') === 'precise';
+            $mask = self::solidMask($img,$sw,$sh,$s['threshold'],$keepEdge);
             if (!imagepng($mask,$dest,1)) {
                 self::$lastError = 'Could not write the prepared silhouette.';
                 return null;
@@ -208,7 +209,7 @@ final class StPrep
     }
 
     /** Interpolate fractional coverage and return a black-on-white tracing mask. */
-    private static function solidMask(\GdImage $src,int $sw,int $sh,int $threshold): \GdImage
+    private static function solidMask(\GdImage $src,int $sw,int $sh,int $threshold,bool $keepEdge): \GdImage
     {
         $w=imagesx($src); $h=imagesy($src);
         $mask=imagecreatetruecolor($sw,$sh);
@@ -229,7 +230,10 @@ final class StPrep
             for ($x=0;$x<$sw;$x++) {
                 $l=$left[$x]; $r=$right[$x]; $wx=$frac[$x];
                 $a=$u[$l]+($u[$r]-$u[$l])*$wx; $b=$v[$l]+($v[$r]-$v[$l])*$wx;
-                imagesetpixel($mask,$x,$y,$a+($b-$a)*$wy < $threshold ? 0 : 0xffffff);
+                $delta=$a+($b-$a)*$wy-$threshold;
+                // The precise tracer reads these fractional edges. Other engines consume binary ink.
+                $level=$keepEdge ? (int)max(0,min(255,floor(128+2*$delta))) : ($delta<0 ? 0 : 255);
+                imagesetpixel($mask,$x,$y,$level*65793);
             }
             unset($rows[$top-1]);
         }

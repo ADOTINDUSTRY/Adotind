@@ -64,7 +64,19 @@ try {
             throw new RuntimeException('Solid trace lost light-coloured ink or its opening.');
         }
     }
-    echo "Logo, centreline, font and solid silhouettes, transparency, pale ink and counters passed.\n";
+    foreach (['fill','centerline'] as $output) {
+        $settings = StEngine::normaliseSettings(['preset'=>'solid','output'=>$output]);
+        $prep = StPrep::prepare($source,$png,$settings);
+        $mask = imagecreatefrompng($png);
+        $fractional = false;
+        $y = (int)(12*$prep['scale']);
+        for ($x=0;$x<imagesx($mask);$x++) {
+            $v = imagecolorat($mask,$x,$y) & 255;
+            if ($v>0 && $v<255) { $fractional = true; break; }
+        }
+        if ($fractional !== ($output==='fill')) throw new RuntimeException("Unexpected edge coverage for $output.");
+    }
+    echo "Logo, centreline, fractional outline edges, transparency, pale ink and counters passed.\n";
 } finally {
     foreach ([$source, $png, $svg] as $path) if (is_file($path)) unlink($path);
     rmdir($dir);
