@@ -22,7 +22,7 @@ $featuredMedia = $page['featured_media'] ?? [];
         <img src="<?= e($heroMedia[0]['url']) ?>" alt="<?= e((string)($heroMedia[0]['title'] ?? 'Project image')) ?>" loading="lazy" />
       </div>
     <?php else: ?>
-      <?= placeholder_html('factory', 'Project Gallery Pending', 'Upload images from /dashboard to display them here.') ?>
+      <?= placeholder_html('factory', 'Project Gallery Pending', 'Project photos will appear here soon.') ?>
     <?php endif; ?>
   </div>
 </section>

@@ -11,6 +11,19 @@ require_once __DIR__ . '/app/lib/dashboard.php';
 
 // Serve media as early as possible: no session, no bootstrap work for image requests.
 $earlyPath = parse_url($_SERVER['REQUEST_URI'] ?? '/', PHP_URL_PATH) ?: '/';
+// Website administration has moved to the ERP. Never forward old form posts.
+if ($earlyPath === '/dashboard' || starts_with($earlyPath, '/dashboard/')) {
+    header('Cache-Control: no-store');
+    header('X-Robots-Tag: noindex, nofollow');
+    if (in_array($_SERVER['REQUEST_METHOD'] ?? 'GET', ['GET', 'HEAD'], true)) {
+        header('Location: https://erp.adotind.cy/index.php?view=public_website', true, 302);
+    } else {
+        http_response_code(410);
+        header('Content-Type: text/plain; charset=UTF-8');
+        echo 'Website administration has moved to the ERP.';
+    }
+    exit;
+}
 require_once __DIR__ . '/app/lib/website_storage.php';
 require_once __DIR__ . '/app/lib/neon.php';
 if (!starts_with($earlyPath, '/media/')) website_storage_start('/var/www/site-tracking');
@@ -268,14 +281,6 @@ $routes = [
         'quote_result' => $path === '/online-quote' && $_SERVER['REQUEST_METHOD'] === 'GET' ? quote_preview_for_display($siteConfig) : null,
         'breadcrumbs' => [['label' => 'Home', 'href' => '/'], ['label' => 'Online Quote', 'href' => '/online-quote']],
     ],
-    '/dashboard' => [
-        'view' => 'dashboard',
-        'title' => 'Dashboard | A Dot Industry',
-        'description' => 'Private dashboard for managing media and online quote settings.',
-        'media' => $mediaLibrary,
-        'quote_admin' => quote_dashboard_data($siteConfig),
-        'breadcrumbs' => [['label' => 'Home', 'href' => '/'], ['label' => 'Dashboard', 'href' => '/dashboard']],
-    ],
 ];
 
 if ($path === '/contact/submit') {
@@ -293,37 +298,6 @@ if ($path === '/online-quote/calculate') {
 if ($path === '/online-quote/book') {
     handle_online_quote_book($siteConfig);
 }
-if ($path === '/dashboard/login') {
-    dashboard_handle_login($siteConfig);
-}
-if ($path === '/dashboard/logout') {
-    dashboard_handle_logout();
-}
-if ($path === '/dashboard/upload') {
-    dashboard_handle_upload($siteConfig);
-}
-if ($path === '/dashboard/update-media') {
-    dashboard_handle_update_meta($siteConfig);
-}
-if ($path === '/dashboard/set-logo') {
-    dashboard_handle_set_logo($siteConfig);
-}
-if ($path === '/dashboard/delete-media') {
-    dashboard_handle_delete_media($siteConfig);
-}
-if ($path === '/dashboard/quote/settings') {
-    quote_dashboard_handle_settings($siteConfig);
-}
-if ($path === '/dashboard/quote/machine') {
-    quote_dashboard_handle_machine($siteConfig);
-}
-if ($path === '/dashboard/quote/material') {
-    quote_dashboard_handle_material($siteConfig);
-}
-if ($path === '/dashboard/quote/rate') {
-    quote_dashboard_handle_rate($siteConfig);
-}
-
 $page = $routes[$path] ?? null;
 
 if ($page === null && starts_with($path, '/services/')) {
