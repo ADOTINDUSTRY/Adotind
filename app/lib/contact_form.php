@@ -44,7 +44,8 @@ function handle_contact_submit(array $siteConfig): never
 
     $uploadPath = null;
     $uploadError = '';
-    if (isset($_FILES['project_file']) && is_array($_FILES['project_file']) && (int)$_FILES['project_file']['error'] !== UPLOAD_ERR_NO_FILE) {
+    $fileAttempted = isset($_FILES['project_file']) && is_array($_FILES['project_file']) && (int)$_FILES['project_file']['error'] !== UPLOAD_ERR_NO_FILE;
+    if ($errors === [] && $fileAttempted) {
         $file = $_FILES['project_file'];
         if ((int)$file['error'] !== UPLOAD_ERR_OK) {
             $uploadError = 'File upload failed. Please try again.';
@@ -80,7 +81,7 @@ function handle_contact_submit(array $siteConfig): never
     }
 
     if ($errors !== []) {
-        flash_set('form_error', 'Please correct the highlighted fields.');
+        flash_set('form_error', $fileAttempted ? 'Please correct the highlighted fields and choose your file again.' : 'Please correct the highlighted fields.');
         flash_set('form_errors', $errors);
         flash_set('form_old', $fields);
         redirect('/contact', 303);
