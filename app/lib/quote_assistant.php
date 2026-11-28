@@ -61,11 +61,17 @@ function quote_assistant_handle(): never
         $hour = gmdate('Y-m-d-H');
         $db->prepare('DELETE FROM quote_assistant_usage WHERE hour < ?')->execute([gmdate('Y-m-d-H', time()-172800)]);
         $q = $db->prepare('SELECT calls FROM quote_assistant_usage WHERE hour=?'); $q->execute([$hour]);
-        if ((int)$q->fetchColumn() >= 60) { $db->exec('ROLLBACK'); quote_assistant_reply(429, ['error'=>'The assistant is busy. Please try again later.']); }
+        $hourCalls = (int)$q->fetchColumn(); $q->closeCursor();
+        if ($hourCalls >= 60) { $db->exec('ROLLBACK'); quote_assistant_reply(429, ['error'=>'The assistant is busy. Please try again later.']); }
         $q = $db->prepare('SELECT COALESCE(SUM(calls),0) FROM quote_assistant_usage WHERE hour>=?'); $q->execute([gmdate('Y-m-d-H',time()-86400)]);
-        if ((int)$q->fetchColumn() >= 120) { $db->exec('ROLLBACK'); quote_assistant_reply(429, ['error'=>'The assistant has reached its daily testing limit. Please try again later.']); }
+        $dayCalls = (int)$q->fetchColumn(); $q->closeCursor();
+        if ($dayCalls >= 120) { $db->exec('ROLLBACK'); quote_assistant_reply(429, ['error'=>'The assistant has reached its daily testing limit. Please try again later.']); }
         $db->prepare('INSERT INTO quote_assistant_usage(hour,calls) VALUES(?,1) ON CONFLICT(hour) DO UPDATE SET calls=calls+1')->execute([$hour]);
         $db->exec('COMMIT');
+        // The transcript opens the same SQLite file through another connection.
+        // Release statements first or their read cursor can keep a lock alive.
+        $q = null;
+        $db = null;
     } catch (Throwable $e) {
         if (isset($db)) { try { $db->exec('ROLLBACK'); } catch (Throwable $ignored) {} }
         error_log('Quote assistant usage counter unavailable');
