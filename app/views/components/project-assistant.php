@@ -3,14 +3,14 @@
   <div class="quote-assistant-panel" id="quote-assistant-panel" hidden>
     <div class="quote-assistant-header">
       <span class="quote-assistant-avatar" aria-hidden="true"><img src="/public/assets/images/quote-assistant-mascot.webp" alt="" width="450" height="550" /></span>
-      <div class="quote-assistant-header-title"><strong>A Dot Assistant</strong><small>Here to help with your project</small></div>
+      <div class="quote-assistant-header-title"><span class="quote-assistant-header-kicker">A DOT INDUSTRY</span><strong>A Dot Assistant</strong><small>Here to help with your project</small></div>
       <button type="button" data-assistant-close aria-label="Close assistant">×</button>
     </div>
-    <div class="quote-assistant-conversation" data-assistant-messages aria-live="polite"><p class="assistant-reply">Hi! What would you like to make? Tell me about your idea and I’ll help you find the next step.</p></div>
+    <div class="quote-assistant-conversation" data-assistant-messages aria-live="polite"><span class="quote-assistant-conversation-label">LET'S GET STARTED</span><p class="assistant-reply">Hi! What would you like to make? Tell me about your idea and I’ll help you find the next step.</p></div>
     <form class="quote-assistant-form" data-assistant-form>
       <label class="quote-assistant-label" for="quote-assistant-input">Your message</label>
       <textarea id="quote-assistant-input" rows="2" maxlength="800" placeholder="Tell me about your project..." required data-private></textarea>
-      <button type="submit" class="quote-assistant-send" data-assistant-send aria-label="Send message">↑</button>
+      <button type="submit" class="quote-assistant-send" data-assistant-send aria-label="Send message"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M12 19V5m0 0L6.5 10.5M12 5l5.5 5.5" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
     </form>
     <p class="quote-assistant-error" data-assistant-error role="status" hidden></p>
   </div>

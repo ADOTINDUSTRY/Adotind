@@ -195,7 +195,9 @@
         messages.append(button); messages.scrollTop = messages.scrollHeight;
       }
     } catch (e) {
-      error.textContent = e.message || 'Unable to get a response. Please try again.';
+      error.textContent = e instanceof TypeError || e instanceof SyntaxError
+        ? 'Sorry, I couldn’t connect. Please try again.'
+        : e.message || 'Unable to get a response. Please try again.';
       error.hidden = false;
       input.value = message;
     } finally { pending = false; send.disabled = false; }
