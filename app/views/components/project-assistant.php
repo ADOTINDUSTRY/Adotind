@@ -19,8 +19,13 @@
       <span class="quote-assistant-mascot" aria-hidden="true">
         <img class="mascot-body" src="/public/assets/images/quote-assistant-mascot.webp" alt="" width="450" height="550" />
         <img class="mascot-wave" src="/public/assets/images/quote-assistant-mascot.webp" alt="" width="450" height="550" />
-        <span class="mascot-walking"></span>
+        <span class="mascot-walking">
+          <img class="mascot-walk-body" src="/public/assets/images/quote-assistant-mascot.webp" alt="" width="450" height="550" />
+          <img class="mascot-walk-left-leg" src="/public/assets/images/quote-assistant-mascot.webp" alt="" width="450" height="550" />
+          <img class="mascot-walk-right-leg" src="/public/assets/images/quote-assistant-mascot.webp" alt="" width="450" height="550" />
+        </span>
         <img class="mascot-sitting-down" src="/public/assets/images/quote-assistant-sitting-down.webp" alt="" width="360" height="440" />
+        <img class="mascot-settling" src="/public/assets/images/quote-assistant-seated.webp" alt="" width="360" height="440" />
       </span>
     </button>
     <button class="quote-assistant-bye" type="button" data-assistant-bye aria-label="Ask the assistant to sit down">Bye</button>
