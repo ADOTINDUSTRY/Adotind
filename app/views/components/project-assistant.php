@@ -17,12 +17,15 @@
   <div class="quote-assistant-controls">
     <button class="quote-assistant-toggle" type="button" data-assistant-toggle aria-expanded="false" aria-controls="quote-assistant-panel" aria-label="Open project assistant">
       <span class="quote-assistant-mascot" aria-hidden="true">
-        <img class="mascot-body" src="/public/assets/images/quote-assistant-mascot.webp" alt="" width="450" height="550" />
-        <img class="mascot-wave" src="/public/assets/images/quote-assistant-mascot.webp" alt="" width="450" height="550" />
+        <span class="mascot-facing">
+          <img class="mascot-body" src="/public/assets/images/quote-assistant-mascot.webp" alt="" width="450" height="550" />
+          <img class="mascot-wave" src="/public/assets/images/quote-assistant-mascot.webp" alt="" width="450" height="550" />
+        </span>
+        <img class="mascot-turn-back" src="/public/assets/images/quote-assistant-back.webp" alt="" width="450" height="550" />
         <span class="mascot-walking">
-          <img class="mascot-walk-body" src="/public/assets/images/quote-assistant-mascot.webp" alt="" width="450" height="550" />
-          <img class="mascot-walk-left-leg" src="/public/assets/images/quote-assistant-mascot.webp" alt="" width="450" height="550" />
-          <img class="mascot-walk-right-leg" src="/public/assets/images/quote-assistant-mascot.webp" alt="" width="450" height="550" />
+          <img class="mascot-walk-body" src="/public/assets/images/quote-assistant-back.webp" alt="" width="450" height="550" />
+          <img class="mascot-walk-left-leg" src="/public/assets/images/quote-assistant-back.webp" alt="" width="450" height="550" />
+          <img class="mascot-walk-right-leg" src="/public/assets/images/quote-assistant-back.webp" alt="" width="450" height="550" />
         </span>
         <img class="mascot-sitting-down" src="/public/assets/images/quote-assistant-sitting-down.webp" alt="" width="360" height="440" />
         <img class="mascot-settling" src="/public/assets/images/quote-assistant-seated.webp" alt="" width="360" height="440" />

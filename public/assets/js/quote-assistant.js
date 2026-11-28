@@ -16,7 +16,7 @@
   const chair = assistant.querySelector('[data-assistant-chair]');
   const dismiss = assistant.querySelector('[data-assistant-dismiss]');
   const history = [];
-  let suggested = false, timer, welcomeTimer, farewellTimer, sitTimer, lowerTimer, settleTimer, pending = false;
+  let suggested = false, timer, welcomeTimer, farewellTimer, sitTimer, turnTimer, chairTurnTimer, lowerTimer, settleTimer, pending = false;
   try { if (sessionStorage.getItem('adot_assistant_sitting') === '1') assistant.dataset.mascotState = 'sitting'; } catch (_) {}
   const labels = workspace
     ? {neon:'Open neon designer',drawing:'Open CNC cutting',picture:'Open picture preview'}
@@ -24,6 +24,8 @@
 
   function open() {
     clearTimeout(sitTimer);
+    clearTimeout(turnTimer);
+    clearTimeout(chairTurnTimer);
     clearTimeout(lowerTimer);
     clearTimeout(settleTimer);
     clearTimeout(farewellTimer);
@@ -52,6 +54,8 @@
     clearTimeout(timer);
     clearTimeout(welcomeTimer);
     clearTimeout(sitTimer);
+    clearTimeout(turnTimer);
+    clearTimeout(chairTurnTimer);
     clearTimeout(lowerTimer);
     clearTimeout(settleTimer);
     clearTimeout(farewellTimer);
@@ -64,18 +68,20 @@
     promptOpen.hidden = true;
     dismiss.hidden = true;
     prompt.hidden = false;
-    assistant.dataset.mascotState = 'leaving';
+    assistant.dataset.mascotState = 'turning';
     chair.focus({preventScroll:true});
     try { sessionStorage.setItem('adot_assistant_sitting', '1'); } catch (_) {}
     const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
     if (!reduced) {
-      lowerTimer = setTimeout(() => { assistant.dataset.mascotState = 'sitting-down'; }, 2000);
-      settleTimer = setTimeout(() => { assistant.dataset.mascotState = 'settling'; }, 2700);
+      turnTimer = setTimeout(() => { assistant.dataset.mascotState = 'leaving'; }, 800);
+      chairTurnTimer = setTimeout(() => { assistant.dataset.mascotState = 'turn-to-sit'; }, 4000);
+      lowerTimer = setTimeout(() => { assistant.dataset.mascotState = 'sitting-down'; }, 4800);
+      settleTimer = setTimeout(() => { assistant.dataset.mascotState = 'settling'; }, 5500);
     }
     sitTimer = setTimeout(() => {
       assistant.dataset.mascotState = 'sitting';
-    }, reduced ? 0 : 3600);
-    farewellTimer = setTimeout(() => { if (prompt.dataset.mode === 'farewell') prompt.hidden = true; }, reduced ? 2500 : 5000);
+    }, reduced ? 0 : 6400);
+    farewellTimer = setTimeout(() => { if (prompt.dataset.mode === 'farewell') prompt.hidden = true; }, reduced ? 2500 : 7300);
   });
   assistant.querySelector('[data-assistant-close]').addEventListener('click', close);
   promptOpen.addEventListener('click', open);
@@ -89,7 +95,7 @@
 
   function welcome() {
     welcomeTimer = null;
-    if (['sitting','leaving','sitting-down','settling'].includes(assistant.dataset.mascotState) || suggested || !panel.hidden || document.hidden) return;
+    if (['sitting','turning','leaving','turn-to-sit','sitting-down','settling'].includes(assistant.dataset.mascotState) || suggested || !panel.hidden || document.hidden) return;
     try { if (sessionStorage.getItem('adot_assistant_welcomed') === '1') return; } catch (_) {}
     if (document.querySelector('dialog[open]')) { welcomeTimer = setTimeout(welcome, 1500); return; }
     prompt.dataset.mode = 'welcome';
@@ -103,7 +109,7 @@
     }, 7000);
   }
   function maybeSuggest() {
-    if (['sitting','leaving','sitting-down','settling'].includes(assistant.dataset.mascotState) || suggested || !panel.hidden || document.hidden) return;
+    if (['sitting','turning','leaving','turn-to-sit','sitting-down','settling'].includes(assistant.dataset.mascotState) || suggested || !panel.hidden || document.hidden) return;
     if (document.querySelector('dialog[open]')) { timer = setTimeout(maybeSuggest, 15000); return; }
     clearTimeout(welcomeTimer);
     welcomeTimer = null;
@@ -123,7 +129,7 @@
     suggested = true;
   }
   function schedule() {
-    if (['sitting','leaving','sitting-down','settling'].includes(assistant.dataset.mascotState) || suggested) return;
+    if (['sitting','turning','leaving','turn-to-sit','sitting-down','settling'].includes(assistant.dataset.mascotState) || suggested) return;
     clearTimeout(timer);
     timer = setTimeout(maybeSuggest, 30000);
   }
