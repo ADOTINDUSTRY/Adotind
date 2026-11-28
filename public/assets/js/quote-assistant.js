@@ -5,17 +5,21 @@
   const toggle = assistant.querySelector('[data-assistant-toggle]');
   const panel = assistant.querySelector('#quote-assistant-panel');
   const prompt = assistant.querySelector('.quote-assistant-prompt');
+  const promptText = assistant.querySelector('[data-assistant-prompt-text]');
+  const promptOpen = assistant.querySelector('[data-assistant-prompt-open]');
   const input = assistant.querySelector('#quote-assistant-input');
   const messages = assistant.querySelector('[data-assistant-messages]');
   const form = assistant.querySelector('[data-assistant-form]');
   const send = assistant.querySelector('[data-assistant-send]');
   const error = assistant.querySelector('[data-assistant-error]');
   const history = [];
-  let suggested = false, timer, pending = false;
+  let suggested = false, timer, welcomeTimer, pending = false;
   const labels = {neon:'Open neon designer',drawing:'Open CNC cutting',picture:'Open picture preview'};
 
   function open() {
     prompt.hidden = true;
+    clearTimeout(welcomeTimer);
+    welcomeTimer = null;
     suggested = true;
     panel.hidden = false;
     toggle.setAttribute('aria-expanded', 'true');
@@ -30,13 +34,45 @@
   }
   toggle.addEventListener('click', () => panel.hidden ? open() : close());
   assistant.querySelector('[data-assistant-close]').addEventListener('click', close);
-  assistant.querySelector('[data-assistant-prompt-open]').addEventListener('click', open);
-  assistant.querySelector('[data-assistant-dismiss]').addEventListener('click', () => { prompt.hidden = true; suggested = true; });
+  promptOpen.addEventListener('click', open);
+  assistant.querySelector('[data-assistant-dismiss]').addEventListener('click', () => {
+    if (prompt.dataset.mode === 'help') suggested = true;
+    prompt.hidden = true;
+    clearTimeout(welcomeTimer);
+    welcomeTimer = null;
+  });
   workspace.addEventListener('quote-assistant-request', open);
 
+  function welcome() {
+    welcomeTimer = null;
+    if (suggested || !panel.hidden || document.hidden) return;
+    if (document.querySelector('dialog[open]')) { welcomeTimer = setTimeout(welcome, 1500); return; }
+    prompt.dataset.mode = 'welcome';
+    promptText.textContent = 'Hi! Welcome to A Dot Industry!';
+    promptOpen.textContent = 'Chat with me';
+    prompt.hidden = false;
+    welcomeTimer = setTimeout(() => {
+      if (prompt.dataset.mode === 'welcome') prompt.hidden = true;
+      welcomeTimer = null;
+    }, 7000);
+  }
   function maybeSuggest() {
     if (suggested || !panel.hidden || document.hidden) return;
     if (document.querySelector('dialog[open]')) { timer = setTimeout(maybeSuggest, 15000); return; }
+    clearTimeout(welcomeTimer);
+    welcomeTimer = null;
+    const step = stage();
+    const questions = {
+      start: 'Not sure what to make? Do you need help choosing?',
+      drawing: 'Need help getting your drawing ready?',
+      material: 'Need help choosing a material?',
+      parts: 'Need help with the size or quantity?',
+      neon: 'Need help designing your neon sign?',
+      picture: 'Need help with your picture or outline?'
+    };
+    prompt.dataset.mode = 'help';
+    promptText.textContent = questions[step] || 'Do you need help with your project?';
+    promptOpen.textContent = 'Yes, help me';
     prompt.hidden = false;
     suggested = true;
   }
@@ -48,7 +84,13 @@
   workspace.addEventListener('pointerdown', schedule, {passive:true});
   workspace.addEventListener('keydown', schedule);
   workspace.addEventListener('invalid', () => { if (!suggested && panel.hidden) maybeSuggest(); }, true);
-  document.addEventListener('visibilitychange', () => { if (!document.hidden) schedule(); });
+  document.addEventListener('visibilitychange', () => {
+    if (!document.hidden) {
+      if (!prompt.dataset.mode && !welcomeTimer) welcomeTimer = setTimeout(welcome, 500);
+      schedule();
+    }
+  });
+  welcomeTimer = setTimeout(welcome, 500);
   schedule();
 
   function stage() {
