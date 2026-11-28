@@ -116,7 +116,8 @@ $slider = static function (string $name, array $s): void { ?>
       <label class="check"><input type="checkbox" id="auto" checked /> Update automatically when I change a setting</label>
       <button class="btn btn-primary btn-lg ws-go" id="go" type="button" disabled>Convert to SVG</button>
       <?php if (!empty($page['private_trace'])): ?>
-      <button class="btn ws-go" id="ai-trace" type="button" disabled>AI Trace</button>
+      <button class="btn btn-primary ws-go" id="review-traced-points" type="button" hidden>Review traced points with AI</button>
+      <button class="btn btn-sm" id="ai-trace" type="button" disabled>Redraw image with AI</button>
       <?php endif; ?>
       <p class="muted fine"><?= !empty($page['private_trace']) ? 'Download your SVG to keep your edits. Uploaded logos are removed after conversion.' : 'Files are private and deleted automatically after 30 days.' ?></p>
     </aside>
@@ -158,6 +159,9 @@ $slider = static function (string $name, array $s): void { ?>
   <div class="ed" id="ed" hidden role="dialog" aria-modal="true" aria-label="Edit points">
     <div class="ed-bar">
       <strong class="ed-title">Edit points</strong>
+      <?php if (!empty($page['private_trace'])): ?>
+      <button type="button" class="btn btn-sm ed-refine-toggle" id="ed-ai" aria-expanded="false" aria-controls="ed-refine-panel">AI curve review</button>
+      <?php endif; ?>
       <div class="ed-group">
         <button type="button" class="btn btn-sm" id="ed-undo" title="Undo (Ctrl / Cmd + Z)">Undo</button>
         <button type="button" class="btn btn-sm" id="ed-redo" title="Redo (Ctrl / Cmd + Shift + Z)">Redo</button>
@@ -177,15 +181,54 @@ $slider = static function (string $name, array $s): void { ?>
       </div>
       <div class="ed-group ed-end">
         <button type="button" class="btn btn-sm" id="ed-font" title="Trace this image again using the lettering preset">Trace lettering</button>
-        <?php if (!empty($page['private_trace'])): ?>
-        <button type="button" class="btn btn-sm" id="ed-ai">AI refine</button>
-        <?php endif; ?>
         <button type="button" class="btn btn-sm" id="ed-download">Download edited SVG</button>
         <button type="button" class="btn btn-sm btn-primary" id="ed-apply">Done</button>
         <button type="button" class="btn btn-sm" id="ed-cancel">Cancel</button>
       </div>
     </div>
-    <svg class="ed-svg" id="ed-svg" tabindex="0" aria-label="Curve editing canvas" xmlns="http://www.w3.org/2000/svg"></svg>
+    <div class="ed-workspace">
+      <svg class="ed-svg" id="ed-svg" tabindex="0" aria-label="Curve editing canvas" xmlns="http://www.w3.org/2000/svg"></svg>
+      <?php if (!empty($page['private_trace'])): ?>
+      <aside class="ed-refine-panel" id="ed-refine-panel" aria-labelledby="ed-refine-title" hidden>
+        <div class="ed-refine-heading">
+          <h2 id="ed-refine-title">AI curve review</h2>
+          <button class="btn btn-sm" type="button" id="ed-refine-close" aria-label="Close curve review" title="Close curve review">Close</button>
+        </div>
+        <p id="ed-refine-status" role="status" aria-live="polite" aria-atomic="true"></p>
+        <section id="ed-refine-review" aria-label="Suggested edits" hidden>
+          <div class="ed-refine-navigation">
+            <strong id="ed-refine-count" aria-live="polite" aria-atomic="true"></strong>
+            <button class="btn btn-sm" type="button" id="ed-refine-prev" aria-label="Previous suggestion" title="Previous suggestion">←</button>
+            <button class="btn btn-sm" type="button" id="ed-refine-next" aria-label="Next suggestion" title="Next suggestion">→</button>
+          </div>
+          <p id="ed-refine-reason"></p>
+          <div class="ed-refine-legend" aria-label="Canvas line styles">
+            <span><i aria-hidden="true"></i>Current</span>
+            <span><i aria-hidden="true"></i>Proposed</span>
+          </div>
+          <div class="ed-refine-actions">
+            <button class="btn btn-sm btn-primary" type="button" id="ed-refine-apply">Apply this</button>
+            <button class="btn btn-sm" type="button" id="ed-refine-skip">Skip this</button>
+            <button class="btn btn-sm" type="button" id="ed-refine-all">Apply all</button>
+          </div>
+        </section>
+        <div class="ed-refine-fields">
+          <label for="ed-refine-scope">Review</label>
+          <select id="ed-refine-scope">
+            <option value="drawing">Whole drawing</option>
+            <option value="contour">Selected contour</option>
+            <option value="point">Selected point or segment</option>
+          </select>
+          <label for="ed-refine-instruction">Instructions <span class="muted">(optional)</span></label>
+          <textarea id="ed-refine-instruction" rows="2" maxlength="350" placeholder="Smooth the curves but keep the sharp corners."></textarea>
+        </div>
+        <div class="ed-refine-actions">
+          <button type="button" class="btn btn-sm btn-primary" id="ed-refine-run">Ask AI</button>
+          <button type="button" class="btn btn-sm" id="ed-refine-local" title="Find cleanup suggestions on this device">Quick cleanup</button>
+        </div>
+      </aside>
+      <?php endif; ?>
+    </div>
     <div class="ed-foot">
       <span id="ed-info"></span>
       <span class="muted">Double-click a line to add a point. Drag a square to move it or a round handle to reshape the curve.</span>

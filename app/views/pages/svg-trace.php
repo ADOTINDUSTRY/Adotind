@@ -8,6 +8,8 @@
   <link rel="stylesheet" href="/online-quote/svg-trace/assets/app.css">
   <script defer src="/online-quote/svg-trace/assets/ai.js"></script>
   <script defer src="/online-quote/svg-trace/assets/trace.js"></script>
+  <script defer src="/online-quote/svg-trace/assets/refine-geometry.js"></script>
+  <script defer src="/online-quote/svg-trace/assets/point-review.js"></script>
   <script defer src="/online-quote/svg-trace/assets/editor.js"></script>
 </head>
 <body>

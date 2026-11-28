@@ -192,7 +192,9 @@
   let undo = [], redo = [];
   let changed = false;
   const gImg = mk('g'), gPaths = mk('g'), gOver = mk('g', { class: 'ed-over' });
-  svg.append(gImg, gPaths, gOver);
+  const reviewOverlay = mk('g', { class:'ed-review-overlay' });
+  svg.append(gImg, gPaths, gOver, reviewOverlay);
+  let pointReview;
 
   const pxUnit = () => { const m = svg.getScreenCTM(); return m && m.a ? 1 / m.a : 1; };
   const toSvg = (e) => {
@@ -207,10 +209,13 @@
     view = [vb[0] - pad, vb[1] - pad, vb[2] + 2 * pad, vb[3] + 2 * pad];
     setView();
   };
-  const snapshot = (pi) => ({ pi, subs: structuredClone(paths[pi].subs), removed: paths[pi].removed,
-    dirty: paths[pi].dirty, sel, node: node && {...node}, seg: seg && {...seg} });
-  const remember = (pi) => {
-    undo.push(snapshot(pi));
+  const snapshot = (indexes) => ({
+    items: indexes.map(pi => ({pi, subs:structuredClone(paths[pi].subs), removed:paths[pi].removed, dirty:paths[pi].dirty})),
+    sel, node: node && {...node}, seg: seg && {...seg},
+  });
+  const remember = (pi, reviewEdit = false) => {
+    if (!reviewEdit) pointReview?.invalidate();
+    undo.push(snapshot(Array.isArray(pi) ? pi : [pi]));
     redo = [];
     if (undo.length > 300) undo.shift();
     changed = true;
@@ -236,7 +241,7 @@
     $('ed-delete-shape').disabled = $('ed-fit-shape').disabled = !active;
     $('ed-straight').disabled = $('ed-curve').disabled = !active || !(node || seg);
     $('ed-smooth').disabled = !active || !node || around(P.subs[node.si], node.ni).includes(-1);
-    if ($('ed-ai')) $('ed-ai').disabled = !active || !(node || seg || P.subs.length === 1);
+    pointReview?.renderCanvas();
     if (!P || P.removed) {
       info.textContent = `${total.toLocaleString()} points. Click a shape to edit it.`;
       return;
@@ -275,7 +280,6 @@
     }));
     const what = node ? 'point selected' : seg ? 'segment ' + ({ L: 'straight', C: 'curve', A: 'arc' })[P.subs[seg.si].segs[seg.k].t] : 'shape selected';
     info.textContent = `${total.toLocaleString()} points · this shape ${mine} · ${what}`;
-    if ($('ed-ai') && !node && !seg && P.subs.length > 1) info.textContent += ' · Select a point or edge to refine one contour with AI.';
   };
 
   // ---------- open / close ----------
@@ -317,6 +321,7 @@
     document.body.classList.add('ed-open');
     ws.inert = true;
     svg.focus();
+    pointReview?.open();
     requestAnimationFrame(fit);
   };
   const result = () => {
@@ -333,14 +338,23 @@
   };
   const close = () => {
     if (!ed.hidden) {
+      pointReview?.close();
       ed.hidden = true; ws.inert = false; $('ed-keys').open = false;
       document.body.classList.remove('ed-open'); openBtn.focus();
     }
   };
 
-  ws.addEventListener('st:result', (e) => { srcText = e.detail.text; origUrl = e.detail.original || ''; openBtn.hidden = false; });
-  ws.addEventListener('st:reset', () => { srcText = ''; openBtn.hidden = true; close(); });
+  const reviewEntry = $('review-traced-points');
+  ws.addEventListener('st:result', (e) => {
+    srcText = e.detail.text; origUrl = e.detail.original || ''; openBtn.hidden = false;
+    if (reviewEntry) reviewEntry.hidden = false;
+  });
+  ws.addEventListener('st:reset', () => { srcText = ''; openBtn.hidden = true; if (reviewEntry) reviewEntry.hidden = true; close(); });
   openBtn.addEventListener('click', open);
+  reviewEntry?.addEventListener('click', () => {
+    open();
+    if (!ed.hidden) $('ed-refine-run').click();
+  });
   $('ed-cancel').addEventListener('click', () => {
     if (changed && !confirm('Close without keeping your changes?')) return;
     close();
@@ -469,11 +483,14 @@
   const restore = (from, to) => {
     const u = from.pop();
     if (!u) return;
-    to.push(snapshot(u.pi));
-    const P = paths[u.pi];
-    P.subs = u.subs; P.removed = u.removed;
-    refresh(u.pi);
-    P.dirty = u.dirty;
+    pointReview?.invalidate();
+    to.push(snapshot(u.items.map(item => item.pi)));
+    for (const item of u.items) {
+      const P = paths[item.pi];
+      P.subs = item.subs; P.removed = item.removed;
+      refresh(item.pi);
+      P.dirty = item.dirty;
+    }
     sel = u.sel; node = u.node; seg = u.seg;
     changed = paths.some(path => path.dirty);
     draw();
@@ -486,46 +503,36 @@
   $('ed-curve').addEventListener('click', makeCurve);
   $('ed-smooth').addEventListener('click', smooth);
 
-  const winding = (sp) => {
-    let area = 0;
-    sp.segs.forEach((s, k) => {
-      const [a, b] = segEnds(sp, k);
-      let last = a;
-      for (let j = 1; j <= 12; j++) {
-        const pt = pointAt(a, s, b, j / 12);
-        area += last[0] * pt[1] - last[1] * pt[0];
-        last = pt;
-      }
-    });
-    return Math.sign(area);
-  };
-  $('ed-ai')?.addEventListener('click', () => {
-    const P = cur();
-    const si = node?.si ?? seg?.si ?? (P?.subs.length === 1 ? 0 : -1);
-    if (!P || si < 0) return;
-    const contour = P.subs[si], d = toD([contour]);
-    const outline = [{d, fill:'none'}], bounds = mk('path', {d});
-    gOver.append(bounds);
-    const b = bounds.getBBox(); bounds.remove();
-    const pad = Math.max(1, Math.max(b.width,b.height) * .12);
-    const box = [b.x-pad,b.y-pad,b.width+2*pad,b.height+2*pad];
-    let replacement;
-    window.svgTraceAI.review({ refine:true, before:window.svgTraceAI.vector(outline,box,true), box,
-      payload:{mode:'refine', width:Math.ceil(vb[2]), height:Math.ceil(vb[3]), closed:contour.closed, contour:d},
-      validate(paths) {
-        const proposals = parseD(paths[0].d);
-        replacement = proposals[0];
-        if (proposals.length !== 1 || replacement.closed !== contour.closed) return false;
-        if (contour.closed) return winding(replacement) === winding(contour);
-        return [0, -1].every(i => len(sub(replacement.nodes.at(i), contour.nodes.at(i))) < .01);
+  if ($('ed-refine-panel') && window.createTracePointReview) {
+    pointReview = window.createTracePointReview({
+      overlay: reviewOverlay, make: mk, pathData: toD, unit: pxUnit,
+      drawing: () => ({paths, vb, original:origUrl}),
+      selection: () => ({pi:sel, si:node?.si ?? seg?.si ?? (paths[sel]?.subs.length === 1 ? 0 : -1),
+        focus:node ? {type:'node', index:node.ni} : seg ? {type:'segment', index:seg.k} : null}),
+      selectTarget(pi, si, index, segment) {
+        sel = pi; node = segment ? null : {si,ni:index}; seg = segment ? {si,k:index,t:.5} : null;
+        draw();
       },
-      accept() {
-        if (cur() !== P || P.subs[si] !== contour || !replacement) return;
-        remember(sel); P.subs[si] = replacement;
-        node = {si,ni:0}; seg = null; refresh(sel); draw();
+      commit(updates) {
+        const indexes = [...new Set(updates.map(update => update.pi))];
+        remember(indexes, true);
+        for (const {pi, si, contour} of updates) paths[pi].subs[si] = contour;
+        indexes.forEach(refresh);
+        node = seg = null;
+        draw();
+      },
+      focusPoint(point) {
+        const m = svg.getScreenCTM();
+        if (!m) return;
+        const bounds = svg.getBoundingClientRect();
+        const screen = new DOMPoint(...point).matrixTransform(m);
+        if (screen.x < bounds.left+30 || screen.x > bounds.right-30 || screen.y < bounds.top+30 || screen.y > bounds.bottom-30) {
+          view[0] = point[0] - view[2]/2; view[1] = point[1] - view[3]/2;
+          setView();
+        }
       },
     });
-  });
+  }
 
   const nearest = (P, q) => {
     let best = null;

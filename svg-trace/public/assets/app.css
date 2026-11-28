@@ -226,6 +226,67 @@ body.ed-open { overflow: hidden; }
   max-height: 55vh; overflow: auto; padding: 1rem; border: 1px solid var(--line);
   background: var(--panel); border-radius: 8px; box-shadow: var(--shadow); }
 .ed-keys dt { font-weight: 650; } .ed-keys dd { margin: 0; }
+.ed { grid-template-rows: auto minmax(0, 1fr) auto; }
+.ed-workspace { display: grid; grid-template-columns: minmax(0, 1fr) auto; min-height: 0; min-width: 0; }
+.ed-workspace > .ed-svg { min-width: 0; }
+.ed .ed-refine-toggle { background: #ecf7f5; color: #075c5b; border-color: #8dc5bf; font-weight: 650; }
+.ed .ed-refine-toggle[aria-expanded="true"] { background: #096966; border-color: #096966; color: #fff; }
+.ed-refine-panel {
+  width: clamp(16.5rem, 24vw, 19rem); min-height: 0; padding: 1rem; overflow: auto;
+  overscroll-behavior: contain; background: var(--panel); border-left: 1px solid var(--line);
+  color: var(--ink); font-size: .88rem; line-height: 1.45;
+}
+.ed-refine-heading, .ed-refine-navigation, .ed-refine-actions, .ed-refine-legend {
+  display: flex; align-items: center; gap: .45rem;
+}
+.ed-refine-heading { justify-content: space-between; margin-bottom: .9rem; }
+.ed .ed-refine-heading h2 { margin: 0; font-size: 1.05rem; line-height: 1.25; }
+.ed-refine-fields { display: grid; gap: .3rem; margin-bottom: .65rem; }
+.ed-refine-fields label { font-weight: 600; }
+.ed-refine-fields label span { font-weight: 400; }
+.ed-refine-fields label:not(:first-child) { margin-top: .3rem; }
+.ed-refine-fields select, .ed-refine-fields textarea {
+  width: 100%; min-width: 0; padding: .4rem .55rem; border: 1px solid var(--line);
+  border-radius: 6px; background: var(--bg); color: var(--ink); font: inherit;
+}
+.ed-refine-fields textarea { resize: vertical; }
+.ed-refine-panel p { margin: .75rem 0 0; overflow-wrap: anywhere; }
+.ed-refine-panel p:empty { display: none; }
+#ed-refine-status { margin: 0 0 .7rem; color: var(--muted); }
+#ed-refine-review { border-bottom: 1px solid var(--line); padding-bottom: .8rem; margin-bottom: .85rem; }
+.ed-refine-navigation strong { margin-right: auto; }
+.ed-refine-navigation .btn { min-width: 2.3rem; }
+.ed-refine-actions { flex-wrap: wrap; }
+.ed-refine-panel .btn:disabled { opacity: .48; cursor: default; }
+.ed-refine-legend { flex-wrap: wrap; gap: .8rem; color: var(--muted); font-size: .78rem; margin: .6rem 0; }
+.ed-refine-legend span { display: inline-flex; align-items: center; gap: .35rem; }
+.ed-refine-legend i { width: 1.3rem; border-top: 2px dashed #697686; }
+.ed-refine-legend span:last-child i { border-top: 3px solid #00847f; }
+.ed-refine-original, .ed-refine-proposed {
+  fill: none; pointer-events: none; vector-effect: non-scaling-stroke; stroke-linecap: round; stroke-linejoin: round;
+}
+.ed-refine-original { stroke: #697686; stroke-width: 3.5; stroke-dasharray: 5 5; }
+.ed-refine-proposed { stroke: #00847f; stroke-width: 2.5; }
+.ed-refine-marker, .ed-refine-active-marker { vector-effect: non-scaling-stroke; stroke-width: 2; }
+.ed-refine-marker { fill: #fff; stroke: #08746f; }
+.ed-refine-active-marker { fill: #f5ce54; stroke: #493916; }
+@media (max-width: 700px) {
+  .ed-workspace { grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(0, 1fr) auto; }
+  .ed-refine-panel { width: 100%; max-height: 40vh; max-height: 40dvh; border: 0; border-top: 1px solid var(--line); padding: .6rem .8rem; }
+  .ed-refine-heading { margin-bottom: .45rem; }
+  .ed-refine-fields { grid-template-columns: auto minmax(0,1fr); align-items: center; gap: .35rem .6rem; }
+  .ed-refine-fields label:not(:first-child) { margin-top: 0; }
+  .ed-refine-fields label span { display: block; font-size: .75rem; }
+  .ed-refine-panel button { min-height: 2.25rem; }
+}
+@media (max-width: 700px), (max-height: 500px) {
+  .ed-bar { flex-wrap: nowrap; overflow-x: auto; overscroll-behavior-x: contain; }
+  .ed-title, .ed-bar > button, .ed-bar .ed-group { flex: none; }
+  .ed-bar .ed-group { flex-wrap: nowrap; }
+  .ed-bar .btn { min-height: 2.25rem; }
+  .ed-foot > .muted { display: none; }
+}
+.ed-refine-panel :focus-visible { outline: 2px solid #167dce; outline-offset: 2px; }
 .trace-ai-dialog { width: min(46rem, 94vw); max-height: 90dvh; overflow: auto; box-sizing: border-box; padding: 1.25rem;
   background: var(--panel); color: var(--ink); border: 1px solid var(--line); border-radius: 14px; box-shadow: var(--shadow); }
 .trace-ai-dialog::backdrop { background: rgba(12, 20, 38, .6); }
