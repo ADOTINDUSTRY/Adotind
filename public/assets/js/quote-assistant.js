@@ -19,11 +19,13 @@
     suggested = true;
     panel.hidden = false;
     toggle.setAttribute('aria-expanded', 'true');
+    toggle.setAttribute('aria-label', 'Close project assistant');
     input.focus();
   }
   function close() {
     panel.hidden = true;
     toggle.setAttribute('aria-expanded', 'false');
+    toggle.setAttribute('aria-label', 'Open project assistant');
     toggle.focus();
   }
   toggle.addEventListener('click', () => panel.hidden ? open() : close());

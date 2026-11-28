@@ -92,7 +92,13 @@ $viberBase = (string)($siteConfig['viber'] ?? '');
         </form>
         <p class="quote-assistant-error" data-assistant-error role="status" hidden></p>
       </div>
-      <button class="quote-assistant-toggle" type="button" data-assistant-toggle aria-expanded="false" aria-controls="quote-assistant-panel">✦ <span>Need help?</span></button>
+      <button class="quote-assistant-toggle" type="button" data-assistant-toggle aria-expanded="false" aria-controls="quote-assistant-panel" aria-label="Open project assistant">
+        <span class="quote-assistant-mascot" aria-hidden="true">
+          <img class="mascot-body" src="/public/assets/images/quote-assistant-mascot.webp" alt="" width="450" height="550" />
+          <img class="mascot-wave" src="/public/assets/images/quote-assistant-mascot.webp" alt="" width="450" height="550" />
+        </span>
+        <span class="quote-assistant-label-text">Need help?</span>
+      </button>
     </aside>
     <?php if (is_string($pinSuccess)): ?><p class="quote-access-notice" role="status"><?= e($pinSuccess) ?></p><?php endif; ?>
     <?php if (is_string($quoteSuccess)): ?><p class="alert alert-success"><?= e($quoteSuccess) ?></p><?php endif; ?>
