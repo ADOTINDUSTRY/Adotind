@@ -11,26 +11,27 @@
   const viewport = preview.parentElement;
   const sceneButtons = root.querySelectorAll ? [...root.querySelectorAll('[data-letter-scene]')] : [];
   const zoomButtons = root.querySelectorAll ? [...root.querySelectorAll('[data-letter-zoom]')] : [];
-  const zoomOutput = find('zoom-level'), reset = find('reset');
+  const zoomOutput = find('zoom-level'), reset = find('reset'), lights = find('lights');
   const threeContainer = find('three'), renderStatus = find('render-status');
   let threeRenderer = null, threeInit = null, threeTimer = 0, threeGeneration = 0, threeUnavailable = false;
   // The legacy fields remain as a compatibility mirror for older saved drafts.
   const lineSets = root.querySelectorAll ? [...root.querySelectorAll('[data-letter-line]')] : [];
-  const lineFields = ['text','font','colour','side_colour','x','y','rotation'];
+  const requiredLineFields = ['text','font','colour','side_colour','x','y','rotation'];
+  const lineFields = [...requiredLineFields, 'front_finish', 'side_finish'];
   const lineControls = lineSets.map((fieldset, index) => ({fieldset, index,
-    inputs:Object.fromEntries(lineFields.map(key => [key, fieldset.querySelector(`[data-letter-line-${key === 'side_colour' ? 'side-colour' : key}]`)])),
+    inputs:Object.fromEntries(lineFields.map(key => [key, fieldset.querySelector(`[data-letter-line-${key.replace(/_/g, '-')}]`)])),
     sliders:Object.fromEntries(['x','y','rotation'].map(key => [key, fieldset.querySelector(`[data-letter-line-slider="${key}"]`)])),
     remove:fieldset.querySelector('[data-letter-remove-line]'),
     sideAutoButton:fieldset.querySelector('[data-letter-line-side-auto]'), sideAuto:true
   }));
   const addLine = find('add-line');
-  const hasLines = lineControls.length > 0 && lineControls.every(line => lineFields.every(key => line.inputs[key]));
+  const hasLines = lineControls.length > 0 && lineControls.every(line => requiredLineFields.every(key => line.inputs[key]));
   let lineCount = 1;
   const fields = {product, text, font, colour, width, height, quantity};
   const defaults = Object.fromEntries(Object.entries(fields).map(([key, element]) => [key, element.value]));
   const storageKey = 'adotind.letter3d.design.v1';
   let timer = 0, generation = 0, estimate = null, sending = false, requestKey = '';
-  let scene = 'studio', zoom = 1;
+  let scene = 'studio', zoom = 1, lightsOn = true;
   const clamp = (value, min, max) => Number.isFinite(Number(value)) ? Math.max(min, Math.min(max, Number(value))) : 0;
   // Three.js shades in linear light. Convert back to sRGB for the native color
   // input so the automatic swatch matches the existing visual appearance.
@@ -47,20 +48,23 @@
   }
   function setLine(index, data) {
     const control = lineControls[index]; if (!control) return;
-    const values = {text:'', font:'sans', colour:'#e6e9ed', side_colour:null, x:0, y:0, rotation:0, ...data};
+    const values = {text:'', font:'sans', colour:'#e6e9ed', side_colour:null, front_finish:'', side_finish:'', x:0, y:0, rotation:0, ...data};
     values.text = String(values.text).replace(/[\r\n]/g, '').slice(0,200);
     if (!['sans','serif','script'].includes(values.font)) values.font = 'sans';
     if (!/^#[0-9a-f]{6}$/i.test(values.colour)) values.colour = '#e6e9ed';
     control.sideAuto = !/^#[0-9a-f]{6}$/i.test(values.side_colour || '');
     values.side_colour = control.sideAuto ? automaticSideColour(values.colour) : values.side_colour;
     values.x=clamp(values.x,-200,200); values.y=clamp(values.y,-200,200); values.rotation=clamp(values.rotation,-180,180);
-    for (const key of lineFields) control.inputs[key].value = String(values[key]);
+    for (const key of ['front_finish','side_finish']) if (!['matt','gloss'].includes(values[key])) values[key] = '';
+    for (const key of lineFields) if (control.inputs[key]) control.inputs[key].value = String(values[key]);
     for (const key of ['x','y','rotation']) if (control.sliders[key]) control.sliders[key].value=String(values[key]);
   }
   function readLines() {
     if (!hasLines) return null;
     return lineControls.slice(0,lineCount).map(({inputs,sideAuto}) => ({text:inputs.text.value, font:inputs.font.value, colour:inputs.colour.value, side_colour:sideAuto ? null : inputs.side_colour.value,
-      x:clamp(inputs.x.value,-200,200), y:clamp(inputs.y.value,-200,200), rotation:clamp(inputs.rotation.value,-180,180)}));
+      x:clamp(inputs.x.value,-200,200), y:clamp(inputs.y.value,-200,200), rotation:clamp(inputs.rotation.value,-180,180),
+      ...(inputs.front_finish ? {front_finish:inputs.front_finish.value || null} : {}),
+      ...(inputs.side_finish ? {side_finish:inputs.side_finish.value || null} : {})}));
   }
   function syncLines() {
     if (!hasLines) return;
@@ -80,7 +84,7 @@
   function saveDesign() {
     try {
       if (typeof sessionStorage !== 'undefined') sessionStorage.setItem(storageKey, JSON.stringify({
-        version:1, fields:Object.fromEntries(Object.entries(fields).map(([key, element]) => [key, element.value])), lines:hasLines ? readLines() : undefined, scene, zoom
+        version:1, fields:Object.fromEntries(Object.entries(fields).map(([key, element]) => [key, element.value])), lines:hasLines ? readLines() : undefined, scene, zoom, lightsOn
       }));
     } catch (_) { /* The designer still works when storage is unavailable. */ }
   }
@@ -96,6 +100,7 @@
         lineCount=stored.lines.length; stored.lines.forEach((line,index)=>setLine(index, line && typeof line==='object' ? line : {})); syncLines();
       } else fromLegacy();
       if (['studio','brick','concrete'].includes(stored.scene)) scene = stored.scene;
+      if (typeof stored.lightsOn === 'boolean') lightsOn = stored.lightsOn;
       if (typeof stored.zoom === 'number' && Number.isFinite(stored.zoom)) zoom = Math.max(.5, Math.min(3, stored.zoom));
       return true;
     } catch (_) { return false; }
@@ -123,7 +128,7 @@
         const renderer = await threeInit;
         if (current !== threeGeneration) return;
         threeRenderer = renderer;
-        renderer.resize(); renderer.setZoom(zoom);
+        renderer.resize(); renderer.setZoom(zoom); renderer.setLights?.(lightsOn);
         const result = await renderer.update(readLines());
         if (current !== threeGeneration || (result && result.stale)) return;
         if (viewport.dataset) viewport.dataset.render = 'three';
@@ -136,6 +141,8 @@
   }
   function paintScene() {
     if (stage.dataset) stage.dataset.scene = scene;
+    if (viewport.dataset) viewport.dataset.lights = lightsOn ? 'on' : 'off';
+    if (lights) lights.checked = lightsOn;
     for (const button of sceneButtons) button.setAttribute('aria-pressed', String(button.dataset.letterScene === scene));
   }
   function paintScale() {
@@ -170,7 +177,7 @@
         item.style.width='max-content'; item.style.marginInline='auto';
         item.style.color=line.colour; item.style.fontFamily=fontStyles[line.font] || fontStyles.sans;
         const side=line.side_colour || automaticSideColour(line.colour);
-        item.style.textShadow=`1px 1px ${side},2px 2px ${side},3px 3px ${side},4px 4px 7px #0009`;
+        item.style.textShadow=`1px 1px ${side},2px 2px ${side},3px 3px ${side},4px 4px 7px #0009` + (lightsOn ? `,0 0 8px ${line.colour},0 0 18px ${line.colour}` : '');
         item.style.transform=`translate(${line.x}%, ${line.y}%) rotate(${line.rotation}deg)`;
         preview.appendChild(item);
       });
@@ -208,6 +215,9 @@
     }, 350);
   }
   function setZoom(value) { zoom = Math.max(.5, Math.min(3, value)); paintScale(); if (threeRenderer) threeRenderer.setZoom(zoom); saveDesign(); }
+  lights?.addEventListener('change', () => {
+    lightsOn = !!lights.checked; paintScene(); threeRenderer?.setLights?.(lightsOn); paint(); saveDesign();
+  });
   for (const button of sceneButtons) button.addEventListener('click', () => {
     if (!['studio','brick','concrete'].includes(button.dataset.letterScene)) return;
     scene = button.dataset.letterScene; paintScene(); saveDesign();
@@ -274,12 +284,12 @@
   reset?.addEventListener('click', () => {
     if (sending) return;
     for (const [key, element] of Object.entries(fields)) element.value = defaults[key];
-    fromLegacy(); scene = 'studio'; zoom = 1; threeRenderer?.resetOrbit?.(); paintScene(); changed();
+    fromLegacy(); scene = 'studio'; zoom = 1; threeRenderer?.resetOrbit?.(); lightsOn = true; threeRenderer?.setLights?.(lightsOn); paintScene(); changed();
   });
   Object.values(fields).forEach(el => el.addEventListener('input', changed));
   if (hasLines) {
     lineControls.forEach((line,index) => {
-      for (const key of lineFields) line.inputs[key].addEventListener('input', () => {
+      for (const key of lineFields) line.inputs[key]?.addEventListener('input', () => {
         if (key==='side_colour') line.sideAuto=false;
         if (key==='colour' && line.sideAuto) line.inputs.side_colour.value=automaticSideColour(line.inputs.colour.value);
         if (['x','y','rotation'].includes(key)) {
@@ -310,7 +320,7 @@
     });
     addLine?.addEventListener('click', () => {
       if (sending || lineCount>=lineControls.length) return;
-      const last=readLines()[lineCount-1]; setLine(lineCount,{font:last.font,colour:last.colour,side_colour:last.side_colour}); lineCount++;
+      const last=readLines()[lineCount-1]; setLine(lineCount,{font:last.font,colour:last.colour,side_colour:last.side_colour,front_finish:last.front_finish,side_finish:last.side_finish}); lineCount++;
       syncLines(); changed(); lineControls[lineCount-1].inputs.text.focus?.();
     });
   }

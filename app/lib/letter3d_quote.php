@@ -25,6 +25,19 @@ function letter3d_schema(PDO $db): void
     )");
 }
 
+/** Shop-provided baseline; this is a request snapshot, not a production drawing. */
+function letter3d_construction_standard(): array
+{
+    return [
+        'version' => 1,
+        'front' => ['material'=>'white opal acrylic', 'thickness_mm'=>3.0, 'offset_outside_mm'=>1.0],
+        'side' => ['material'=>'aluminium', 'thickness_mm'=>0.6, 'acrylic_groove_depth_mm'=>1.2],
+        'back' => ['material'=>'white PVC', 'thickness_mm'=>10.0],
+        'front_and_side_film' => 'Avery Dennison 500 Event Film',
+        'status' => 'shop standard; film and lighting compatibility subject to production review',
+    ];
+}
+
 /** @return array<string,mixed> */
 function letter3d_calculate(PDO $db, array $input, float $vatPercent): array
 {
@@ -64,6 +77,16 @@ function letter3d_calculate(PDO $db, array $input, float $vatPercent): array
             throw new DomainException('Choose a valid side colour for each line.');
         }
         if (is_string($sideColour)) $sideColour = strtolower($sideColour);
+        // Earlier workspaces did not collect finish. A missing value remains
+        // unspecified; do not silently claim the customer chose a finish.
+        $finishes = [];
+        foreach (['front_finish', 'side_finish'] as $field) {
+            $finish = $rawLine[$field] ?? null;
+            if ($finish !== null && (!is_string($finish) || !in_array($finish, ['matt', 'gloss'], true))) {
+                throw new DomainException('Choose matt or gloss for each selected finish.');
+            }
+            if ($finish !== null) $finishes[$field] = $finish;
+        }
         $transforms = [];
         foreach (['x'=>200, 'y'=>200, 'rotation'=>180] as $key=>$limit) {
             $number = filter_var($rawLine[$key] ?? null, FILTER_VALIDATE_FLOAT);
@@ -74,7 +97,7 @@ function letter3d_calculate(PDO $db, array $input, float $vatPercent): array
         $count = is_string($compact) ? preg_match_all('/\X/u', $compact) : false;
         if ($count === false) throw new DomainException('The lettering could not be read.');
         $characters += $count;
-        $lines[] = ['text'=>$lineText, 'font'=>$font, 'colour'=>strtolower($colour), 'side_colour'=>$sideColour, 'x'=>$transforms['x'], 'y'=>$transforms['y'], 'rotation'=>$transforms['rotation']];
+        $lines[] = ['text'=>$lineText, 'font'=>$font, 'colour'=>strtolower($colour), 'side_colour'=>$sideColour, 'x'=>$transforms['x'], 'y'=>$transforms['y'], 'rotation'=>$transforms['rotation']] + $finishes;
     }
     $text = implode("\n", array_column($lines, 'text'));
     if ($characters < 1 || $characters > (int)$product['max_characters']) throw new DomainException('The lettering is outside the allowed character count.');
@@ -106,10 +129,17 @@ function letter3d_calculate(PDO $db, array $input, float $vatPercent): array
         if ($line['side_colour'] === null) unset($line['side_colour']);
         return $line;
     }, $lines);
-    $quoteToken = hash('sha256', json_encode([$product, $tokenLines, (float)$width, (float)$height, $quantity, $vatPercent], JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE | JSON_PRESERVE_ZERO_FRACTION));
+    $construction = letter3d_construction_standard();
+    $tokenData = [$product, $tokenLines, (float)$width, (float)$height, $quantity, $vatPercent];
+    // Bind the standard once a new workspace sends a finish, while preserving
+    // the exact token of a legacy estimate which did not collect finishes.
+    if (array_filter($lines, static fn(array $line): bool => isset($line['front_finish']) || isset($line['side_finish']))) {
+        $tokenData[] = $construction;
+    }
+    $quoteToken = hash('sha256', json_encode($tokenData, JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE | JSON_PRESERVE_ZERO_FRACTION));
     return ['product_id'=>(int)$product['id'], 'product_name'=>$product['name'], 'text'=>$text, 'width_mm'=>(float)$width,
         'height_mm'=>(float)$height, 'quantity'=>$quantity, 'colour'=>$colour, 'font'=>$font, 'font_name'=>$fonts[$font], 'lines'=>$lines, 'characters'=>$characters,
-        'subtotal'=>$subtotal, 'vat_percent'=>$vatPercent, 'vat'=>$vat, 'total'=>round($subtotal+$vat, 2), 'quote_token'=>$quoteToken];
+        'construction'=>$construction, 'subtotal'=>$subtotal, 'vat_percent'=>$vatPercent, 'vat'=>$vat, 'total'=>round($subtotal+$vat, 2), 'quote_token'=>$quoteToken];
 }
 
 function letter3d_vat(array $settings): float
@@ -195,11 +225,14 @@ function letter3d_handle_request(array $siteConfig): never
             $lineSummary = [];
             foreach ($estimate['lines'] as $index => $line) {
                 $sideDescription = $line['side_colour'] ?? 'automatic shade of front';
-                $lineSummary[] = sprintf('Line %d: %s | style %s | front colour %s | side colour %s | position %s%%, %s%% | rotation %s°',
-                    $index + 1, $line['text'], $line['font'], $line['colour'], $sideDescription, $line['x'], $line['y'], $line['rotation']);
+                $lineSummary[] = sprintf('Line %d: %s | style %s | front colour %s | side colour %s | position %s%%, %s%% | rotation %s° | front film finish %s | side film finish %s',
+                    $index + 1, $line['text'], $line['font'], $line['colour'], $sideDescription, $line['x'], $line['y'], $line['rotation'],
+                    $line['front_finish'] ?? 'not specified', $line['side_finish'] ?? 'not specified');
             }
             $summary = "Text: {$estimate['text']}\nOption: {$estimate['product_name']}\n" . implode("\n", $lineSummary)
-                . "\nSize: {$estimate['width_mm']} × {$estimate['height_mm']} mm\nQuantity: {$estimate['quantity']}\nPreliminary estimate including VAT: €" . number_format($estimate['total'], 2, '.', '');
+                . "\nSize: {$estimate['width_mm']} × {$estimate['height_mm']} mm\nQuantity: {$estimate['quantity']}"
+                . "\nShop construction standard (including film/lighting compatibility, subject to production review): 3 mm white opal acrylic front, 1 mm outside offset; 0.6 mm aluminium side in 1.2 mm deep acrylic groove; 10 mm white PVC back; Avery Dennison 500 Event Film on front and sides."
+                . "\nPreliminary estimate including VAT: €" . number_format($estimate['total'], 2, '.', '');
             $entry = ['submitted_at'=>date('c'), 'fields'=>['customer_name'=>$name, 'email'=>$email, 'phone'=>$phone,
                 'service_required'=>'3D lettering', 'project_description'=>$summary,
                 'dimensions'=>$estimate['width_mm'].' × '.$estimate['height_mm'].' mm', 'quantity'=>(string)$estimate['quantity']], 'uploaded_file'=>null, 'estimate'=>$estimate];

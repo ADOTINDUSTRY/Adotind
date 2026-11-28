@@ -45,6 +45,16 @@ check3d(letter3d_calculate($db,$explicitAuto,19)['quote_token']===$priced['quote
 $coloured=$modern; $coloured['lines'][1]['side_colour']='#0AE1F2';
 $colouredResult=letter3d_calculate($db,$coloured,19);
 check3d($colouredResult['lines'][1]['side_colour']==='#0ae1f2' && $colouredResult['quote_token']!==$priced['quote_token'], 'An explicit side colour must be normalized, saved and bound to confirmation.');
+$explicitEmpty=$modern; $explicitEmpty['lines'][0]['front_finish']=null; $explicitEmpty['lines'][0]['side_finish']=null;
+check3d(letter3d_calculate($db,$explicitEmpty,19)['quote_token']===$priced['quote_token'], 'Null and omitted finishes must preserve legacy confirmation.');
+$finishes=$modern; $finishes['lines'][0]['front_finish']='gloss'; $finishes['lines'][0]['side_finish']='matt';
+$finished=letter3d_calculate($db,$finishes,19);
+check3d(($finished['lines'][0]['front_finish'] ?? '')==='gloss' && ($finished['lines'][0]['side_finish'] ?? '')==='matt' && $finished['quote_token']!==$priced['quote_token'] && $finished['total']===$priced['total'], 'Separate front and side finishes must be saved and bound without inventing a surcharge.');
+$construction=$finished['construction'];
+check3d($construction['front']['material']==='white opal acrylic' && $construction['front']['thickness_mm']===3.0 && $construction['front']['offset_outside_mm']===1.0 && $construction['side']['material']==='aluminium' && $construction['side']['thickness_mm']===0.6 && $construction['side']['acrylic_groove_depth_mm']===1.2 && $construction['back']['material']==='white PVC' && $construction['back']['thickness_mm']===10.0 && $construction['front_and_side_film']==='Avery Dennison 500 Event Film', 'Shop construction snapshot must preserve the stated materials and dimensions.');
+$changedFinish=$finishes; $changedFinish['lines'][0]['front_finish']='matt';
+check3d(letter3d_calculate($db,$changedFinish,19)['quote_token']!==$finished['quote_token'], 'Changing finish must invalidate the confirmation.');
+foreach (['', 'shiny', 'Matt', 3, ['gloss']] as $invalidFinish) { $bad=$modern; $bad['lines'][0]['side_finish']=$invalidFinish; rejects3d(fn()=>letter3d_calculate($db,$bad,19), 'Invalid finish must be rejected.'); }
 $changedSide=$coloured; $changedSide['lines'][1]['side_colour']='#0ae1f3';
 check3d(letter3d_calculate($db,$changedSide,19)['quote_token']!==$colouredResult['quote_token'], 'Changing side colour must invalidate confirmation even at the same price.');
 $bad=$modern; $bad['lines'][0]['side_colour']='#123'; rejects3d(fn()=>letter3d_calculate($db,$bad,19), 'Invalid side colour must fail.');

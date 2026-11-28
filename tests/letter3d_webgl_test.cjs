@@ -43,6 +43,46 @@ server.listen(0,'127.0.0.1',async()=>{try{
  const dual=await send('Page.captureScreenshot',{format:'png'});
  const pixels=await evaluate(`(async()=>{const image=new Image();image.src='data:image/png;base64,${dual.data}';await image.decode();const canvas=document.createElement('canvas');canvas.width=image.width;canvas.height=image.height;const ctx=canvas.getContext('2d');ctx.drawImage(image,0,0);const data=ctx.getImageData(0,0,canvas.width,canvas.height).data;let front=0,side=0;for(let i=0;i<data.length;i+=4){let r=data[i],g=data[i+1],b=data[i+2];if(r>100&&r>b*1.5&&r>g*1.2)front++;if(b>90&&b>r*1.5&&b>g*1.2)side++}return {front,side}})()`);
  assert.ok(pixels.front>100 && pixels.side>25,'Both chosen face and side colours should be visible: '+JSON.stringify(pixels));
+ // Front light is a preview-only material state: the selected side colour
+ // remains unchanged, and the setting survives rebuilding geometry.
+ await evaluate('window.r.setLights(false)');
+ const redOff=await send('Page.captureScreenshot',{format:'png'});
+ await evaluate('window.r.setLights(true)');
+ const redOn=await send('Page.captureScreenshot',{format:'png'});
+ const differences=await evaluate(`(async()=>{const decode=async src=>{const i=new Image();i.src='data:image/png;base64,'+src;await i.decode();const c=document.createElement('canvas');c.width=i.width;c.height=i.height;const x=c.getContext('2d');x.drawImage(i,0,0);return x.getImageData(0,0,c.width,c.height).data};const off=await decode('${redOff.data}'),on=await decode('${redOn.data}');let brightFace=0,stableSide=0;for(let i=0;i<off.length;i+=4){if(on[i]>off[i]+8&&on[i]>on[i+1]*1.4&&on[i]>on[i+2]*1.4)brightFace++;if(off[i+2]>70&&off[i+2]>off[i]*1.5&&off[i+2]>off[i+1]*1.2&&Math.abs(on[i]-off[i])<3&&Math.abs(on[i+1]-off[i+1])<3&&Math.abs(on[i+2]-off[i+2])<3)stableSide++}return {brightFace,stableSide}})()`);
+ assert.ok(differences.brightFace>100 && differences.stableSide>25,'Turning on must brighten the red face while leaving blue sides unchanged: '+JSON.stringify(differences));
+ const whiteDesign={...line('O8B'),colour:'#ffffff',side_colour:'#0044ff'};
+ await evaluate('window.r.setLights(false)');
+ await evaluate(`(async()=>await window.r.update(${JSON.stringify([whiteDesign])}))()`);
+ const whiteOff=await send('Page.captureScreenshot',{format:'png'});
+ await evaluate(`(async()=>await window.r.update(${JSON.stringify([whiteDesign])}))()`);
+ const rebuiltOff=await send('Page.captureScreenshot',{format:'png'});
+ assert.equal(rebuiltOff.data,whiteOff.data,'Off state must survive regeneration');
+ await evaluate('window.r.setLights(true)');
+ const whiteOn=await send('Page.captureScreenshot',{format:'png'});
+ const whiteBright=await evaluate(`(async()=>{const decode=async src=>{const i=new Image();i.src='data:image/png;base64,'+src;await i.decode();const c=document.createElement('canvas');c.width=i.width;c.height=i.height;const x=c.getContext('2d');x.drawImage(i,0,0);return x.getImageData(0,0,c.width,c.height).data};const off=await decode('${whiteOff.data}'),on=await decode('${whiteOn.data}');let n=0;for(let i=0;i<off.length;i+=4)if(on[i]>off[i]+6&&on[i+1]>off[i+1]+6&&on[i+2]>off[i+2]+6)n++;return n})()`);
+ assert.ok(whiteBright>100,'Turning on must visibly brighten a white opal face; pixels='+whiteBright);
+
+ // Only the front cap lights up. Looking from behind leaves the white PVC
+ // visual back and aluminium sides unchanged when the lights switch.
+ await evaluate('window.r.resetOrbit(); window.r.setLights(false); window.r.orbitBy(Math.PI/.008,0)');
+ const backOff=await send('Page.captureScreenshot',{format:'png'});
+ await evaluate('window.r.setLights(true)');
+ const backOn=await send('Page.captureScreenshot',{format:'png'});
+ assert.equal(backOn.data,backOff.data,'The back and sides must not light up with the front');
+ // Finish is illustrative, but both settings must reach the 3D material.
+ await evaluate('window.r.resetOrbit(); window.r.setLights(false)');
+ const matteDesign={...line('O8B'),colour:'#c0c0c0',side_colour:'#0044ff',front_finish:'matt',side_finish:'matt'};
+ const glossyDesign={...matteDesign,front_finish:'gloss',side_finish:'gloss'};
+ assert.equal((await evaluate(`(async()=>await window.r.update(${JSON.stringify([matteDesign])}))()`)).rendered,true);
+ const matte=await send('Page.captureScreenshot',{format:'png'});
+ assert.equal((await evaluate(`(async()=>await window.r.update(${JSON.stringify([glossyDesign])}))()`)).rendered,true);
+ const glossy=await send('Page.captureScreenshot',{format:'png'});
+ assert.notEqual(matte.data,glossy.data,'Gloss and matt must produce visibly different materials');
+ const badFinish=await evaluate(`(async()=>{try{await window.r.update(${JSON.stringify([{...matteDesign,front_finish:'bad'}])});return 'not-rejected'}catch(e){return e.code}})()`);
+ assert.equal(badFinish,'design','Invalid finish must be rejected');
+ await evaluate('window.r.setLights(true)');
+
  await evaluate('window.r.resetOrbit()');
  for(const font of ['serif','script']){const result=await evaluate(`(async()=>await window.r.update(${JSON.stringify([{...line('O8B'),font}])}))()`);assert.equal(result.rendered,true,font+' must render');const picture=await send('Page.captureScreenshot',{format:'png'});fs.writeFileSync(path.join(os.tmpdir(),'adotind-letter3d-'+font+'.png'),Buffer.from(picture.data,'base64'));}
  const greek=await evaluate(`(async()=>await window.r.update(${JSON.stringify([line('Καλημέρα')])}))()`);assert.equal(greek.rendered,true,'Greek must render in the sans font');

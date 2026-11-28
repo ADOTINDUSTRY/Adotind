@@ -46,6 +46,7 @@ function validateLines(lines) {
     if (!line || typeof line.text!=='string' || /[\r\n]/.test(line.text) || !Object.hasOwn(FONT_URLS,line.font)
       || !/^#[0-9a-f]{6}$/i.test(line.colour || '')) throw unavailable('design');
     if (line.side_colour != null && (typeof line.side_colour !== 'string' || !/^#[0-9a-f]{6}$/i.test(line.side_colour))) throw unavailable('design');
+    for (const key of ['front_finish','side_finish']) if (line[key] != null && !['matt','gloss'].includes(line[key])) throw unavailable('design');
     glyphs+=Array.from(line.text).length;
     if (glyphs>MAX_GLYPHS) throw unavailable('complexity');
     // Complex shaping is intentionally left to the 2D browser fallback.
@@ -54,13 +55,13 @@ function validateLines(lines) {
     for (const [key,limit] of [['x',200],['y',200],['rotation',180]]) {
       const n=Number(line[key]); if (!Number.isFinite(n) || Math.abs(n)>limit) throw unavailable('design'); values[key]=n;
     }
-    return {text:line.text,font:line.font,colour:line.colour.toLowerCase(),side_colour:line.side_colour == null ? null : line.side_colour.toLowerCase(),...values};
+    return {text:line.text,font:line.font,colour:line.colour.toLowerCase(),side_colour:line.side_colour == null ? null : line.side_colour.toLowerCase(),front_finish:line.front_finish ?? null,side_finish:line.side_finish ?? null,...values};
   });
 }
 function assertGlyphs(font, text) {
   for (const char of text) if (!font.charToGlyphIndex(char)) throw unavailable('glyph');
 }
-function buildLine(font,line,index) {
+function buildLine(font,line,index,lightsOn) {
   const width=font.getAdvanceWidth(line.text,FONT_SIZE,{kerning:true});
   if (!Number.isFinite(width)) throw unavailable('font');
   const shapes=[];
@@ -69,12 +70,34 @@ function buildLine(font,line,index) {
   });
   const group=new THREE.Group();
   if (shapes.length) {
-    const geometry=new THREE.ExtrudeGeometry(shapes,{depth:12,bevelEnabled:false,curveSegments:10,steps:1});
+    const depth=12;
+    const geometry=new THREE.ExtrudeGeometry(shapes,{depth,bevelEnabled:false,curveSegments:10,steps:1});
     geometry.computeBoundingBox();
     if (geometry.boundingBox) geometry.translate(0,-(geometry.boundingBox.min.y+geometry.boundingBox.max.y)/2,0);
-    const front=new THREE.MeshPhongMaterial({color:line.colour,shininess:40});
-    const side=new THREE.MeshPhongMaterial({color:line.side_colour === null ? new THREE.Color(line.colour).multiplyScalar(.55) : new THREE.Color(line.side_colour),shininess:22});
-    group.add(new THREE.Mesh(geometry,[front,side]));
+    // ExtrudeGeometry combines the two caps into one material group. Split
+    // them so only the front emits light; the white rear cap represents the
+    // PVC back visually, without claiming an exact manufacturing thickness.
+    const positions=geometry.getAttribute('position');
+    geometry.clearGroups();
+    let start=0, previous=-1;
+    for (let i=0;i<positions.count;i+=3) {
+      const z0=positions.getZ(i),z1=positions.getZ(i+1),z2=positions.getZ(i+2);
+      const material = z0>depth-.001 && z1>depth-.001 && z2>depth-.001 ? 0 :
+        (z0<.001 && z1<.001 && z2<.001 ? 2 : 1);
+      if (material!==previous) {
+        if (previous>=0) geometry.addGroup(start,i-start,previous);
+        start=i;previous=material;
+      }
+    }
+    if (previous>=0) geometry.addGroup(start,positions.count-start,previous);
+    const finish = (value, fallback) => value==='matt' ? {shininess:5,specular:0x080808} :
+      value==='gloss' ? {shininess:90,specular:0x555555} : {shininess:fallback,specular:0x111111};
+    // Visual approximation only: colour, gloss and light output are confirmed
+    // by the shop and do not assert that any particular film transmits light.
+    const front=new THREE.MeshPhongMaterial({color:line.colour,...finish(line.front_finish,28),emissive:line.colour,emissiveIntensity:lightsOn ? .9 : 0});
+    const side=new THREE.MeshPhongMaterial({color:line.side_colour === null ? new THREE.Color(line.colour).multiplyScalar(.55) : new THREE.Color(line.side_colour),...finish(line.side_finish,22)});
+    const back=new THREE.MeshPhongMaterial({color:0xeeeeee,shininess:8,specular:0x080808});
+    group.add(new THREE.Mesh(geometry,[front,side,back]));
   }
   group.position.set(width*line.x/100,-(index*LINE_HEIGHT+LINE_HEIGHT*line.y/100),0);
   group.rotation.z=-line.rotation*Math.PI/180;
@@ -90,14 +113,16 @@ export async function createLetter3DRenderer(container, {onUnavailable} = {}) {
   const canvas=webgl.domElement;
   canvas.setAttribute('aria-hidden','true'); canvas.style.width='100%'; canvas.style.height='100%';
   canvas.style.display='block'; canvas.style.pointerEvents='none';
-  let disposed=false, lost=false, generation=0, current=null, zoom=1, observer=null;
+  let disposed=false, lost=false, generation=0, current=null, zoom=1, observer=null, lightsOn=true;
   // Camera-style preview orbit: drag deltas are CSS pixels. Angles are visual only.
   const initialPitch=.08, initialYaw=-.24, pitchLimit=80*Math.PI/180, radiansPerPixel=.008;
   let orbitPitch=initialPitch, orbitYaw=initialYaw;
   const scene=new THREE.Scene();
-  scene.add(new THREE.AmbientLight(0xffffff,1.45));
-  const key=new THREE.DirectionalLight(0xffffff,2.2); key.position.set(-2,4,8); scene.add(key);
-  const fill=new THREE.DirectionalLight(0xbad4ff,.7); fill.position.set(5,-1,4); scene.add(fill);
+  // A modest environment keeps an unlit white opal face distinguishable from
+  // an illuminated face while keeping the painted sides visible.
+  scene.add(new THREE.AmbientLight(0xffffff,.35));
+  const key=new THREE.DirectionalLight(0xffffff,.55); key.position.set(-2,4,8); scene.add(key);
+  const fill=new THREE.DirectionalLight(0xbad4ff,.20); fill.position.set(5,-1,4); scene.add(fill);
   const camera=new THREE.OrthographicCamera(-1,1,1,-1,.1,10000);
   camera.position.set(0,0,1000); camera.lookAt(0,0,0);
   webgl.setPixelRatio(Math.min(globalThis.devicePixelRatio || 1, 2));
@@ -136,7 +161,7 @@ export async function createLetter3DRenderer(container, {onUnavailable} = {}) {
       if (disposed || lost || mine!==generation) return {stale:true};
       const fonts=new Map(loaded), group=new THREE.Group();
       try {
-        for (let i=0;i<lines.length;i++) {assertGlyphs(fonts.get(lines[i].font),lines[i].text);group.add(buildLine(fonts.get(lines[i].font),lines[i],i));}
+        for (let i=0;i<lines.length;i++) {assertGlyphs(fonts.get(lines[i].font),lines[i].text);group.add(buildLine(fonts.get(lines[i].font),lines[i],i,lightsOn));}
         group.rotation.set(orbitPitch,orbitYaw,0);
         if (disposed || lost || mine!==generation) {disposeObject(group);return {stale:true};}
         if (current) {scene.remove(current);disposeObject(current);}
@@ -144,6 +169,17 @@ export async function createLetter3DRenderer(container, {onUnavailable} = {}) {
       } catch(error) {disposeObject(group);throw error;}
     },
     resize:reframe,
+    // Preview lighting never changes the saved design, geometry or estimate.
+    setLights(value) {
+      if (disposed || lost || typeof value !== 'boolean') return;
+      lightsOn=value;
+      current?.traverse(node=>{
+        if (node.isMesh && Array.isArray(node.material) && node.material[0]?.isMeshPhongMaterial) {
+          node.material[0].emissiveIntensity = lightsOn ? .9 : 0;
+        }
+      });
+      draw();
+    },
     // Rotate the visual preview by pointer displacement in CSS pixels.
     orbitBy(dx,dy) {
       if (disposed || lost || !Number.isFinite(dx) || !Number.isFinite(dy)) return;

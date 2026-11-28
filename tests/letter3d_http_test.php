@@ -144,6 +144,8 @@ try {
         ['text'=>'A','font'=>'sans','colour'=>'#ff00aa','x'=>0,'y'=>0,'rotation'=>0],
         ['text'=>'B','font'=>'script','colour'=>'#123456','side_colour'=>'#f0ab12','x'=>12,'y'=>-15,'rotation'=>25],
     ];
+    $modern['lines'][0]['front_finish']='gloss'; $modern['lines'][0]['side_finish']='matt';
+    $modern['lines'][1]['front_finish']='matt'; $modern['lines'][1]['side_finish']='gloss';
     [$status,$modernResult] = http3d_request($base . '/estimate', 'POST', $modern, $cookie);
     http3d_assert($status === 200 && ($modernResult['estimate']['total'] ?? null)==60.0, 'Per-line design must be priced.');
     $lineRequest=$modern+['request_key'=>$modernResult['request_key'],'quote_token'=>$modernResult['estimate']['quote_token'],'expected_cents'=>6000,'customer_name'=>'Fixture customer','email'=>'fixture@example.test','phone'=>'12345'];
@@ -153,6 +155,9 @@ try {
     $tamperedSide=$lineRequest; $tamperedSide['lines'][1]['side_colour']='#f0ab13';
     [$status] = http3d_request($base . '/request', 'POST', $tamperedSide, $cookie);
     http3d_assert($status===409 && (int)$db->query('SELECT COUNT(*) FROM website_inbox')->fetchColumn()===1, 'Changing side colour must require fresh confirmation.');
+    $tamperedFinish=$lineRequest; $tamperedFinish['lines'][0]['front_finish']='matt';
+    [$status] = http3d_request($base . '/request', 'POST', $tamperedFinish, $cookie);
+    http3d_assert($status===409 && (int)$db->query('SELECT COUNT(*) FROM website_inbox')->fetchColumn()===1, 'Changing the finish must require a new confirmation.');
     [$status,$sent] = http3d_request($base . '/request', 'POST', $lineRequest, $cookie);
     http3d_assert($status===200 && !empty($sent['ok']), 'A reviewed multi-line design should submit.');
     $saved=json_decode((string)$db->query('SELECT payload FROM website_inbox ORDER BY id DESC LIMIT 1')->fetchColumn(),true,512,JSON_THROW_ON_ERROR);
@@ -160,6 +165,14 @@ try {
         && ($saved['estimate']['lines'][1]['x'] ?? null)==12 && ($saved['estimate']['lines'][1]['y'] ?? null)==-15 && ($saved['estimate']['lines'][1]['rotation'] ?? null)==25
         && str_contains($saved['fields']['project_description'] ?? '', 'Line 2: B | style script | front colour #123456 | side colour #f0ab12 | position 12%, -15% | rotation 25°'),
         'The structured design and readable inquiry must contain the exact confirmed line details.');
+    http3d_assert(($saved['estimate']['lines'][0]['front_finish'] ?? '')==='gloss' && ($saved['estimate']['lines'][0]['side_finish'] ?? '')==='matt'
+        && ($saved['estimate']['lines'][1]['front_finish'] ?? '')==='matt' && ($saved['estimate']['lines'][1]['side_finish'] ?? '')==='gloss'
+        && ($saved['estimate']['construction']['front']['thickness_mm'] ?? null)==3.0 && ($saved['estimate']['construction']['front']['offset_outside_mm'] ?? null)==1.0
+        && ($saved['estimate']['construction']['side']['thickness_mm'] ?? null)==0.6 && ($saved['estimate']['construction']['side']['acrylic_groove_depth_mm'] ?? null)==1.2
+        && ($saved['estimate']['construction']['back']['thickness_mm'] ?? null)==10.0 && ($saved['estimate']['construction']['front_and_side_film'] ?? '')==='Avery Dennison 500 Event Film'
+        && str_contains($saved['fields']['project_description'] ?? '', 'front film finish gloss | side film finish matt')
+        && str_contains($saved['fields']['project_description'] ?? '', 'film/lighting compatibility')
+        && str_contains($saved['fields']['project_description'] ?? '', '1.2 mm deep acrylic groove'), 'Confirmed request must save both per-line finishes and the exact shop construction snapshot.');
     echo "3D lettering isolated HTTP checks passed.\n";
 } finally {
     proc_terminate($process); proc_close($process);
