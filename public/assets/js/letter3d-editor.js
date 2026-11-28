@@ -108,9 +108,13 @@
   }
   function setLine(index, data) {
     const control = lineControls[index]; if (!control) return;
-    const values = {text:'', font:'sans', colour:'#ffffff', side_colour:null, front_finish:'', side_finish:'', front_film_code:'', side_film_code:'', x:0, y:0, rotation:0, ...data};
+    const values = {text:'', font:defaults.font, colour:'#ffffff', side_colour:null, front_finish:'', side_finish:'', front_film_code:'', side_film_code:'', x:0, y:0, rotation:0, ...data};
     values.text = String(values.text).replace(/[\r\n]/g, '').slice(0,200);
-    if (!(control.inputs.font?.options ? Array.from(control.inputs.font.options).some(option=>option.value===values.font) : ['sans','serif','script'].includes(values.font))) values.font = 'sans';
+    if (control.inputs.font?.options && !Array.from(control.inputs.font.options).some(option=>option.value===values.font)) {
+      values.font = defaults.font;
+      const notice = find('font-notice');
+      if (notice && values.text) notice.hidden = false;
+    }
     if (!/^#[0-9a-f]{6}$/i.test(values.colour)) values.colour = '#ffffff';
     control.sideAuto = !/^#[0-9a-f]{6}$/i.test(values.side_colour || '');
     values.x=clamp(values.x,-200,200); values.y=clamp(values.y,-200,200); values.rotation=clamp(values.rotation,-180,180);
@@ -573,6 +577,8 @@
   viewport.addEventListener?.('touchcancel', () => { pinch = null; touchPointers.clear(); stopOrbit(); }, {passive:true});
   reset?.addEventListener('click', () => {
     if (sending) return;
+    const fontNotice = find('font-notice');
+    if (fontNotice) fontNotice.hidden = true;
     sizeAxis='width';
     for (const [key, element] of Object.entries(fields)) element.value = defaults[key];
     for (const [key, element] of Object.entries(optionFields)) element.value=optionDefaults[key];

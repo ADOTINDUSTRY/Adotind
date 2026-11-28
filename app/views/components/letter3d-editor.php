@@ -1,12 +1,7 @@
 <?php
 // Only included inside the PIN-protected quote workspace.
 require_once __DIR__ . '/../../lib/letter3d_quote.php';
-$letterFonts = letter3d_font_catalog();
-uasort($letterFonts, static fn(array $a, array $b): int => strcasecmp($a['name'], $b['name']));
-ob_start();
-foreach ($letterFonts as $key => $entry): ?><option value="<?= e($key) ?>"<?= $key === 'sans' ? ' selected' : '' ?>><?= e($entry['name']) ?></option><?php endforeach; ?>
-<option value="serif" hidden>Serif (saved design)</option><option value="script" hidden>Script (saved design)</option>
-<?php $letterFontOptions = ob_get_clean();
+$letterFonts = [];
 $letterProducts = [];
 $letterConstruction = null;
 $letterFilmCatalog = json_decode((string)file_get_contents(__DIR__ . '/../../data/avery500-colours.json'), true);
@@ -14,9 +9,16 @@ if (!is_array($letterFilmCatalog) || !is_array($letterFilmCatalog['colours'] ?? 
 try {
     $letterDb = quote_db($siteConfig);
     letter3d_schema($letterDb);
+    $letterFonts = letter3d_enabled_fonts($letterDb);
     $letterConstruction = letter3d_construction_standard($letterDb);
     $letterProducts = $letterDb->query('SELECT id,name,description,min_width_mm,max_width_mm,min_height_mm,max_height_mm,max_characters,max_quantity FROM quote_letter3d_products WHERE enabled=1 AND reviewed=1 ORDER BY name,id')->fetchAll(PDO::FETCH_ASSOC);
 } catch (Throwable $e) { error_log('3D lettering options unavailable: ' . get_class($e)); }
+uasort($letterFonts, static fn(array $a, array $b): int => strcasecmp($a['name'], $b['name']));
+$defaultFont = isset($letterFonts['sans']) ? 'sans' : array_key_first($letterFonts);
+ob_start();
+foreach ($letterFonts as $key => $entry): ?><option value="<?= e($key) ?>"<?= $key === $defaultFont ? ' selected' : '' ?>><?= e($entry['name']) ?></option><?php endforeach; ?>
+<option value="serif" hidden>Serif (saved design)</option><option value="script" hidden>Script (saved design)</option>
+<?php $letterFontOptions = ob_get_clean();
 ?>
 <section class="letter3d-editor" data-project-panel="letters3d" data-letter3d data-csrf="<?= e(csrf_token()) ?>" data-geometry-src="/public/assets/js/letter3d-manufacturing.js?v=<?= e((string)filemtime(__DIR__ . '/../../../public/assets/js/letter3d-manufacturing.js')) ?>" data-dxf-src="/public/assets/js/letter3d-dxf.js?v=<?= e((string)filemtime(__DIR__ . '/../../../public/assets/js/letter3d-dxf.js')) ?>" data-clipper-src="/public/assets/js/neon-clipper.js?v=<?= e((string)filemtime(__DIR__ . '/../../../public/assets/js/neon-clipper.js')) ?>" data-renderer-src="/public/assets/js/letter3d-renderer.js?v=<?= e((string)filemtime(__DIR__ . '/../../../public/assets/js/letter3d-renderer.js')) ?>" aria-labelledby="letter3d-title" hidden>
   <script type="application/json" data-letter-films><?= json_encode($letterFilmCatalog, JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?></script>
@@ -81,6 +83,7 @@ try {
       <details class="letter3d-group" open><summary>Your lettering</summary><div class="letter3d-group-body">
         <label>Lettering option <select data-letter-product required><option value="">Choose an option</option><?php foreach ($letterProducts as $p): ?><option value="<?= (int)$p['id'] ?>" data-min-width="<?= e((string)$p['min_width_mm']) ?>" data-max-width="<?= e((string)$p['max_width_mm']) ?>" data-min-height="<?= e((string)$p['min_height_mm']) ?>" data-max-height="<?= e((string)$p['max_height_mm']) ?>" data-max-chars="<?= (int)$p['max_characters'] ?>" data-max-quantity="<?= (int)$p['max_quantity'] ?>"><?= e($p['name']) ?><?= $p['description'] !== '' ? ' — ' . e($p['description']) : '' ?></option><?php endforeach ?></select></label>
         <?php if (!$letterProducts): ?><p class="letter3d-note">No lettering options have been configured for pricing yet. You can still contact the team to discuss your project.</p><?php endif ?>
+        <p data-letter-font-notice role="status" hidden>A font from your saved design is unavailable. Review the replacement typeface before continuing.</p>
         <div hidden aria-hidden="true"><textarea data-letter-text maxlength="200" data-private>Your sign</textarea><select data-letter-font><?= $letterFontOptions ?></select><input type="color" data-letter-colour value="#ffffff"></div>
         <p class="letter3d-line-help">Create up to eight lines. Set the style, front and side colours, and position of each line.</p>
         <div class="letter3d-lines" data-letter-lines>

@@ -7,9 +7,19 @@ function letter3d_font_catalog(): array
     return $catalog ??= json_decode(file_get_contents(__DIR__.'/../../public/assets/fonts/letter3d/catalog.json'), true, 512, JSON_THROW_ON_ERROR);
 }
 
+function letter3d_enabled_fonts(PDO $db): array
+{
+    $disabled = $db->query('SELECT disabled_json FROM quote_letter3d_fonts WHERE id=1')->fetchColumn();
+    $ids = $disabled === false ? [] : json_decode($disabled, true, 512, JSON_THROW_ON_ERROR);
+    return array_diff_key(letter3d_font_catalog(), array_fill_keys($ids, true));
+}
+
 /** Shop-defined pricing for text-only dimensional letters. No prices are seeded. */
 function letter3d_schema(PDO $db): void
 {
+    $db->exec("CREATE TABLE IF NOT EXISTS quote_letter3d_fonts (
+        id INTEGER PRIMARY KEY CHECK(id=1), revision INTEGER NOT NULL DEFAULT 1, disabled_json TEXT NOT NULL DEFAULT '[]'
+    )");
     $db->exec("CREATE TABLE IF NOT EXISTS quote_letter3d_products (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         name TEXT NOT NULL,
@@ -127,7 +137,7 @@ function letter3d_calculate(PDO $db, array $input, float $vatPercent): array
     $product = $query->fetch(PDO::FETCH_ASSOC);
     if (!$product) throw new DomainException('This lettering option is not available for an estimate yet.');
 
-    $fonts = array_map(static fn(array $entry): string => $entry['name'], letter3d_font_catalog()) + ['serif'=>'Serif','script'=>'Script'];
+    $fonts = array_map(static fn(array $entry): string => $entry['name'], letter3d_enabled_fonts($db)) + ['serif'=>'Serif','script'=>'Script'];
     // New workspaces send individual line styles and transforms. Older tabs
     // continue to send plain newline-delimited text with one font and colour.
     if (array_key_exists('lines', $input)) {
@@ -149,7 +159,7 @@ function letter3d_calculate(PDO $db, array $input, float $vatPercent): array
             throw new DomainException('Use letters, numbers or punctuation in each line.');
         }
         $font = $rawLine['font'] ?? null; $colour = $rawLine['colour'] ?? null;
-        if (!is_string($font) || !isset($fonts[$font])) throw new DomainException('Choose a lettering style for each line.');
+        if (!is_string($font) || !isset($fonts[$font])) throw new DomainException('That lettering style is unavailable. Reload the designer and choose an available font.');
         if (!is_string($colour) || !preg_match('/\A#[0-9a-fA-F]{6}\z/D', $colour)) throw new DomainException('Choose a valid front colour for each line.');
         // Missing/null side colour keeps the pre-existing automatic shading.
         $sideColour = $rawLine['side_colour'] ?? null;

@@ -117,6 +117,10 @@ $db->exec("UPDATE quote_letter3d_construction SET revision=2,front_offset_mm=2.0
 rejects3d(fn()=>letter3d_calculate($db,$withVersion,19), 'A stale construction revision must not be quoted.');
 $withVersion['construction_revision']=2;$afterConstruction=letter3d_calculate($db,$withVersion,19);
 check3d($afterConstruction['construction']['front']['offset_outside_mm']===2.0 && $beforeConstruction['quote_token']!==$afterConstruction['quote_token'], 'Changed construction must be reflected and invalidate quote confirmation.');
+$db->exec("INSERT INTO quote_letter3d_fonts (id, disabled_json) VALUES (1, '[\"sans\"]')");
+check3d(!isset(letter3d_enabled_fonts($db)['sans']) && isset(letter3d_enabled_fonts($db)['inter']), 'The picker must use the shop font selection.');
+rejects3d(fn()=>letter3d_calculate($db,$input,19), 'A stale tab must not submit a disabled font.');
+$input['font']='inter';
 $db->exec('UPDATE quote_letter3d_products SET reviewed=0');
 rejects3d(fn()=>letter3d_calculate($db,$input,19), 'Unreviewed rates must not get a price.');
 echo "3D lettering pricing checks passed.\n";
