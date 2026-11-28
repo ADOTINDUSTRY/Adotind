@@ -1,5 +1,6 @@
 import * as THREE from './quote-vendor/three-0.160.1.module.min.js';
 import {fontPathToShapes} from './letter3d-geometry.js';
+import {prepareLetter3DAcrylicLayers} from './letter3d-technical.js';
 
 const FONT_URLS = Object.freeze({
   sans:'/public/assets/fonts/letter3d/AlegreyaSans-Regular.ttf',
@@ -31,6 +32,11 @@ async function getFont(name) {
     fontPromises.set(name,promise);
   }
   return fontPromises.get(name);
+}
+/** Load the same outline fonts used by the dimensional preview. */
+export async function loadLetter3DOutlineFonts(lines) {
+  const checked = validateLines(lines);
+  return Object.fromEntries(await Promise.all([...new Set(checked.map(line => line.font))].map(async name => [name, await getFont(name)])));
 }
 function disposeObject(object) {
   object.traverse(node=>{
@@ -104,6 +110,64 @@ function buildLine(font,line,index,lightsOn) {
   return group;
 }
 
+/** Convert canonical mm polylines into filled Shapes with their counter holes. */
+function technicalShapes(contours) {
+  const commands=[];
+  for (const contour of contours) {
+    if (!Array.isArray(contour) || contour.length<3) throw unavailable('geometry');
+    contour.forEach((p,index) => commands.push({type:index ? 'L' : 'M',x:p.x,y:-p.y}));
+    commands.push({type:'Z'});
+  }
+  const shapes=fontPathToShapes(THREE,commands);
+  if (!shapes.length) throw unavailable('geometry');
+  return shapes;
+}
+/** Acrylic is 3 mm (or the ERP value), with a real rear groove removed. */
+function technicalPiece(piece, line, settings, lightsOn) {
+  const full=technicalShapes(piece.face), back=technicalShapes(piece.back);
+  const thickness=settings.face_thickness_mm, depth=settings.groove_depth_mm;
+  const upper=new THREE.ExtrudeGeometry(full,{depth:thickness-depth,bevelEnabled:false,steps:1});
+  upper.translate(0,0,depth);
+  const points=upper.getAttribute('position'); upper.clearGroups();
+  let start=0,previous=-1;
+  for(let i=0;i<points.count;i+=3){
+    const a=points.getZ(i),b=points.getZ(i+1),c=points.getZ(i+2);
+    const index=a>thickness-.001 && b>thickness-.001 && c>thickness-.001 ? 0 :
+      (a<depth+.001 && b<depth+.001 && c<depth+.001 ? 2 : 1);
+    if(index!==previous){if(previous>=0)upper.addGroup(start,i-start,previous);start=i;previous=index;}
+  }
+  if(previous>=0)upper.addGroup(start,points.count-start,previous);
+  const finish=(value,fallback)=>value==='matt'?{shininess:5,specular:0x080808}:
+    value==='gloss'?{shininess:90,specular:0x555555}:{shininess:fallback,specular:0x111111};
+  const front=new THREE.MeshPhongMaterial({color:line.colour,...finish(line.front_finish,28),emissive:line.colour,emissiveIntensity:lightsOn?.9:0});
+  const opal=new THREE.MeshPhongMaterial({color:0xeeeeee,shininess:8,specular:0x080808});
+  // Neutral shading on the recessed floor makes the cut visible on the back.
+  const floor=new THREE.MeshPhongMaterial({color:0xaab4bc,shininess:8,specular:0x080808});
+  const lower=new THREE.ExtrudeGeometry(back,{depth,bevelEnabled:false,steps:1});
+  const lowerOpal=new THREE.MeshPhongMaterial({color:0xeeeeee,shininess:8,specular:0x080808});
+  const group=new THREE.Group();group.add(new THREE.Mesh(upper,[front,opal,floor]));group.add(new THREE.Mesh(lower,lowerOpal));
+  // Cyan is a technical centreline marker, not a physical face colour.
+  for(const contour of piece.groove || []){
+    const geometry=new THREE.BufferGeometry().setFromPoints(contour.map(p=>new THREE.Vector3(p.x,p.y,depth-.005)));
+    group.add(new THREE.LineLoop(geometry,new THREE.LineBasicMaterial({color:0x00b6ce})));
+  }
+  return group;
+}
+
+/** Build a technical acrylic-only model in millimetres; no aluminium height is inferred. */
+export function buildLetter3DTechnicalModel(plan,rawLines,clipper,{lightsOn=true}={}) {
+  const lines=validateLines(rawLines),layers=prepareLetter3DAcrylicLayers(plan,clipper),group=new THREE.Group();
+  try {
+    for(const piece of layers.pieces){
+      if(!lines[piece.line]) throw unavailable('design');
+      const source=plan.pieces.find(p=>p.line===piece.line);
+      if(!source) throw unavailable('design');
+      group.add(technicalPiece({...piece,groove:source.groove},lines[piece.line],layers,lightsOn));
+    }
+    return group;
+  } catch(error){disposeObject(group);throw error;}
+}
+
 /** Visual-only extrusion; dimensions and geometry require shop review. */
 export async function createLetter3DRenderer(container, {onUnavailable} = {}) {
   if (!container || typeof container.appendChild!=='function') throw unavailable('container');
@@ -167,6 +231,17 @@ export async function createLetter3DRenderer(container, {onUnavailable} = {}) {
         if (current) {scene.remove(current);disposeObject(current);}
         current=group;scene.add(group);reframe();return {rendered:true};
       } catch(error) {disposeObject(group);throw error;}
+    },
+    /** Technical acrylic view: same canonical mm contours as the DXF. */
+    async updateManufacturing(plan,rawLines,clipper) {
+      if(disposed || lost) throw unavailable('webgl');
+      const mine=++generation,group=buildLetter3DTechnicalModel(plan,rawLines,clipper,{lightsOn});
+      try {
+        group.rotation.set(orbitPitch,orbitYaw,0);
+        if(disposed || lost || mine!==generation){disposeObject(group);return {stale:true};}
+        if(current){scene.remove(current);disposeObject(current);}
+        current=group;scene.add(group);reframe();return {rendered:true,mode:'technical'};
+      } catch(error){disposeObject(group);throw error;}
     },
     resize:reframe,
     // Preview lighting never changes the saved design, geometry or estimate.

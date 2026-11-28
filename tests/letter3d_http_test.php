@@ -53,6 +53,7 @@ if ($path === '/expire') {
     if (isset($data['key'], $_SESSION['letter3d_request_keys'][$data['key']])) $_SESSION['letter3d_request_keys'][$data['key']] = time()-90000;
     header('Content-Type: application/json'); echo '{}'; exit;
 }
+if ($path === '/construction') letter3d_handle_construction($config);
 if ($path === '/estimate') letter3d_handle_estimate($config);
 if ($path === '/request') letter3d_handle_request($config);
 http_response_code(404);
@@ -76,6 +77,8 @@ try {
     $design = ['csrf'=>$csrf,'product_id'=>1,'text'=>"A\r\nB",'font'=>'sans','colour'=>'#ff00aa','width_mm'=>1000,'height_mm'=>500,'quantity'=>2];
     [$status] = http3d_request($base . '/estimate', 'POST', $design, $cookie);
     http3d_assert($status === 403, 'Locked session must not receive an estimate.');
+    [$status] = http3d_request($base . '/construction', 'GET', null, $cookie);
+    http3d_assert($status === 403, 'Construction settings require private testing access.');
     // Exercise the real PIN handler using the fixture-only PIN and real CSRF.
     $pin = static function (string $pinValue, string $token) use ($base, &$cookie): int {
         $headers = ['Content-Type: application/x-www-form-urlencoded','Cookie: '.$cookie];
@@ -173,6 +176,20 @@ try {
         && str_contains($saved['fields']['project_description'] ?? '', 'front film finish gloss | side film finish matt')
         && str_contains($saved['fields']['project_description'] ?? '', 'film/lighting compatibility')
         && str_contains($saved['fields']['project_description'] ?? '', '1.2 mm deep acrylic groove'), 'Confirmed request must save both per-line finishes and the exact shop construction snapshot.');
+    [$status,$constructionData] = http3d_request($base . '/construction', 'GET', null, $cookie);
+    http3d_assert($status===200 && ($constructionData['construction']['side']['groove_width_mm'] ?? null)==1.2 && ($constructionData['construction']['front']['overhang_reference'] ?? '')==='outside', 'The authenticated construction endpoint must return the confirmed settings.');
+    $db->exec("UPDATE quote_letter3d_construction SET revision=2,front_offset_mm=2 WHERE id=1");
+    $stale=$design; $stale['construction_revision']=1;
+    [$status] = http3d_request($base . '/estimate', 'POST', $stale, $cookie);
+    http3d_assert($status===422, 'A stale construction revision must not be quoted.');
+    $stale['construction_revision']=2;
+    [$status,$fresh] = http3d_request($base . '/estimate', 'POST', $stale, $cookie);
+    http3d_assert($status===200 && ($fresh['estimate']['construction']['front']['offset_outside_mm'] ?? null)==2, 'The updated construction revision must be used.');
+    $newRequest=$stale + ['request_key'=>$fresh['request_key'],'quote_token'=>$fresh['estimate']['quote_token'],'expected_cents'=>(int)round($fresh['estimate']['total']*100),'customer_name'=>'Fixture customer','email'=>'fixture@example.test','phone'=>'12345'];
+    [$status,$response] = http3d_request($base . '/request', 'POST', $newRequest, $cookie);
+    http3d_assert($status===200 && !empty($response['ok']), 'A design using the updated construction must submit.');
+    $newSaved=json_decode((string)$db->query('SELECT payload FROM website_inbox ORDER BY id DESC LIMIT 1')->fetchColumn(),true,512,JSON_THROW_ON_ERROR);
+    http3d_assert(($newSaved['estimate']['construction']['version'] ?? null)===2 && ($newSaved['estimate']['construction']['front']['offset_outside_mm'] ?? null)==2 && str_contains($newSaved['fields']['project_description'] ?? '', '2 mm overhang'), 'Submitted inquiry must snapshot and display the changed ERP construction.');
     echo "3D lettering isolated HTTP checks passed.\n";
 } finally {
     proc_terminate($process); proc_close($process);

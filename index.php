@@ -48,6 +48,10 @@ if ($earlyPath === '/online-quote/measure') {
     require_once __DIR__ . '/app/lib/quote_measure_endpoint.php';
     quote_measure_upload();
 }
+if ($earlyPath === '/online-quote/letters3d/construction') {
+    require_once __DIR__ . '/app/lib/letter3d_quote.php';
+    letter3d_handle_construction($siteConfig);
+}
 if ($earlyPath === '/online-quote/letters3d/estimate' || $earlyPath === '/online-quote/letters3d/request') {
     require_once __DIR__ . '/app/lib/letter3d_quote.php';
     if ($earlyPath === '/online-quote/letters3d/estimate') letter3d_handle_estimate($siteConfig);

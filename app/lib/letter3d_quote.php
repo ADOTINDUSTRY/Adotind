@@ -25,17 +25,67 @@ function letter3d_schema(PDO $db): void
     )");
 }
 
-/** Shop-provided baseline; this is a request snapshot, not a production drawing. */
-function letter3d_construction_standard(): array
+/** Shared, revisioned shop settings. Existing values are never overwritten. */
+function letter3d_construction_schema(PDO $db): void
 {
+    $db->exec("CREATE TABLE IF NOT EXISTS quote_letter3d_construction (
+        id INTEGER PRIMARY KEY CHECK(id=1), revision INTEGER NOT NULL DEFAULT 1,
+        front_material TEXT NOT NULL, front_thickness_mm REAL NOT NULL, front_offset_mm REAL NOT NULL,
+        overhang_reference TEXT DEFAULT NULL, side_material TEXT NOT NULL, side_thickness_mm REAL NOT NULL,
+        groove_depth_mm REAL NOT NULL, groove_width_mm REAL DEFAULT NULL, back_material TEXT NOT NULL,
+        back_thickness_mm REAL NOT NULL, film TEXT NOT NULL, updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )");
+    // Additive compatibility if an earlier deployment created this table first.
+    $columns = array_column($db->query('PRAGMA table_info(quote_letter3d_construction)')->fetchAll(PDO::FETCH_ASSOC), 'name');
+    foreach (['overhang_reference'=>'TEXT DEFAULT NULL', 'groove_width_mm'=>'REAL DEFAULT NULL'] as $name=>$definition) {
+        if (!in_array($name, $columns, true)) {
+            try { $db->exec('ALTER TABLE quote_letter3d_construction ADD COLUMN ' . $name . ' ' . $definition); }
+            catch (PDOException $e) {
+                $columns = array_column($db->query('PRAGMA table_info(quote_letter3d_construction)')->fetchAll(PDO::FETCH_ASSOC), 'name');
+                if (!in_array($name, $columns, true)) throw $e;
+            }
+        }
+    }
+    $stmt = $db->prepare('INSERT OR IGNORE INTO quote_letter3d_construction (id,revision,front_material,front_thickness_mm,front_offset_mm,overhang_reference,side_material,side_thickness_mm,groove_depth_mm,groove_width_mm,back_material,back_thickness_mm,film) VALUES (1,1,?,?,?,?,?,?,?,?,?,?,?)');
+    $stmt->execute(['white opal acrylic',3.0,1.0,'outside','aluminium',0.6,1.2,1.2,'white PVC',10.0,'Avery Dennison 500 Event Film']);
+}
+
+/** Returns the same versioned construction settings used by the ERP. */
+function letter3d_construction_standard(PDO $db): array
+{
+    letter3d_construction_schema($db);
+    $row=$db->query('SELECT * FROM quote_letter3d_construction WHERE id=1')->fetch(PDO::FETCH_ASSOC);
+    if (!$row) throw new RuntimeException('Construction settings are unavailable.');
+    foreach (['front_thickness_mm','front_offset_mm','side_thickness_mm','groove_depth_mm','back_thickness_mm'] as $key) {
+        if (!is_numeric($row[$key]) || !is_finite((float)$row[$key]) || (float)$row[$key] < 0 || (float)$row[$key] > 1000) throw new DomainException('Construction settings need shop review.');
+    }
+    if ((float)$row['front_thickness_mm'] <= 0 || (float)$row['side_thickness_mm'] <= 0 || (float)$row['groove_depth_mm'] <= 0 || (float)$row['groove_depth_mm'] >= (float)$row['front_thickness_mm'] || (float)$row['back_thickness_mm'] <= 0) throw new DomainException('Construction settings need shop review.');
+    $width = $row['groove_width_mm'];
+    if ($width !== null && (!is_numeric($width) || !is_finite((float)$width) || (float)$width < (float)$row['side_thickness_mm'] || (float)$width > 100)) throw new DomainException('Construction settings need shop review.');
+    $ref = $row['overhang_reference'];
+    if ($ref !== null && !in_array($ref,['outside','centreline'],true)) throw new DomainException('Construction settings need shop review.');
+    foreach (['front_material','side_material','back_material','film'] as $key) if (!is_string($row[$key]) || trim($row[$key]) === '' || mb_strlen($row[$key]) > 160 || preg_match('/[\x00-\x1f\x7f]/', $row[$key])) throw new DomainException('Construction settings need shop review.');
     return [
-        'version' => 1,
-        'front' => ['material'=>'white opal acrylic', 'thickness_mm'=>3.0, 'offset_outside_mm'=>1.0],
-        'side' => ['material'=>'aluminium', 'thickness_mm'=>0.6, 'acrylic_groove_depth_mm'=>1.2],
-        'back' => ['material'=>'white PVC', 'thickness_mm'=>10.0],
-        'front_and_side_film' => 'Avery Dennison 500 Event Film',
-        'status' => 'shop standard; film and lighting compatibility subject to production review',
+        'version'=>(int)$row['revision'],
+        'front'=>['material'=>$row['front_material'],'thickness_mm'=>(float)$row['front_thickness_mm'],'offset_outside_mm'=>(float)$row['front_offset_mm'],'overhang_reference'=>$ref],
+        'side'=>['material'=>$row['side_material'],'thickness_mm'=>(float)$row['side_thickness_mm'],'acrylic_groove_depth_mm'=>(float)$row['groove_depth_mm'],'groove_width_mm'=>$width === null ? null : (float)$width],
+        'back'=>['material'=>$row['back_material'],'thickness_mm'=>(float)$row['back_thickness_mm']],
+        'front_and_side_film'=>$row['film'],
+        'status'=>'shop standard; film and lighting compatibility subject to production review',
     ];
+}
+
+/** Read the current settings before rendering or exporting a design. */
+function letter3d_handle_construction(array $siteConfig): never
+{
+    header('Content-Type: application/json; charset=utf-8');
+    header('Cache-Control: private, no-store');
+    if (($_SERVER['REQUEST_METHOD'] ?? '') !== 'GET' || !online_quote_unlocked()) {
+        http_response_code(403); echo json_encode(['error'=>'Private testing access is required.']); exit;
+    }
+    try { $db=quote_db($siteConfig); letter3d_schema($db); echo json_encode(['construction'=>letter3d_construction_standard($db)],JSON_UNESCAPED_UNICODE|JSON_THROW_ON_ERROR); }
+    catch (Throwable $e) { error_log('3D construction settings unavailable: '.get_class($e)); http_response_code(503); echo json_encode(['error'=>'Construction settings are temporarily unavailable.']); }
+    exit;
 }
 
 /** @return array<string,mixed> */
@@ -129,12 +179,25 @@ function letter3d_calculate(PDO $db, array $input, float $vatPercent): array
         if ($line['side_colour'] === null) unset($line['side_colour']);
         return $line;
     }, $lines);
-    $construction = letter3d_construction_standard();
+    $construction = letter3d_construction_standard($db);
+    if (array_key_exists('construction_revision', $input)) {
+        $version = filter_var($input['construction_revision'], FILTER_VALIDATE_INT, ['options'=>['min_range'=>1]]);
+        if ($version === false || $version !== $construction['version']) throw new DomainException('Construction settings changed. Refresh the designer and review the updated construction.');
+    }
     $tokenData = [$product, $tokenLines, (float)$width, (float)$height, $quantity, $vatPercent];
-    // Bind the standard once a new workspace sends a finish, while preserving
-    // the exact token of a legacy estimate which did not collect finishes.
-    if (array_filter($lines, static fn(array $line): bool => isset($line['front_finish']) || isset($line['side_finish']))) {
+    // New clients bind the complete shop settings. Preserve pending estimates
+    // from older tabs only while the seeded baseline remains unchanged.
+    if (array_key_exists('construction_revision', $input) || $construction['version'] !== 1) {
         $tokenData[] = $construction;
+    } elseif (array_filter($lines, static fn(array $line): bool => isset($line['front_finish']) || isset($line['side_finish']))) {
+        $tokenData[] = [
+            'version'=>1,
+            'front'=>['material'=>'white opal acrylic','thickness_mm'=>3.0,'offset_outside_mm'=>1.0],
+            'side'=>['material'=>'aluminium','thickness_mm'=>0.6,'acrylic_groove_depth_mm'=>1.2],
+            'back'=>['material'=>'white PVC','thickness_mm'=>10.0],
+            'front_and_side_film'=>'Avery Dennison 500 Event Film',
+            'status'=>'shop standard; film and lighting compatibility subject to production review',
+        ];
     }
     $quoteToken = hash('sha256', json_encode($tokenData, JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE | JSON_PRESERVE_ZERO_FRACTION));
     return ['product_id'=>(int)$product['id'], 'product_name'=>$product['name'], 'text'=>$text, 'width_mm'=>(float)$width,
@@ -231,7 +294,12 @@ function letter3d_handle_request(array $siteConfig): never
             }
             $summary = "Text: {$estimate['text']}\nOption: {$estimate['product_name']}\n" . implode("\n", $lineSummary)
                 . "\nSize: {$estimate['width_mm']} × {$estimate['height_mm']} mm\nQuantity: {$estimate['quantity']}"
-                . "\nShop construction standard (including film/lighting compatibility, subject to production review): 3 mm white opal acrylic front, 1 mm outside offset; 0.6 mm aluminium side in 1.2 mm deep acrylic groove; 10 mm white PVC back; Avery Dennison 500 Event Film on front and sides."
+                . sprintf("\nShop construction standard (revision %d; film/lighting compatibility and production subject to review): %g mm %s front; %g mm overhang from %s; %g mm %s side in %g mm deep acrylic groove, nominal cutter %s mm; %g mm %s back; %s.",
+                    $estimate['construction']['version'], $estimate['construction']['front']['thickness_mm'], $estimate['construction']['front']['material'],
+                    $estimate['construction']['front']['offset_outside_mm'], $estimate['construction']['front']['overhang_reference'] ?? 'not specified',
+                    $estimate['construction']['side']['thickness_mm'], $estimate['construction']['side']['material'], $estimate['construction']['side']['acrylic_groove_depth_mm'],
+                    $estimate['construction']['side']['groove_width_mm'] === null ? 'not specified' : (string)$estimate['construction']['side']['groove_width_mm'],
+                    $estimate['construction']['back']['thickness_mm'], $estimate['construction']['back']['material'], $estimate['construction']['front_and_side_film'])
                 . "\nPreliminary estimate including VAT: €" . number_format($estimate['total'], 2, '.', '');
             $entry = ['submitted_at'=>date('c'), 'fields'=>['customer_name'=>$name, 'email'=>$email, 'phone'=>$phone,
                 'service_required'=>'3D lettering', 'project_description'=>$summary,

@@ -13,6 +13,14 @@
   const zoomButtons = root.querySelectorAll ? [...root.querySelectorAll('[data-letter-zoom]')] : [];
   const zoomOutput = find('zoom-level'), reset = find('reset'), lights = find('lights');
   const threeContainer = find('three'), renderStatus = find('render-status');
+  const cuttingSvg=find('cutting-svg'), cuttingStatus=find('cutting-status'), cuttingDimensions=find('cutting-dimensions');
+  const cuttingInstructions=find('cutting-instructions'), exportDxf=find('export-dxf'), techViewButton=find('tech-view'), constructionData=find('construction');
+  const cuttingZoomOutput=find('cutting-zoom-level');
+  const cuttingZoomButtons=root.querySelectorAll ? [...root.querySelectorAll('[data-letter-cutting-zoom]')] : [];
+  const cuttingEnabled=!!(cuttingSvg && cuttingStatus && exportDxf && constructionData);
+  let construction=null, manufacturing=null, manufacturingSequence=0, manufacturingTimer=0, clipperPromise=null, technicalView=false;
+  let cuttingZoom=1, cuttingCentreX=0, cuttingCentreY=0, cuttingBase=null, cuttingDrag=null;
+  if (cuttingEnabled) { try { construction=JSON.parse(constructionData.textContent); } catch (_) { construction=null; } }
   let threeRenderer = null, threeInit = null, threeTimer = 0, threeGeneration = 0, threeUnavailable = false;
   // The legacy fields remain as a compatibility mirror for older saved drafts.
   const lineSets = root.querySelectorAll ? [...root.querySelectorAll('[data-letter-line]')] : [];
@@ -107,7 +115,179 @@
   }
   const payload = () => ({csrf:root.dataset.csrf, product_id:product.value, text:text.value, font:font.value,
     colour:colour.value, width_mm:width.value, height_mm:height.value, quantity:quantity.value,
+    ...(construction && Number.isInteger(construction.version) ? {construction_revision:construction.version} : {}),
     ...(hasLines ? {lines:readLines()} : {})});
+  function displayConstruction(settings) {
+    if (!settings || !settings.front || !settings.side || !settings.back) return;
+    const display=(key,value)=>{const element=find('construction-'+key); if(element) element.textContent=value;};
+    const front=settings.front, side=settings.side, back=settings.back;
+    const reference=front.overhang_reference==='outside' ? 'the outside of the aluminium' : front.overhang_reference==='centreline' ? 'the aluminium centreline' : 'an unset reference';
+    display('front', front.thickness_mm+' mm '+front.material+' face, '+front.offset_outside_mm+' mm overhang from '+reference+'.');
+    display('side', side.thickness_mm+' mm '+side.material+' side, groove '+side.acrylic_groove_depth_mm+' mm deep, nominal bit '+(side.groove_width_mm ?? 'not set')+' mm.');
+    display('back', back.thickness_mm+' mm '+back.material+' back.');
+    display('film', settings.front_and_side_film+' for the front and sides.');
+  }
+  async function readConstruction() {
+    const response=await fetch('/online-quote/letters3d/construction',{credentials:'same-origin',cache:'no-store'});
+    const data=await response.json();
+    if(!response.ok || !data.construction || !Number.isInteger(data.construction.version)) throw new Error(data.error || 'Construction settings are unavailable.');
+    return data.construction;
+  }
+  function loadClipper() {
+    if (globalThis.ClipperLib) return Promise.resolve(globalThis.ClipperLib);
+    if (!clipperPromise) clipperPromise=new Promise((resolve,reject)=>{
+      const script=document.createElement('script'); script.src=root.dataset.clipperSrc; script.async=true;
+      script.onload=()=>globalThis.ClipperLib ? resolve(globalThis.ClipperLib) : reject(new Error('Cutting geometry engine unavailable.'));
+      script.onerror=()=>reject(new Error('Cutting geometry engine unavailable.')); document.head.appendChild(script);
+    }).catch(error=>{clipperPromise=null;throw error;});
+    return clipperPromise;
+  }
+  function updateCuttingViewBox() {
+    if(!cuttingBase || !cuttingSvg) return;
+    const w=cuttingBase.width/cuttingZoom, h=cuttingBase.height/cuttingZoom;
+    cuttingSvg.setAttribute('viewBox',[cuttingCentreX-w/2,cuttingCentreY-h/2,w,h].join(' '));
+    if(cuttingZoomOutput) cuttingZoomOutput.textContent=Math.round(cuttingZoom*100)+'%';
+  }
+  function fitCutting() {
+    if(!cuttingBase) return;
+    cuttingZoom=1;cuttingCentreX=cuttingBase.x+cuttingBase.width/2;cuttingCentreY=cuttingBase.y+cuttingBase.height/2;updateCuttingViewBox();
+  }
+  function drawCutting(plan) {
+    const ns='http://www.w3.org/2000/svg';
+    cuttingSvg.textContent='';
+    const makePath=(contours,stroke,fill)=>{
+      const element=document.createElementNS(ns,'path');
+      const d=contours.map(points=>points.map((p,index)=>(index?'L':'M')+p.x.toFixed(3)+' '+(-p.y).toFixed(3)).join(' ')+' Z').join(' ');
+      element.setAttribute('d',d);element.setAttribute('stroke',stroke);element.setAttribute('fill',fill);
+      element.setAttribute('fill-rule','evenodd');element.setAttribute('stroke-width','1.8');element.setAttribute('vector-effect','non-scaling-stroke');
+      cuttingSvg.appendChild(element);
+    };
+    makePath(plan.face,'#235bb3','#dae9fb');
+    makePath(plan.groove,'#c75b00','none');
+    const pad=Math.max(plan.bounds_mm.width,plan.bounds_mm.height)*.05+1;
+    cuttingBase={x:-pad,y:-plan.bounds_mm.height-pad,width:plan.bounds_mm.width+2*pad,height:plan.bounds_mm.height+2*pad};
+    cuttingSvg.removeAttribute('hidden');fitCutting();
+  }
+  function invalidateCutting(message) {
+    manufacturing=null; cuttingBase=null; ++manufacturingSequence;clearTimeout(manufacturingTimer);
+    if(exportDxf)exportDxf.disabled=true;
+    if(techViewButton) { techViewButton.disabled=true;techViewButton.setAttribute('aria-pressed','false');techViewButton.textContent='Inspect grooved acrylic in 3D'; }
+    technicalView=false;if(lights)lights.disabled=false;
+    if(cuttingSvg)cuttingSvg.setAttribute('hidden','');
+    if(cuttingDimensions)cuttingDimensions.textContent='';
+    if(cuttingInstructions)cuttingInstructions.textContent='';
+    if(cuttingStatus)cuttingStatus.textContent=message;
+    height.value='';
+  }
+  function scheduleCutting() {
+    if(!cuttingEnabled) return;
+    invalidateCutting('Preparing cutting preview…');
+    const current=manufacturingSequence;
+    if(!width.value || !text.value.trim()) { cuttingStatus.textContent='Enter a finished width and lettering to prepare the cutting preview.'; return; }
+    manufacturingTimer=setTimeout(async()=>{
+      try {
+        const updated=await readConstruction();
+        if(current!==manufacturingSequence)return;
+        construction=updated;displayConstruction(construction);
+        const [geometryModule,rendererModule,clipper]=await Promise.all([import(root.dataset.geometrySrc),import(root.dataset.rendererSrc),loadClipper()]);
+        const lines=readLines(),fonts=await rendererModule.loadLetter3DOutlineFonts(lines);
+        if(current!==manufacturingSequence)return;
+        const settings={overhang_reference:construction.front.overhang_reference,overhang_mm:construction.front.offset_outside_mm,
+          side_thickness_mm:construction.side.thickness_mm,groove_width_mm:construction.side.groove_width_mm,
+          groove_depth_mm:construction.side.acrylic_groove_depth_mm,face_thickness_mm:construction.front.thickness_mm};
+        const plan=geometryModule.buildLetter3DManufacturing({lines,width_mm:width.value,settings,fonts,clipper});
+        if(current!==manufacturingSequence)return;
+        manufacturing={plan,revision:construction.version,clipper};
+        height.value=String(Number(plan.bounds_mm.height.toFixed(3)));
+        drawCutting(plan);
+        if(cuttingDimensions) {
+          const centreOffset=settings.overhang_mm+(settings.overhang_reference==='outside'?settings.side_thickness_mm/2:0);
+          const reference=settings.overhang_reference==='outside'?'outside of the aluminium':'aluminium centreline';
+          cuttingDimensions.textContent='Finished face: '+plan.bounds_mm.width.toFixed(1)+' × '+plan.bounds_mm.height.toFixed(1)+' mm. Face overhang: '+settings.overhang_mm+' mm from the '+reference+'; groove centreline: '+Number(centreOffset.toFixed(3))+' mm from the face edge.';
+        }
+        cuttingStatus.textContent='Cutting contours ready for shop review.';
+        if(cuttingInstructions)cuttingInstructions.textContent='In Aspire: verify millimetres, set the groove '+settings.groove_depth_mm+' mm deep with the '+settings.groove_width_mm+' mm bit, and check mirroring for routing the back. Check each piece fits your machine.';
+        exportDxf.disabled=false;if(techViewButton)techViewButton.disabled=threeUnavailable || !threeRenderer || typeof threeRenderer.updateManufacturing!=='function';saveDesign();scheduleEstimate();
+      } catch(error) {
+        if(current!==manufacturingSequence)return;
+        invalidateCutting(error?.message || 'Could not prepare the cutting preview.');
+        price.textContent='Cutting preview needs review';tax.textContent='';send.disabled=true;
+      }
+    },300);
+  }
+  if(cuttingEnabled) {
+    displayConstruction(construction);
+    async function refreshCuttingIfChanged() {
+      const selected=manufacturing;
+      if(!selected)return false;
+      try {
+        const latest=await readConstruction();
+        if(manufacturing!==selected)return false;
+        if(latest.version!==selected.revision) {
+          construction=latest;displayConstruction(latest);changed();
+          cuttingStatus.textContent='Shop construction settings changed. Preparing the updated preview.';
+          return false;
+        }
+        return true;
+      } catch (_) {
+        if(manufacturing===selected){invalidateCutting('Could not verify current shop settings. Re-enter the width or refresh to try again.');price.textContent='Cutting preview needs review';tax.textContent='';send.disabled=true;}
+        return false;
+      }
+    }
+    techViewButton?.addEventListener('click',async()=>{
+      if(!manufacturing || !threeRenderer || typeof threeRenderer.updateManufacturing!=='function') return;
+      const selected=manufacturing;techViewButton.disabled=true;
+      try {
+        if(!await refreshCuttingIfChanged() || manufacturing!==selected)return;
+        technicalView=!technicalView;
+        techViewButton.setAttribute('aria-pressed',String(technicalView));
+        techViewButton.textContent=technicalView?'Return to sign preview':'Inspect grooved acrylic in 3D';
+        if(lights)lights.disabled=technicalView;
+        schedule3D();
+        if(technicalView) stage.scrollIntoView?.({behavior:'smooth',block:'center'});
+      } finally {if(manufacturing===selected)techViewButton.disabled=false;}
+    });
+    const cuttingDetails=find('cutting');
+    cuttingDetails?.addEventListener('toggle',()=>{if(cuttingDetails.open)refreshCuttingIfChanged();});
+    document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')refreshCuttingIfChanged();});
+    globalThis.addEventListener?.('focus',()=>{if(document.visibilityState==='visible')refreshCuttingIfChanged();});
+    for(const button of cuttingZoomButtons) button.addEventListener('click',()=>{
+      if(!cuttingBase)return;
+      if(button.dataset.letterCuttingZoom==='fit') {fitCutting();return;}
+      const factor=button.dataset.letterCuttingZoom==='in'?1.4:1/1.4;
+      cuttingZoom=Math.max(1,Math.min(40,cuttingZoom*factor));updateCuttingViewBox();
+    });
+    cuttingSvg.addEventListener('pointerdown',event=>{
+      if(!cuttingBase || (event.pointerType!=='touch' && event.button!==0))return;
+      cuttingDrag={id:event.pointerId,x:event.clientX,y:event.clientY};
+      try{cuttingSvg.setPointerCapture(event.pointerId);}catch(_){}
+    });
+    cuttingSvg.addEventListener('pointermove',event=>{
+      if(!cuttingDrag || cuttingDrag.id!==event.pointerId || !cuttingBase)return;
+      const rect=cuttingSvg.getBoundingClientRect();
+      if(rect.width && rect.height){cuttingCentreX-=(event.clientX-cuttingDrag.x)*(cuttingBase.width/cuttingZoom)/rect.width;cuttingCentreY-=(event.clientY-cuttingDrag.y)*(cuttingBase.height/cuttingZoom)/rect.height;}
+      cuttingDrag.x=event.clientX;cuttingDrag.y=event.clientY;updateCuttingViewBox();
+      if(event.cancelable)event.preventDefault();
+    });
+    for(const type of ['pointerup','pointercancel','lostpointercapture']) cuttingSvg.addEventListener(type,event=>{if(cuttingDrag?.id===event.pointerId)cuttingDrag=null;});
+    exportDxf.addEventListener('click',async()=>{
+      if(!manufacturing)return;
+      const selected=manufacturing;exportDxf.disabled=true;
+      try {
+        const latest=await readConstruction();
+        if(!manufacturing || manufacturing!==selected)return;
+        if(latest.version!==selected.revision) { construction=latest;displayConstruction(latest);cuttingStatus.textContent='Shop construction settings changed. Preparing the updated preview.';changed();return; }
+        const module=await import(root.dataset.dxfSrc);
+        if(manufacturing!==selected)return;
+        const result=module.buildLetter3dDxf(selected.plan);
+        if(cuttingInstructions)cuttingInstructions.textContent=result.instructions.join(' ');
+        const objectUrl=URL.createObjectURL(new Blob([result.dxf],{type:'application/dxf'}));
+        const link=document.createElement('a');link.href=objectUrl;link.download='3d-letter-face-and-groove.dxf';document.body.appendChild(link);link.click();link.remove();setTimeout(()=>URL.revokeObjectURL(objectUrl),10000);
+        cuttingStatus.textContent='DXF vectors downloaded for shop review.';
+      } catch(error){cuttingStatus.textContent=error?.message || 'Could not export the cutting vectors.';}
+      finally {if(manufacturing===selected)exportDxf.disabled=false;}
+    });
+  }
   function show2D(message) {
     if (viewport.dataset) viewport.dataset.render = 'flat';
     if (renderStatus) renderStatus.textContent = message || 'Illustrative 2D preview';
@@ -129,10 +309,11 @@
         if (current !== threeGeneration) return;
         threeRenderer = renderer;
         renderer.resize(); renderer.setZoom(zoom); renderer.setLights?.(lightsOn);
-        const result = await renderer.update(readLines());
+        const result = technicalView && manufacturing ? await renderer.updateManufacturing(manufacturing.plan,readLines(),manufacturing.clipper) : await renderer.update(readLines());
         if (current !== threeGeneration || (result && result.stale)) return;
         if (viewport.dataset) viewport.dataset.render = 'three';
-        if (renderStatus) renderStatus.textContent = 'Illustrative 3D preview';
+        if (renderStatus) renderStatus.textContent = technicalView ? 'Acrylic inspection: drag to see rear groove' : 'Illustrative 3D preview';
+        if (techViewButton && manufacturing) techViewButton.disabled = typeof renderer.updateManufacturing !== 'function';
       } catch (_) {
         if (current !== threeGeneration) return;
         show2D(threeUnavailable ? '3D preview unavailable on this device; showing 2D.' : '3D preview unavailable for this text; showing 2D.');
@@ -194,6 +375,10 @@
     generation++; clearTimeout(timer); estimate = null; requestKey = '';
     send.disabled = true; price.textContent = 'Enter an option and size'; tax.textContent = ''; status.textContent = '';
     paint(); saveDesign();
+    if (cuttingEnabled) { scheduleCutting(); return; }
+    scheduleEstimate();
+  }
+  function scheduleEstimate() {
     if (!product.value || !text.value.trim() || !width.value || !height.value || !quantity.value) return;
     const current = generation;
     timer = setTimeout(async () => {

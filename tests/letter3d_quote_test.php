@@ -74,6 +74,13 @@ $bad=$modern; $bad['lines']=['not-a-list'=>$modern['lines'][0]]; rejects3d(fn()=
 $bad=$modern; $bad['lines'][0]['text']=' '; $bad['lines'][1]['text']=''; rejects3d(fn()=>letter3d_calculate($db,$bad,19), 'Whitespace-only design must fail.');
 $graphemes=$modern; $graphemes['lines'][0]['text']='A'; $graphemes['lines'][1]['text']="\u{0301}";
 check3d(letter3d_calculate($db,$graphemes,19)['characters']===2, 'Graphemes on separate lines must not merge.');
+$withVersion=$modern; $withVersion['construction_revision']=1;
+$beforeConstruction=letter3d_calculate($db,$withVersion,19);
+check3d($beforeConstruction['construction']['front']['overhang_reference']==='outside' && $beforeConstruction['construction']['side']['groove_width_mm']===1.2, 'Confirmed outside reference and 1.2 mm cutter must be used by default.');
+$db->exec("UPDATE quote_letter3d_construction SET revision=2,front_offset_mm=2.0 WHERE id=1");
+rejects3d(fn()=>letter3d_calculate($db,$withVersion,19), 'A stale construction revision must not be quoted.');
+$withVersion['construction_revision']=2;$afterConstruction=letter3d_calculate($db,$withVersion,19);
+check3d($afterConstruction['construction']['front']['offset_outside_mm']===2.0 && $beforeConstruction['quote_token']!==$afterConstruction['quote_token'], 'Changed construction must be reflected and invalidate quote confirmation.');
 $db->exec('UPDATE quote_letter3d_products SET reviewed=0');
 rejects3d(fn()=>letter3d_calculate($db,$input,19), 'Unreviewed rates must not get a price.');
 echo "3D lettering pricing checks passed.\n";

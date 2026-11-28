@@ -2,13 +2,16 @@
 // Only included inside the PIN-protected quote workspace.
 require_once __DIR__ . '/../../lib/letter3d_quote.php';
 $letterProducts = [];
+$letterConstruction = null;
 try {
     $letterDb = quote_db($siteConfig);
     letter3d_schema($letterDb);
+    $letterConstruction = letter3d_construction_standard($letterDb);
     $letterProducts = $letterDb->query('SELECT id,name,description,min_width_mm,max_width_mm,min_height_mm,max_height_mm,max_characters,max_quantity FROM quote_letter3d_products WHERE enabled=1 AND reviewed=1 ORDER BY name,id')->fetchAll(PDO::FETCH_ASSOC);
 } catch (Throwable $e) { error_log('3D lettering options unavailable: ' . get_class($e)); }
 ?>
-<section class="letter3d-editor" data-project-panel="letters3d" data-letter3d data-csrf="<?= e(csrf_token()) ?>" data-renderer-src="/public/assets/js/letter3d-renderer.js?v=<?= e((string)filemtime(__DIR__ . '/../../../public/assets/js/letter3d-renderer.js')) ?>" aria-labelledby="letter3d-title" hidden>
+<section class="letter3d-editor" data-project-panel="letters3d" data-letter3d data-csrf="<?= e(csrf_token()) ?>" data-geometry-src="/public/assets/js/letter3d-manufacturing.js?v=<?= e((string)filemtime(__DIR__ . '/../../../public/assets/js/letter3d-manufacturing.js')) ?>" data-dxf-src="/public/assets/js/letter3d-dxf.js?v=<?= e((string)filemtime(__DIR__ . '/../../../public/assets/js/letter3d-dxf.js')) ?>" data-clipper-src="/public/assets/js/neon-clipper.js?v=<?= e((string)filemtime(__DIR__ . '/../../../public/assets/js/neon-clipper.js')) ?>" data-renderer-src="/public/assets/js/letter3d-renderer.js?v=<?= e((string)filemtime(__DIR__ . '/../../../public/assets/js/letter3d-renderer.js')) ?>" aria-labelledby="letter3d-title" hidden>
+  <script type="application/json" data-letter-construction><?= json_encode($letterConstruction, JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?></script>
   <header class="letter3d-heading"><div><h2 id="letter3d-title">3D letter designer</h2><p>Create your lettering and see a preliminary estimate.</p></div><button type="button" data-letter-reset>Start over</button></header>
   <div class="letter3d-layout">
     <div class="letter3d-stage">
@@ -30,7 +33,22 @@ try {
           <button type="button" data-letter-zoom="fit">Fit</button>
         </div><span class="letter3d-orbit-hint">Drag or use arrow keys to turn · Fit resets view</span><span data-letter-render-status role="status">Illustrative preview</span></div>
       </div>
-      <p class="letter3d-disclaimer">The preview illustrates your lettering. We check the artwork, construction, colour and installation before production.</p>
+      <details class="letter3d-cutting" data-letter-cutting>
+        <summary>Face and groove cutting preview</summary>
+        <div class="letter3d-cutting-body">
+          <p>Top view of the front acrylic. Blue is the face cut; orange is the groove centreline on the back of the face.</p>
+          <svg data-letter-cutting-svg role="img" aria-label="Front acrylic outline and groove centreline. Drag to move the drawing." hidden></svg>
+          <div class="letter3d-cutting-zoom" role="group" aria-label="Cutting preview zoom"><button type="button" data-letter-cutting-zoom="out" aria-label="Zoom cutting preview out">−</button><output data-letter-cutting-zoom-level>100%</output><button type="button" data-letter-cutting-zoom="in" aria-label="Zoom cutting preview in">+</button><button type="button" data-letter-cutting-zoom="fit">Fit</button><small>Drag drawing to move</small></div>
+          <p data-letter-cutting-dimensions></p>
+          <p data-letter-cutting-status role="status">Enter a finished width to prepare the cutting preview.</p>
+          <p data-letter-cutting-instructions></p>
+          <button type="button" class="btn" data-letter-tech-view aria-pressed="false" disabled>Inspect grooved acrylic in 3D</button>
+          <small>The 3D inspection hides the aluminium and PVC so you can turn the acrylic over and see the rear groove. A cyan line marks the groove centreline. The groove is shown as an ideal straight-sided channel; check your cutter profile in Aspire.</small>
+          <button type="button" class="btn" data-letter-export-dxf disabled>Export cutting vectors (DXF)</button>
+          <small>DXF contains 2D vectors only. Set groove depth and cutter in Aspire, and check the back-face orientation before cutting.</small>
+        </div>
+      </details>
+      <p class="letter3d-disclaimer">The 3D view is illustrative; the cutting preview shows the measured face and groove vectors. The shop reviews the design before production.</p>
     </div>
     <div class="letter3d-controls">
       <details class="letter3d-group" open><summary>Your lettering</summary><div class="letter3d-group-body">
@@ -69,11 +87,12 @@ try {
       </div></details>
       <details class="letter3d-group letter3d-construction"><summary>Front-lit materials and construction</summary><div class="letter3d-group-body">
         <p>Our standard front-lit construction uses:</p>
-        <ul><li>3 mm white opal acrylic face with a 1 mm overhang.</li><li>0.6 mm aluminium sides seated in a 1.2 mm deep groove.</li><li>10 mm white PVC back.</li><li>Avery Dennison 500 Event Film for front and side colour, in matt or gloss.</li></ul>
+        <ul><li data-letter-construction-front>Loading construction settings…</li><li data-letter-construction-side></li><li data-letter-construction-back></li><li data-letter-construction-film></li></ul>
         <p>The lighting preview is illustrative. We confirm film coverage, light transmission and construction with you before production.</p>
       </div></details>
       <details class="letter3d-group" open><summary>Size &amp; quantity</summary><div class="letter3d-group-body">
-        <div class="letter3d-size-grid"><label>Overall width (mm) <input type="number" data-letter-width min="1" step="0.1" placeholder="e.g. 1000"></label><label>Overall height (mm) <input type="number" data-letter-height min="1" step="0.1" placeholder="e.g. 300"></label></div>
+        <div class="letter3d-size-grid"><label>Overall width (mm) <input type="number" data-letter-width min="1" step="0.1" placeholder="e.g. 1000"></label><label>Finished height (mm) <input type="number" data-letter-height min="1" step="any" placeholder="Calculated from width" readonly aria-describedby="letter3d-height-help"></label></div>
+        <small id="letter3d-height-help">Calculated from the lettering and width, keeping the font proportions.</small>
         <label>Number of identical signs <input type="number" data-letter-quantity min="1" step="1" value="1"></label>
         <p class="letter3d-limits" data-letter-limits></p>
       </div></details>
@@ -106,7 +125,7 @@ body:has(.letter3d-editor:not([hidden])) .quote-hero{display:none}
 .letter3d-preview[data-render="three"]{cursor:grab;touch-action:none}.letter3d-preview[data-render="three"].is-orbiting{cursor:grabbing}.letter3d-preview:focus-visible{outline:3px solid #f4c925;outline-offset:-4px}.letter3d-orbit-hint{display:none}.letter3d-view:has(.letter3d-preview[data-render="three"]) .letter3d-orbit-hint{display:inline}
 .letter3d-three{position:absolute;inset:0;pointer-events:none;visibility:hidden}.letter3d-three canvas{display:block;width:100%;height:100%}.letter3d-preview[data-render="three"] .letter3d-three{visibility:visible}.letter3d-preview[data-render="three"] > [data-letter-preview]{visibility:hidden}
 .letter3d-preview > [data-letter-preview]{display:inline-block;flex-shrink:0;white-space:pre;text-align:center;font-size:clamp(32px,6vw,80px);line-height:1.2;text-shadow:1px 1px #8b9099,2px 2px #6a7079,3px 3px #484e57,4px 4px 7px #0009;transform-origin:center}
-.letter3d-disclaimer,.letter3d-limits,.letter3d-note{font-size:.82rem;color:var(--l3-muted)}.letter3d-disclaimer{margin:.65rem .2rem}.letter3d-controls{display:grid;gap:.7rem}.letter3d-group{border:1px solid var(--l3-line);background:#fff;border-radius:12px;overflow:hidden}.letter3d-group summary{cursor:pointer;font-weight:750;padding:.8rem 1rem;background:#f7f9fc}.letter3d-group-body{padding:1rem}.letter3d-controls label{display:grid;gap:.3rem;font-weight:650;margin:0 0 .8rem}.letter3d-controls :is(input:not([type="color"]),select,textarea){width:100%;min-width:0;padding:.6rem .65rem;border:1px solid #bcc8d8;border-radius:7px;background:#fff;color:#182236}.letter3d-controls input[type="color"]{width:3rem;height:2.5rem;padding:.15rem;border:1px solid #bcc8d8;border-radius:7px;background:#fff}.letter3d-size-grid{display:grid;grid-template-columns:1fr 1fr;gap:.7rem}.letter3d-request p{font-size:.84rem}.letter3d-request [data-letter-status]{min-height:1.5em}.letter3d-send{width:100%}
+.letter3d-cutting{margin-top:1rem;border:1px solid #d5dce6;border-radius:12px;background:#fff;overflow:hidden}.letter3d-cutting summary{padding:.8rem 1rem;background:#f7f9fc;font-weight:750;cursor:pointer}.letter3d-cutting-body{padding:1rem}.letter3d-cutting-body p,.letter3d-cutting-body small{font-size:.82rem;color:#41516d}.letter3d-cutting-body svg{display:block;width:100%;height:clamp(180px,30vw,380px);background:#f5f8fc;border:1px solid #d5dce6;border-radius:8px;touch-action:none;cursor:grab}.letter3d-cutting-zoom{display:flex;align-items:center;gap:.35rem;margin-top:.5rem}.letter3d-cutting-zoom button{min-width:2rem;margin:0;padding:.35rem .55rem;border:1px solid #b8c9df;border-radius:6px;background:#fff;color:#183c6c}.letter3d-cutting-zoom output{min-width:3rem;text-align:center;font-size:.8rem}.letter3d-cutting-zoom small{margin-left:.4rem}.letter3d-cutting-body svg[hidden]{display:none}.letter3d-cutting-body button{margin:.3rem .5rem .5rem 0}.letter3d-cutting-body small{display:block}.letter3d-disclaimer,.letter3d-limits,.letter3d-note{font-size:.82rem;color:var(--l3-muted)}.letter3d-disclaimer{margin:.65rem .2rem}.letter3d-controls{display:grid;gap:.7rem}.letter3d-group{border:1px solid var(--l3-line);background:#fff;border-radius:12px;overflow:hidden}.letter3d-group summary{cursor:pointer;font-weight:750;padding:.8rem 1rem;background:#f7f9fc}.letter3d-group-body{padding:1rem}.letter3d-controls label{display:grid;gap:.3rem;font-weight:650;margin:0 0 .8rem}.letter3d-controls :is(input:not([type="color"]),select,textarea){width:100%;min-width:0;padding:.6rem .65rem;border:1px solid #bcc8d8;border-radius:7px;background:#fff;color:#182236}.letter3d-controls input[type="color"]{width:3rem;height:2.5rem;padding:.15rem;border:1px solid #bcc8d8;border-radius:7px;background:#fff}.letter3d-size-grid{display:grid;grid-template-columns:1fr 1fr;gap:.7rem}.letter3d-request p{font-size:.84rem}.letter3d-request [data-letter-status]{min-height:1.5em}.letter3d-send{width:100%}
 .letter3d-line-help{color:var(--l3-muted);font-size:.84rem;margin:.4rem 0 .7rem}.letter3d-lines{display:grid;gap:.75rem}.letter3d-line{border:1px solid #d5dce6;border-radius:9px;padding:.65rem .75rem .75rem;min-width:0;margin:0;background:#f9fbfe}.letter3d-line[hidden]{display:none}.letter3d-line legend{font-weight:750;padding:0 .35rem;color:var(--l3-ink)}.letter3d-line-style{display:grid;grid-template-columns:minmax(0,1fr);gap:0}.letter3d-line-colours{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:.75rem;align-items:start}.letter3d-line-colours label{min-width:0}.letter3d-line-finishes{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:.75rem}.letter3d-line-finishes label{min-width:0}.letter3d-construction p,.letter3d-construction ul{font-size:.82rem;color:var(--l3-muted);margin:.2rem 0 .7rem}.letter3d-construction ul{padding-left:1.15rem}.letter3d-construction li{margin:.25rem 0}.letter3d-side-hint{color:var(--l3-muted);font-size:.78rem;line-height:1.4;margin:-.3rem 0 .35rem}.letter3d-side-auto{justify-self:start;border:0;background:none;color:#16468a;padding:.1rem 0;font-size:.78rem;font-weight:700;text-decoration:underline;text-underline-offset:.15em;margin:0 0 .65rem}.letter3d-line-position{border-top:1px solid #dce3ed;margin:.1rem 0 .7rem;padding-top:.35rem}.letter3d-line-position summary{padding:.3rem 0;background:transparent;font-size:.85rem;color:#31486b}.letter3d-position-label{display:grid!important;grid-template-columns:1fr auto 5rem;align-items:center;gap:.35rem!important;font-size:.83rem;margin:.6rem 0!important}.letter3d-position-label input[type=number]{grid-column:3;padding:.3rem .45rem}.letter3d-position-label input[type=range]{grid-column:1/-1;padding:0;accent-color:#1c58b8}.letter3d-add-line,.letter3d-remove-line{border:1px solid #bfcde2;background:#fff;color:#16468a;border-radius:7px;padding:.45rem .7rem;font-weight:700}.letter3d-add-line{margin-top:.75rem;width:100%}.letter3d-remove-line{font-size:.8rem}.letter3d-add-line:disabled{opacity:.5}
 @media(max-width:800px){.letter3d-layout{grid-template-columns:1fr}.letter3d-preview{min-height:260px}.letter3d-price{margin-left:auto}.letter3d-heading h2{font-size:2rem}}
 @media(max-width:420px){.letter3d-stage-bar{align-items:start}.letter3d-scenes button{padding:.35rem .5rem}.letter3d-price{margin-left:0}.letter3d-size-grid{grid-template-columns:1fr}}
