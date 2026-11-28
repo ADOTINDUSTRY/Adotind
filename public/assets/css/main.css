@@ -547,12 +547,13 @@ img {
 .mascot-facing { position:absolute; inset:0; }
 .quote-assistant-mascot .mascot-turn-view,.quote-assistant-mascot .mascot-turn-back { display:none; }
 .quote-assistant[data-mascot-state="turning"] .mascot-turn-view,.quote-assistant[data-mascot-state="turn-to-sit"] .mascot-turn-view,.quote-assistant[data-mascot-state="turning"] .mascot-turn-back,.quote-assistant[data-mascot-state="turn-to-sit"] .mascot-turn-back { display:block; }
-.quote-assistant[data-mascot-state="turning"] .mascot-facing { animation:mascot-view-front 1.4s ease-in-out both; }
-.quote-assistant[data-mascot-state="turning"] .mascot-turn-neutral,.quote-assistant[data-mascot-state="turn-to-sit"] .mascot-turn-neutral { animation:mascot-view-neutral 1.4s ease-in-out both; }
-.quote-assistant[data-mascot-state="turning"] .mascot-turn-front-quarter,.quote-assistant[data-mascot-state="turn-to-sit"] .mascot-turn-front-quarter { animation:mascot-view-front-quarter 1.4s ease-in-out both; }
-.quote-assistant[data-mascot-state="turning"] .mascot-turn-side,.quote-assistant[data-mascot-state="turn-to-sit"] .mascot-turn-side { animation:mascot-view-side 1.4s ease-in-out both; }
-.quote-assistant[data-mascot-state="turning"] .mascot-turn-rear-quarter,.quote-assistant[data-mascot-state="turn-to-sit"] .mascot-turn-rear-quarter { animation:mascot-view-rear-quarter 1.4s ease-in-out both; }
-.quote-assistant[data-mascot-state="turning"] .mascot-turn-back,.quote-assistant[data-mascot-state="turn-to-sit"] .mascot-turn-back { animation:mascot-view-back 1.4s ease-in-out both; }
+.quote-assistant[data-mascot-state="turning"] { --mascot-turn-duration:.7s; }
+.quote-assistant[data-mascot-state="turning"] .mascot-facing { animation:mascot-view-front var(--mascot-turn-duration) ease-in-out both; }
+.quote-assistant[data-mascot-state="turning"] .mascot-turn-neutral,.quote-assistant[data-mascot-state="turn-to-sit"] .mascot-turn-neutral { animation:mascot-view-neutral var(--mascot-turn-duration, 1.4s) ease-in-out both; }
+.quote-assistant[data-mascot-state="turning"] .mascot-turn-front-quarter,.quote-assistant[data-mascot-state="turn-to-sit"] .mascot-turn-front-quarter { animation:mascot-view-front-quarter var(--mascot-turn-duration, 1.4s) ease-in-out both; }
+.quote-assistant[data-mascot-state="turning"] .mascot-turn-side,.quote-assistant[data-mascot-state="turn-to-sit"] .mascot-turn-side { animation:mascot-view-side var(--mascot-turn-duration, 1.4s) ease-in-out both; }
+.quote-assistant[data-mascot-state="turning"] .mascot-turn-rear-quarter,.quote-assistant[data-mascot-state="turn-to-sit"] .mascot-turn-rear-quarter { animation:mascot-view-rear-quarter var(--mascot-turn-duration, 1.4s) ease-in-out both; }
+.quote-assistant[data-mascot-state="turning"] .mascot-turn-back,.quote-assistant[data-mascot-state="turn-to-sit"] .mascot-turn-back { animation:mascot-view-back var(--mascot-turn-duration, 1.4s) ease-in-out both; }
 .quote-assistant[data-mascot-state="turn-to-sit"] .mascot-facing { opacity:0; }
 .quote-assistant[data-mascot-state="turn-to-sit"] .mascot-turn-neutral { animation-name:mascot-view-neutral-return; }
 .quote-assistant[data-mascot-state="turn-to-sit"] .mascot-turn-view,.quote-assistant[data-mascot-state="turn-to-sit"] .mascot-turn-back { animation-direction:reverse; }
