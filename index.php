@@ -44,6 +44,10 @@ if (starts_with($earlyPath, '/media/')) {
 }
 
 session_start();
+if ($earlyPath === '/online-quote/svg-trace' || starts_with($earlyPath, '/online-quote/svg-trace/')) {
+    require_once __DIR__ . '/app/lib/quote_svg_trace.php';
+    quote_svg_trace_dispatch($earlyPath);
+}
 if ($earlyPath === '/online-quote/measure') {
     require_once __DIR__ . '/app/lib/quote_measure_endpoint.php';
     quote_measure_upload();

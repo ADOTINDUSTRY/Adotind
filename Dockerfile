@@ -1,6 +1,15 @@
 FROM node:24-bookworm-slim AS neon-runtime
+FROM neon-runtime AS trace-engine
+RUN node -e "fetch('https://github.com/visioncortex/vtracer/releases/download/0.6.4/vtracer-x86_64-unknown-linux-musl.tar.gz').then(r=>{if(!r.ok)throw Error(r.status);return r.arrayBuffer()}).then(b=>require('node:fs').writeFileSync('/tmp/vtracer.tgz',Buffer.from(b)))" \
+    && echo '9290ba0c90e224d6d212836dff5491407c1718bcb72f80b2b5a4a01816df5e40  /tmp/vtracer.tgz' | sha256sum -c - \
+    && tar -xzf /tmp/vtracer.tgz -C /tmp vtracer && chmod 0755 /tmp/vtracer && /tmp/vtracer --version
 FROM php:8.4-apache-bookworm
 COPY --from=neon-runtime /usr/local/bin/node /usr/local/bin/node
+COPY --from=trace-engine /tmp/vtracer /usr/local/bin/vtracer
+ENV SVGTRACE_BIN_DIR=/usr/local/bin
+COPY svg-trace/app/lib/ /opt/adot-svg-trace/app/lib/
+COPY svg-trace/app/views/pages/trace.php /opt/adot-svg-trace/app/views/pages/trace.php
+COPY svg-trace/public/assets/ /opt/adot-svg-trace/public/assets/
 RUN apt-get update \
     && apt-get install -y --no-install-recommends libjpeg62-turbo-dev libpng-dev libwebp-dev \
     && docker-php-ext-configure gd --with-jpeg --with-webp \

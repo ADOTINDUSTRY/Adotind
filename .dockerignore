@@ -1,7 +1,16 @@
 .git
 .github
 platform
-svg-trace
+svg-trace/**
+!svg-trace/app/
+!svg-trace/app/lib/
+!svg-trace/app/lib/*.php
+!svg-trace/app/views/
+!svg-trace/app/views/pages/
+!svg-trace/app/views/pages/trace.php
+!svg-trace/public/
+!svg-trace/public/assets/
+!svg-trace/public/assets/*
 storage
 **/.env*
 **/*.sql*

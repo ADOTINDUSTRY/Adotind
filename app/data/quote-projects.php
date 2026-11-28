@@ -15,6 +15,12 @@ return [
         'keywords' => 'laser sheet CNC router acrylic metal wood cutting DXF vector PDF CAD fabrication',
         'workflow' => 'drawing',
     ],
+    'svgtrace' => [
+        'name' => 'A Dot SVG Trace',
+        'description' => 'Upload a logo, edit its vector curves and download the finished SVG.',
+        'keywords' => 'logo artwork vectorize vectorise vectorizer bitmap png jpg webp paths nodes bezier curves svg trace editor',
+        'workflow' => 'svgtrace',
+    ],
     'picture' => [
         'name' => 'Cut-out logo or shape',
         'description' => 'Preview the outline of a picture before preparing a cutting file.',

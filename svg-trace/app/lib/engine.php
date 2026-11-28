@@ -121,7 +121,7 @@ final class StEngine
     public static function binDir(?StConfig $config = null): string
     {
         $config ??= StConfig::load();
-        $dir = $config->get('SVGTRACE_BIN_DIR');
+        $dir = getenv('SVGTRACE_BIN_DIR') ?: $config->get('SVGTRACE_BIN_DIR');
         if (is_string($dir) && $dir !== '') {
             return rtrim($dir, '/');
         }

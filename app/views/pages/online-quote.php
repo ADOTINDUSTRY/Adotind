@@ -101,6 +101,7 @@ $knownProjects = require __DIR__ . '/../../data/quote-projects.php';
           $projectCatalog = quote_project_catalog();
           // Local icon paths and labels describe the starting point, not a promise of an automatic price.
           $projectTypes = [
+            'svgtrace' => ['Vector editor', 'M4 17C4 7 20 17 20 7 M2 15h4v4H2z M18 5h4v4h-4z'],
             'neon' => ['Sign designer', 'M12 2l1.4 4.2L18 8l-4.6 1.8L12 14l-1.4-4.2L6 8l4.6-1.8L12 2z M5 15l.9 2.1L8 18l-2.1.9L5 21l-.9-2.1L2 18l2.1-.9L5 15z'],
             'drawing' => ['DXF cutting', 'M4 4h16v16H4z M8 4v16 M4 9h16 M12 13l2 2 3-4'],
             'picture' => ['Image preview', 'M4 4h16v16H4z M4 16l5-5 4 4 2-2 5 5 M16 8h.01'],

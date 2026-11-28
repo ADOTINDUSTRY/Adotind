@@ -3,6 +3,7 @@
   const ws = document.getElementById('ws');
   if (!ws) return;
   const base = '/svg-trace';
+  const convertUrl = ws.dataset.convertUrl;
   const csrf = document.querySelector('meta[name="csrf-token"]')?.content || '';
   const presets = JSON.parse(ws.dataset.presets || '{}');
   const maxBytes = parseInt(ws.dataset.maxBytes || '0', 10);
@@ -22,7 +23,17 @@
   let busy = false;
   let again = false;        // settings changed while a trace was running
   let pollTimer = null, autoTimer = null;
-  let svgUrl = '', wireUrl = '';
+  let svgUrl = '', wireUrl = '', sourceUrl = '';
+  let revision = 0;
+  const release = (url) => { if (url.startsWith('blob:')) URL.revokeObjectURL(url); };
+  const clearVector = () => {
+    release(svgUrl); release(wireUrl);
+    svgUrl = ''; wireUrl = '';
+    imgV.removeAttribute('src');
+    dl.removeAttribute('href'); dl.hidden = true;
+    stats.textContent = '';
+    ws.dispatchEvent(new CustomEvent('st:reset'));
+  };
 
   const setStatus = (msg, kind = '') => {
     statusEl.textContent = msg;
@@ -53,6 +64,7 @@
     ws.querySelectorAll('[data-only]').forEach((el) => { el.hidden = !show[el.dataset.only]; });
   };
   const scheduleAuto = () => {
+    if (convertUrl) { revision++; clearVector(); }
     if (!auto.checked || !(sourceFileId || pendingFile)) return;
     clearTimeout(autoTimer);
     autoTimer = setTimeout(convert, 650);
@@ -68,15 +80,14 @@
     if (exts.length && !exts.includes(ext)) { setStatus('This file type is not supported. You can upload: ' + ws.dataset.labels + '.', 'err'); return; }
     if (maxBytes && file.size > maxBytes) { setStatus('This file is too large (' + fmtSize(file.size) + '). The maximum is ' + fmtSize(maxBytes) + '.', 'err'); return; }
     pendingFile = file;
+    revision++;
     sourceFileId = null;
-    ws.dispatchEvent(new CustomEvent('st:reset'));
+    clearVector();
+    release(sourceUrl);
+    sourceUrl = '';
     $('drop-label').textContent = file.name;
-    if (previewable.includes(ext)) imgO.src = URL.createObjectURL(file);
+    if (previewable.includes(ext)) imgO.src = sourceUrl = URL.createObjectURL(file);
     else imgO.removeAttribute('src'); // shown after the server converts it
-    imgV.removeAttribute('src');
-    svgUrl = '';
-    stats.textContent = '';
-    dl.hidden = true;
     view.hidden = false;
     zoom.fit();
     setStatus(auto.checked ? 'Uploading…' : 'Ready. Choose a style and press Convert.');
@@ -178,11 +189,10 @@
   wire.addEventListener('change', showVector);
 
   // ---- edited in the point editor ----
-  let editUrl = '';
   ws.addEventListener('st:edited', (e) => {
-    if (editUrl) URL.revokeObjectURL(editUrl);
+    release(svgUrl);
     if (wireUrl) URL.revokeObjectURL(wireUrl);
-    editUrl = URL.createObjectURL(new Blob([e.detail.text], { type: 'image/svg+xml' }));
+    const editUrl = URL.createObjectURL(new Blob([e.detail.text], { type: 'image/svg+xml' }));
     wireUrl = makeWire(e.detail.text);
     svgUrl = editUrl;
     dl.href = editUrl;
@@ -206,19 +216,30 @@
     else return;
 
     busy = true; again = false; refreshGo();
+    const submittedRevision = revision;
     figV.classList.add('updating');
     setStatus(pendingFile ? 'Uploading…' : 'Starting…');
     try {
       const res = await send(fd, !!pendingFile);
       const data = res.data;
-      if (!res.ok || !data.job) throw new Error(data.error || (res.status === 413 ? 'This file is too large for the server.' : 'Upload failed (' + res.status + ').'));
+      if (convertUrl && submittedRevision !== revision) { finish(); return; }
+      if (!res.ok || !(convertUrl ? data.svg : data.job)) throw new Error(data.error || (res.status === 413 ? 'This file is too large for the server.' : 'Upload failed (' + res.status + ').'));
+      if (convertUrl) {
+        clearVector();
+        const blob = new Blob([data.svg], { type: 'image/svg+xml' });
+        const url = URL.createObjectURL(blob);
+        await render({ status: 'completed', duration_ms: data.duration_ms, input: data,
+          output: { text: data.svg, view_url: url, download_url: url, name: pendingFile.name.replace(/\.[^.]+$/, '') + '.svg', size_bytes: blob.size } });
+        finish();
+        return;
+      }
       if (pendingFile) imgO.src = data.job.input.view_url;
       pendingFile = null;
       sourceFileId = data.job.input.file_id;
       track(data.job);
     } catch (err) {
+      if (!convertUrl || submittedRevision === revision) setStatus(err.message, 'err');
       finish();
-      setStatus(err.message, 'err');
     }
   };
   go.addEventListener('click', convert);
@@ -226,7 +247,7 @@
   // XMLHttpRequest instead of fetch so large uploads can show progress.
   const send = (fd, withProgress) => new Promise((resolve, reject) => {
     const xhr = new XMLHttpRequest();
-    xhr.open('POST', base + '/api/jobs');
+    xhr.open('POST', convertUrl || base + '/api/jobs');
     xhr.withCredentials = true;
     xhr.setRequestHeader('X-CSRF-Token', csrf);
     const bar = progress.firstElementChild;
@@ -289,12 +310,12 @@
     } else if (job.status === 'completed' && job.output) {
       setStatus('Done in ' + ((job.duration_ms || 0) / 1000).toFixed(1) + ' s.', 'ok');
       dl.href = job.output.download_url;
-      dl.setAttribute('download', '');
+      dl.setAttribute('download', job.output.name || '');
       dl.hidden = false;
       svgUrl = job.output.view_url;
       if (wireUrl) { URL.revokeObjectURL(wireUrl); wireUrl = ''; }
       try {
-        const text = await (await fetch(job.output.view_url, { credentials: 'same-origin' })).text();
+        const text = job.output.text || await (await fetch(job.output.view_url, { credentials: 'same-origin' })).text();
         wireUrl = makeWire(text);
         ws.dispatchEvent(new CustomEvent('st:result', { detail: { text, original: imgO.currentSrc || imgO.src } }));
         const paths = (text.match(/<path\b/g) || []).length;

@@ -42,9 +42,9 @@ $slider = static function (string $name, array $s): void { ?>
 <?php };
 ?>
 <section class="section-st ws">
-  <div class="wrap ws-grid" id="ws" data-presets="<?= StSecurity::e(json_encode($presetJson)) ?>" data-max-bytes="<?= $maxBytes ?>" data-exts="<?= StSecurity::e(json_encode($exts)) ?>" data-preview="<?= StSecurity::e(json_encode($preview)) ?>" data-labels="<?= StSecurity::e(implode(', ', $labels)) ?>">
+  <div class="wrap ws-grid" id="ws"<?= !empty($page['private_trace']) ? ' data-convert-url="/online-quote/svg-trace/convert"' : '' ?> data-presets="<?= StSecurity::e(json_encode($presetJson)) ?>" data-max-bytes="<?= $maxBytes ?>" data-exts="<?= StSecurity::e(json_encode($exts)) ?>" data-preview="<?= StSecurity::e(json_encode($preview)) ?>" data-labels="<?= StSecurity::e(implode(', ', $labels)) ?>">
     <aside class="ws-panel">
-      <h1 class="ws-title">Trace an image</h1>
+      <h1 class="ws-title"><?= !empty($page['private_trace']) ? 'A Dot SVG Trace' : 'Trace an image' ?></h1>
 
       <label class="drop" id="drop" for="file">
         <input type="file" id="file" name="image" accept="<?= StSecurity::e(implode(',', array_map(static fn(string $e): string => '.' . $e, $exts))) ?>" hidden />
@@ -105,7 +105,7 @@ $slider = static function (string $name, array $s): void { ?>
 
       <label class="check"><input type="checkbox" id="auto" checked /> Update automatically when I change a setting</label>
       <button class="btn btn-primary btn-lg ws-go" id="go" type="button" disabled>Convert to SVG</button>
-      <p class="muted fine">Files are private and deleted automatically after 30 days.</p>
+      <p class="muted fine"><?= !empty($page['private_trace']) ? 'Download your SVG to keep your edits. Uploaded logos are removed after conversion.' : 'Files are private and deleted automatically after 30 days.' ?></p>
     </aside>
 
     <div class="ws-stage">

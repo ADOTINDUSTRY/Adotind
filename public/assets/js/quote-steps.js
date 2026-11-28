@@ -149,6 +149,11 @@
   function selectProject(button, navigate = true) {
     if (!button) return;
     const workflow = button.dataset.quoteWorkflow;
+    if (workflow === 'svgtrace') {
+      if (navigate) window.location.assign('/online-quote/svg-trace');
+      else window.location.replace('/online-quote/svg-trace');
+      return;
+    }
     if (!['neon', 'drawing', 'picture', 'printing', 'letters3d', 'frames', 'inquiry'].includes(workflow)) return;
     if (workflow === 'drawing') selectCuttingProject(button);
     if (workflow === 'inquiry') {
