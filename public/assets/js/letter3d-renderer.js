@@ -81,7 +81,8 @@ function buildLine(font,line,index,lightsOn) {
     const depth=12;
     const geometry=new THREE.ExtrudeGeometry(shapes,{depth,bevelEnabled:false,curveSegments:10,steps:1});
     geometry.computeBoundingBox();
-    if (geometry.boundingBox) geometry.translate(0,-(geometry.boundingBox.min.y+geometry.boundingBox.max.y)/2,0);
+    const midpoint=(geometry.boundingBox.min.y+geometry.boundingBox.max.y)/2;
+    geometry.translate(0,-midpoint,0);
     // ExtrudeGeometry combines the two caps into one material group. Split
     // them so only the front emits light; the white rear cap represents the
     // PVC back visually, without claiming an exact manufacturing thickness.
@@ -106,6 +107,12 @@ function buildLine(font,line,index,lightsOn) {
     const side=new THREE.MeshPhongMaterial({color:line.side_colour === null ? new THREE.Color(line.colour).multiplyScalar(.55) : new THREE.Color(line.side_colour),...finish(line.side_finish,22)});
     const back=new THREE.MeshPhongMaterial({color:0xeeeeee,shininess:8,specular:0x080808});
     group.add(new THREE.Mesh(geometry,[front,side,back]));
+    const outlines=shapes.flatMap(shape=>{
+      const {shape:outer,holes}=shape.extractPoints(10);
+      return [outer,...holes];
+    });
+    const spill=faceGlow(outlines,line.colour,-.05,true);
+    if(spill){spill.position.y-=midpoint;spill.visible=lightsOn;group.add(spill);}
   }
   group.position.set(width*line.x/100,-(index*LINE_HEIGHT+LINE_HEIGHT*line.y/100),0);
   group.rotation.z=-line.rotation*Math.PI/180;
@@ -171,19 +178,19 @@ export function buildLetter3DTechnicalModel(plan,rawLines,clipper,{lightsOn=true
 }
 
 /** Soft, approximate face-only glow. It is not a measurement of film transmission. */
-function faceGlow(contours, colour, z) {
+function faceGlow(contours, colour, z, wallSpill = false) {
   if (typeof document === 'undefined' || !Array.isArray(contours) || !contours.length) return null;
   let left=Infinity,right=-Infinity,bottom=Infinity,top=-Infinity;
   for(const contour of contours)for(const p of contour){left=Math.min(left,p.x);right=Math.max(right,p.x);bottom=Math.min(bottom,p.y);top=Math.max(top,p.y);}
   const w=right-left,h=top-bottom;if (!(w>0&&h>0)) return null;
-  const scale=Math.min(768/w,384/h),pad=44;
+  const scale=Math.min(768/w,384/h),blur=wallSpill ? 30 : 13,pad=Math.ceil(blur*3);
   const canvas=document.createElement('canvas');canvas.width=Math.max(2,Math.ceil(w*scale)+2*pad);canvas.height=Math.max(2,Math.ceil(h*scale)+2*pad);
   const ctx=canvas.getContext('2d');if(!ctx)return null;
-  ctx.filter='blur(13px)';ctx.fillStyle=colour;ctx.globalAlpha=.8;ctx.beginPath();
+  ctx.filter='blur('+blur+'px)';ctx.fillStyle=colour;ctx.globalAlpha=wallSpill ? 1 : .8;ctx.beginPath();
   for(const contour of contours){contour.forEach((p,i)=>{const x=pad+(p.x-left)*scale,y=pad+(top-p.y)*scale;if(i)ctx.lineTo(x,y);else ctx.moveTo(x,y)});ctx.closePath();}
   ctx.fill('evenodd');
   const texture=new THREE.CanvasTexture(canvas);texture.colorSpace=THREE.SRGBColorSpace;
-  const material=new THREE.MeshBasicMaterial({map:texture,transparent:true,opacity:.80,depthWrite:false,depthTest:true,side:THREE.DoubleSide});
+  const material=new THREE.MeshBasicMaterial({map:texture,transparent:true,opacity:wallSpill ? .52 : .80,depthWrite:false,depthTest:true,side:wallSpill ? THREE.FrontSide : THREE.DoubleSide});
   const mesh=new THREE.Mesh(new THREE.PlaneGeometry(canvas.width/scale,canvas.height/scale),material);
   mesh.position.set((left+right)/2,(bottom+top)/2,z);mesh.renderOrder=10;mesh.userData.letterGlow=true;return mesh;
 }
@@ -206,6 +213,8 @@ export function buildLetter3DSignModel(plan,rawLines,clipper,{totalDepthMm,backT
       backGeometry.translate(0,0,assembled.rear_z_mm);
       const pvc=new THREE.Mesh(backGeometry,new THREE.MeshPhongMaterial({color:0xf3f3f0,shininess:8}));pvc.userData.letterBack=true;pvc.visible=!!backVisible;group.add(pvc);
       const glow=faceGlow(raw.face,line.colour,acrylic.face_thickness_mm+.02);if(glow){glow.visible=!!lightsOn;group.add(glow);}
+      const spill=faceGlow(raw.face,line.colour,assembled.rear_z_mm+.05,true);
+      if(spill){spill.visible=!!lightsOn;spill.renderOrder=5;group.add(spill);}
     }
     if(assembled.backboard.shape==='rectangle') {
       const board=assembled.backboard,bounds=plan.bounds_mm;
