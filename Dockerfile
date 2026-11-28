@@ -6,7 +6,7 @@ RUN apt-get update \
     && docker-php-ext-configure gd --with-jpeg --with-webp \
     && docker-php-ext-install -j"$(nproc)" gd \
     && rm -rf /var/lib/apt/lists/* \
-    && a2enmod rewrite headers expires deflate \
+    && a2enmod rewrite headers expires deflate proxy proxy_http \
     && mv "$PHP_INI_DIR/php.ini-production" "$PHP_INI_DIR/php.ini"
 WORKDIR /var/www/html
 COPY index.php .htaccess robots.txt sitemap.xml favicon.ico ./
