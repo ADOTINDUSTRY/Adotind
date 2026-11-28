@@ -99,7 +99,8 @@ final class StPrep
                 $img = $smaller;
             }
             $keepEdge = !$lines && ($s['mode'] ?? '') === 'precise';
-            $mask = self::solidMask($img,$sw,$sh,$s['threshold'],$keepEdge);
+            $mask = self::solidMask($img,$sw,$sh,$s['threshold'],$keepEdge,
+                $pixelMode ? 0 : max(1, (int)round((255-$cutoff)*0.18)));
             if (!imagepng($mask,$dest,1)) {
                 self::$lastError = 'Could not write the prepared silhouette.';
                 return null;
@@ -209,7 +210,7 @@ final class StPrep
     }
 
     /** Interpolate fractional coverage and return a black-on-white tracing mask. */
-    private static function solidMask(\GdImage $src,int $sw,int $sh,int $threshold,bool $keepEdge): \GdImage
+    private static function solidMask(\GdImage $src,int $sw,int $sh,int $threshold,bool $keepEdge,int $maxToneShift): \GdImage
     {
         $w=imagesx($src); $h=imagesy($src);
         $mask=imagecreatetruecolor($sw,$sh);
@@ -218,13 +219,42 @@ final class StPrep
             $at=max(0,min($w-1,($x+.5)*$w/$sw-.5));
             $left[$x]=(int)$at; $right[$x]=min($w-1,$left[$x]+1); $frac[$x]=$at-$left[$x];
         }
-        $rows=[];
+        $rows=[]; $samples=[];
         for ($y=0;$y<$sh;$y++) {
             $at=max(0,min($h-1,($y+.5)*$h/$sh-.5)); $top=(int)$at; $bottom=min($h-1,$top+1);
             foreach ([$top,$bottom] as $iy) if (!isset($rows[$iy])) {
-                $row=[];
-                for ($x=0;$x<$w;$x++) $row[]=imagecolorat($src,$x,$iy)&255;
+                // Filter coverage before enlargement. Limit the correction to a fraction
+                // of the ink/paper contrast and preserve each source sample's polarity.
+                // This keeps a narrow tip, counter or dot from being blurred through.
+                $first=$maxToneShift ? max(0,$iy-1) : $iy;
+                $last=$maxToneShift ? min($h-1,$iy+1) : $iy;
+                for ($sy=$first;$sy<=$last;$sy++) if (!isset($samples[$sy])) {
+                    $scan=[];
+                    for ($x=0;$x<$w;$x++) $scan[]=imagecolorat($src,$x,$sy)&255;
+                    $samples[$sy]=$scan;
+                }
+                $row=$samples[$iy];
+                if ($maxToneShift) {
+                    $above=$samples[$first]; $middle=$samples[$iy]; $below=$samples[$last];
+                    for ($x=0;$x<$w;$x++) {
+                        $l=max(0,$x-1); $r=min($w-1,$x+1); $v=$middle[$x];
+                        // Smooth along the edge. Blurring across the normal would
+                        // pull ink out of the narrowest parts of script lettering.
+                        $gx=$middle[$r]-$middle[$l]; $gy=$below[$x]-$above[$x];
+                        if (abs($gx)>2*abs($gy)) {
+                            $pair=$above[$x]+$below[$x];
+                        } elseif (abs($gy)>2*abs($gx)) {
+                            $pair=$middle[$l]+$middle[$r];
+                        } else {
+                            $pair=$gx*$gy>0 ? $above[$r]+$below[$l] : $above[$l]+$below[$r];
+                        }
+                        $smooth=($pair+6*$v+4) >> 3;
+                        $v2=max($v-$maxToneShift,min($v+$maxToneShift,$smooth));
+                        $row[$x]=$v<$threshold ? min($threshold-1,$v2) : max($threshold,$v2);
+                    }
+                }
                 $rows[$iy]=$row;
+                unset($samples[$iy-2]);
             }
             $u=$rows[$top]; $v=$rows[$bottom]; $wy=$at-$top;
             for ($x=0;$x<$sw;$x++) {

@@ -63,7 +63,7 @@ $slider = static function (string $name, array $s): void { ?>
         </select>
       </label>
 
-      <small class="muted" data-only="solid" hidden>Creates one solid ink colour from the image. Use Logo / flat colours to keep separate colours.</small>
+      <small class="muted" data-only="solid" hidden>Tracing automatically cleans the bitmap edges before fitting the curves. Use Logo / flat colours to keep separate colours.</small>
       <div class="field">
         <span>Output</span>
         <div class="seg seg-out" role="group" aria-label="Output">

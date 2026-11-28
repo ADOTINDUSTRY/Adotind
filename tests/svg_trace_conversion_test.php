@@ -76,7 +76,41 @@ try {
         }
         if ($fractional !== ($output==='fill')) throw new RuntimeException("Unexpected edge coverage for $output.");
     }
-    echo "Logo, centreline, fractional outline edges, transparency, pale ink and counters passed.\n";
+    // At native scale, a tonal spike along a vertical edge should be damped
+    // without flipping either an isolated ink sample or a pinhole in the ink.
+    $image = imagecreatetruecolor(3000,40);
+    imagefill($image,0,0,0xffffff);
+    imagefilledrectangle($image,10,5,39,34,0);
+    imagefilledrectangle($image,40,5,40,34,0x686868);
+    imagesetpixel($image,40,20,0x787878);
+    imagesetpixel($image,24,18,0xffffff);
+    imagesetpixel($image,54,20,0);
+    imagepng($image,$source);
+    $settings = StEngine::normaliseSettings(['preset'=>'solid']);
+    $prep = StPrep::prepare($source,$png,$settings);
+    $mask = imagecreatefrompng($png);
+    $step = (imagecolorat($mask,40,20)&255) - (imagecolorat($mask,40,19)&255);
+    if ($prep['scale'] !== 1.0 || $step < 1 || $step >= 32 ||
+        (imagecolorat($mask,24,18)&255)<128 || (imagecolorat($mask,54,20)&255)>=128) {
+        throw new RuntimeException('Tone cleanup lost a detail or failed to damp the edge spike.');
+    }
+    // The colour preset must continue to prepare separate inks including
+    // a sharp triangular corner and an opening cut into the triangle.
+    $image = imagecreatetruecolor(96,80);
+    imagefill($image,0,0,0xffffff);
+    imagefilledpolygon($image,[8,64,32,8,56,64],0xff0000);
+    imagefilledrectangle($image,29,34,35,40,0xffffff);
+    imagefilledrectangle($image,64,16,84,60,0x0000ff);
+    imagepng($image,$source);
+    $settings = StEngine::normaliseSettings(['preset'=>'logo','remove_bg'=>0]);
+    $prep = StPrep::prepare($source,$png,$settings);
+    $mask = imagecreatefrompng($png);
+    $sample = static fn(int $x,int $y):int => imagecolorat($mask,(int)(($x+.5)*$prep['scale']),(int)(($y+.5)*$prep['scale']))&0xffffff;
+    $red=$sample(30,55); $blue=$sample(70,30); $paper=$sample(3,3);
+    if (count(array_unique([$red,$blue,$paper]))!==3 || $sample(32,12)!==$red || $sample(32,37)!==$paper) {
+        throw new RuntimeException('Colour logo lost an ink, corner or opening.');
+    }
+    echo "Logo, centreline, fractional edges, tone cleanup, separate inks, corners and counters passed.\n";
 } finally {
     foreach ([$source, $png, $svg] as $path) if (is_file($path)) unlink($path);
     rmdir($dir);

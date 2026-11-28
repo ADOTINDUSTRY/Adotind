@@ -85,8 +85,8 @@ final class StShapes
             $p['corner'] = max(48.0, $p['corner']);
             $p['reach'] = max(2.0, 1.2*$scale);
             $p['snap'] = .45;
-            $p['ctol'] = max(.45, .24*$scale)*max(1.0, $s['segment_length']/3.5);
-            $p['smooth'] = max(1,(int)round($scale*.7));
+            $p['ctol'] = max(.45, .25*$scale)*max(1.0, $s['segment_length']/3.5);
+            $p['smooth'] = 1;
             $p['compact'] = true;
         }
         $prec = max(0, min(3, (int)($s['path_precision'] ?? 2)));
@@ -637,16 +637,29 @@ final class StShapes
                 $segs[] = $arc;
                 continue;
             }
-            self::fitGreedy($sub, $ta, $tb, $tol, $segs);
+            self::fitGreedy($sub, $ta, $tb, $tol, $segs, !empty($p['compact']));
         }
         // On script lettering a horizontal or vertical extremum often lies inside
         // a perfectly good cubic. Try fitting across it at the same edge tolerance.
         if ($cuts && !empty($p['compact']) && count($segs)-$firstSegment > 1) {
             $alternative = [];
-            self::fitGreedy($pts,$t1,$t2,$tol,$alternative);
+            self::fitGreedy($pts,$t1,$t2,$tol,$alternative,true);
             if (count($alternative) < count($segs)-$firstSegment &&
                 $alternative && end($alternative)[4] === $pts[$last]) {
                 array_splice($segs,$firstSegment,null,$alternative);
+            }
+        }
+        // Greedy fitting is directional. A taper often fits in fewer pieces
+        // starting at its thin end. Keep the same tolerance and end tangents.
+        if (!empty($p['compact']) && count($segs)-$firstSegment > 1) {
+            $backward = [];
+            self::fitGreedy(array_reverse($pts),$t2,$t1,$tol,$backward,true);
+            if ($backward && end($backward)[4] === $pts[0] && count($backward) < count($segs)-$firstSegment) {
+                $forward = [];
+                foreach (array_reverse($backward) as [, $end, $handle2, $handle1, $start]) {
+                    $forward[] = ['C', $start, $handle1, $handle2, $end];
+                }
+                array_splice($segs,$firstSegment,null,$forward);
             }
         }
     }
@@ -655,14 +668,13 @@ final class StShapes
      * As few cubics as possible: each one runs as far along the points as a single
      * curve can follow within $tol, and joins the next one smoothly.
      */
-    private static function fitGreedy(array $d, array $t1, array $t2, float $tol, array &$segs): void
+    private static function fitGreedy(array $d, array $t1, array $t2, float $tol, array &$segs, bool $refineHandles = false): void
     {
         $last = count($d) - 1;
         $err2 = $tol * $tol;
         $i = 0;
         $tin = $t1;
-        $guard = 0;
-        while ($i < $last && $guard++ < 1000) {
+        while ($i < $last) {
             $tanAt = static function (int $j) use ($d, $last, $t2): array {
                 if ($j >= $last) {
                     return $t2;
@@ -695,6 +707,20 @@ final class StShapes
                 $p3 = $d[$bestJ];
                 $dist = hypot($p3[0] - $p0[0], $p3[1] - $p0[1]) / 3;
                 $best = [$p0, self::add($p0, $tin, $dist), self::add($p3, $tanAt($bestJ), $dist), $p3];
+            } elseif ($refineHandles && $bestJ-$i > 3) {
+                // Once the segment endpoints are chosen, refine the two handles.
+                // Keep a candidate only if its worst sampled edge error decreases.
+                $u = self::chordParams($d,$i,$bestJ);
+                $u = self::reparam($d,$i,$bestJ,$u,$best);
+                [$error] = self::maxError($d,$i,$bestJ,$best,$u);
+                for ($pass=0;$pass<3;$pass++) {
+                    $candidate = self::generate($d,$i,$bestJ,$u,$tin,$tanAt($bestJ));
+                    $u = self::reparam($d,$i,$bestJ,$u,$candidate);
+                    [$nextError] = self::maxError($d,$i,$bestJ,$candidate,$u);
+                    if ($nextError >= min($err2,$error)) break;
+                    $best=$candidate;
+                    $error=$nextError;
+                }
             }
             $segs[] = ['C', ...$best];
             $tin = self::neg($tanAt($bestJ));
