@@ -126,7 +126,10 @@ $trackingEnabled = is_writable('/var/www/site-tracking') && $isPublicPage;
     ?>
     <script type="application/json" id="neon-assets"><?= json_encode($neonFiles, JSON_THROW_ON_ERROR | JSON_HEX_TAG) ?></script>
     <?php endif; ?>
-    <?php if ($isPublicPage): ?><script src="/public/assets/js/quote-assistant.js?v=<?= e((string)filemtime(__DIR__ . '/../../public/assets/js/quote-assistant.js')) ?>" defer></script><?php endif; ?>
+    <?php if ($isPublicPage): ?>
+    <script src="/public/assets/js/quote-assistant.js?v=<?= e((string)filemtime(__DIR__ . '/../../public/assets/js/quote-assistant.js')) ?>" defer></script>
+    <script type="module" src="/public/assets/js/quote-assistant-3d.js?v=<?= e((string)filemtime(__DIR__ . '/../../public/assets/js/quote-assistant-3d.js')) ?>"></script>
+    <?php endif; ?>
     <?php if ($trackingEnabled): ?>
     <?php $trackingPageSlug = $page['service']['slug'] ?? $page['project']['slug'] ?? ''; ?>
     <dialog id="tracking-consent-banner" class="tracking-consent-banner" data-site-tracking="<?= e($page['view'] ?? '') ?>" data-testing="<?= !empty($_SESSION['online_quote_unlocked']) || !empty($_SESSION['report_preview']) ? '1' : '0' ?>" data-tracking-page-slug="<?= e($trackingPageSlug) ?>" aria-labelledby="tracking-consent-title" aria-describedby="tracking-consent-description">
